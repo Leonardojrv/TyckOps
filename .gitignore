@@ -1,0 +1,55 @@
+# ===== Secretos (NUNCA subir) =====
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.keystore
+*.jks
+key.properties
+
+# Firebase: llaves del proyecto
+google-services.json
+GoogleService-Info.plist
+firebase_options.dart
+
+# ===== Flutter / Dart (mobile/) =====
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+*.iml
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/app/debug/
+mobile/android/app/profile/
+mobile/android/app/release/
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/ios/Flutter/Flutter.framework
+mobile/ios/Flutter/Generated.xcconfig
+mobile/ios/Flutter/flutter_export_environment.sh
+
+# ===== Node.js (backend/) =====
+node_modules/
+npm-debug.log*
+yarn-error.log*
+dist/
+uploads/
+
+# ===== Base de datos / Docker =====
+pgdata/
+*.sql.gz
+
+# ===== Sistema y editores =====
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
