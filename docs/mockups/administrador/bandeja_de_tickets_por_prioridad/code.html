@@ -1,0 +1,237 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"><meta content="mobile_tab" name="shell-type"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet"><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "surface-container-low": "#f5f3f3", "on-error-container": "#93000a", "tertiary-container": "#8e6a00", "inverse-primary": "#ffb3ad", "background": "#faf9f9", "on-primary-container": "#fff2f1", "tertiary": "#705300", "surface-container-lowest": "#ffffff", "surface-variant": "#e3e2e2", "surface": "#faf9f9", "tertiary-fixed-dim": "#f9bd14", "secondary-fixed-dim": "#c8c6c5", "surface-container-high": "#e9e8e8", "primary-container": "#d7282f", "on-background": "#1b1c1c", "primary": "#b3011a", "primary-fixed": "#ffdad7", "error-container": "#ffdad6", "primary-fixed-dim": "#ffb3ad", "on-secondary-fixed": "#1c1b1b", "on-tertiary-fixed": "#251a00", "on-secondary-container": "#656464", "outline-variant": "#e5bdba", "surface-bright": "#faf9f9", "on-tertiary-container": "#fff3e1", "on-surface-variant": "#5c403d", "inverse-surface": "#303031", "secondary-container": "#e5e2e1", "error": "#ba1a1a", "surface-container": "#efeded", "outline": "#906f6c", "on-primary-fixed-variant": "#930013", "on-tertiary-fixed-variant": "#5b4300", "on-primary-fixed": "#410004", "tertiary-fixed": "#ffdf9d", "inverse-on-surface": "#f2f0f0", "on-secondary-fixed-variant": "#474646", "secondary-fixed": "#e5e2e1", "on-surface": "#1b1c1c", "surface-container-highest": "#e3e2e2", "secondary": "#5f5e5e", "on-primary": "#ffffff", "on-error": "#ffffff", "surface-tint": "#bd0f20", "on-tertiary": "#ffffff", "surface-dim": "#dbdad9", "on-secondary": "#ffffff" }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, spacing: { "space-xs": "0.25rem", "margin": "1rem", "space-lg": "1.5rem", "space-sm": "0.5rem", "space-md": "1rem", "space-xl": "2rem", "gutter": "1rem" }, fontFamily: { "headline-lg": ["Inter"], "headline-sm": ["Inter"], "label-sm": ["Inter"], "body-lg": ["Inter"], "body-sm": ["Inter"], "label-md": ["Inter"], "label-lg": ["Inter"], "headline-lg-mobile": ["Inter"], "body-md": ["Inter"], "headline-md": ["Inter"] }, fontSize: { "headline-lg": ["28px", { "lineHeight": "34px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "headline-sm": ["18px", { "lineHeight": "24px", "fontWeight": "600" }], "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "700" }], "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }], "body-sm": ["12px", { "lineHeight": "16px", "fontWeight": "400" }], "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }], "label-lg": ["15px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600" }], "headline-lg-mobile": ["24px", { "lineHeight": "30px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }], "headline-md": ["20px", { "lineHeight": "26px", "letterSpacing": "-0.01em", "fontWeight": "600" }] } } } };</script><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-body-md text-on-surface flex flex-col min-h-screen selection:bg-primary selection:text-on-primary"><header class="fixed top-0 inset-x-0 z-50 bg-surface/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] pt-safe"><div class="h-16 px-margin flex items-center justify-between"><div class="flex items-center gap-space-sm"><div class="flex flex-col"><span class="font-label-sm text-label-sm uppercase tracking-wider text-secondary">Servicios Generales</span><span class="font-headline-sm text-headline-sm text-on-surface font-bold leading-tight">Bandeja De Tickets</span></div></div><div class="flex items-center"><span class="px-3 py-1 rounded-full bg-surface-container-low text-on-surface font-bold text-label-sm uppercase tracking-wider">ADMIN</span></div></div></header><main class="flex-1 flex flex-col relative w-full px-margin pt-16 pb-24 bg-surface"><div class="flex flex-col w-full pb-6 space-y-space-md"><!-- Filtros superiores de tipo de ticket -->
+
+
+<!-- Filtros de estado deslizables -->
+<div class="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-margin px-margin">
+  <button class="px-2.5 py-1 rounded-full bg-surface-container-highest text-on-surface font-label-sm text-label-sm whitespace-nowrap font-semibold" type="button">
+    Todos los estados (7)
+  </button>
+  <button class="px-2.5 py-1 rounded-full bg-surface-container-low text-secondary hover:text-on-surface font-label-sm text-label-sm whitespace-nowrap font-medium" type="button">
+    En revisión (2)
+  </button>
+  <button class="px-2.5 py-1 rounded-full bg-surface-container-low text-secondary hover:text-on-surface font-label-sm text-label-sm whitespace-nowrap font-medium" type="button">
+    Recibido (1)
+  </button>
+  <button class="px-2.5 py-1 rounded-full bg-surface-container-low text-secondary hover:text-on-surface font-label-sm text-label-sm whitespace-nowrap font-medium" type="button">
+    En proceso (2)
+  </button>
+  <button class="px-2.5 py-1 rounded-full bg-surface-container-low text-secondary hover:text-on-surface font-label-sm text-label-sm whitespace-nowrap font-medium" type="button">
+    Aprobado (2)
+  </button>
+</div>
+
+<!-- Banner de orden y gestión operacional -->
+<div class="flex items-center justify-between bg-surface-container-low p-2.5 rounded-xl text-on-surface-variant font-body-sm text-body-sm">
+  <div class="flex items-center gap-1.5 min-w-0">
+    <span class="material-symbols-outlined text-primary text-[18px]">sort</span>
+    <span class="font-medium truncate">Ordenado por: Mayor prioridad primero ↓</span>
+  </div>
+  <span class="font-label-sm text-label-sm text-secondary whitespace-nowrap font-semibold ml-2">4 tickets visibles</span>
+</div>
+
+<!-- Card 1: ID #REP-0482 (Urgente / Reparación / En revisión) -->
+<article class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm relative overflow-hidden transition-transform active:scale-[0.99]">
+  <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-primary"></div>
+  <div class="flex flex-col space-y-3 pl-1.5">
+    <div class="flex items-center justify-between gap-2">
+      <div class="flex items-center gap-space-xs min-w-0">
+        <span class="material-symbols-outlined text-primary text-[18px]">build</span>
+        <span class="font-label-md text-label-md text-secondary">#REP-0482</span>
+        <span class="text-outline-variant font-label-sm">•</span>
+        <span class="font-label-sm text-label-sm text-secondary uppercase font-semibold">REPARACIÓN</span>
+      </div>
+      <span class="px-2.5 py-1 rounded-full bg-surface-container-highest text-on-surface font-label-sm text-label-sm whitespace-nowrap font-semibold">
+        En revisión
+      </span>
+    </div>
+    <h2 class="font-headline-sm text-headline-sm text-on-surface font-bold leading-snug">
+      Falla eléctrica cortadora de cable - Taller Central
+    </h2>
+    <div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm bg-surface-container-low p-2.5 rounded-lg">
+      <span class="material-symbols-outlined text-[18px] text-secondary">badge</span>
+      <span class="truncate"><strong class="font-semibold text-on-surface">Rodrigo Palma</strong> · Logística y Distribución</span>
+    </div>
+    <div class="flex items-center justify-between pt-1">
+      <div class="flex items-center gap-space-xs">
+        <span class="inline-flex items-center gap-1 bg-primary text-on-primary px-2.5 py-0.5 rounded-full font-label-sm text-label-sm shadow-sm font-semibold">
+          <span class="material-symbols-outlined text-[14px]" style="font-variation-settings: &quot;FILL&quot; 1;">error</span>
+          Urgente
+        </span>
+        <span class="font-body-sm text-body-sm text-secondary flex items-center gap-1 ml-1">
+          <span class="material-symbols-outlined text-[14px]">schedule</span>
+          Hoy 09:15 hrs
+        </span>
+      </div>
+      <button aria-label="Gestionar ticket #REP-0482" class="w-10 h-10 rounded-full bg-surface-container hover:bg-primary hover:text-on-primary text-on-surface flex items-center justify-center transition-colors min-w-[40px] min-h-[40px]" type="button">
+        <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+      </button>
+    </div>
+  </div>
+</article>
+
+<!-- Card 2: ID #REP-0481 (Urgente / Reparación / Recibido) -->
+<article class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm relative overflow-hidden transition-transform active:scale-[0.99]">
+  <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-primary"></div>
+  <div class="flex flex-col space-y-3 pl-1.5">
+    <div class="flex items-center justify-between gap-2">
+      <div class="flex items-center gap-space-xs min-w-0">
+        <span class="material-symbols-outlined text-primary text-[18px]">build</span>
+        <span class="font-label-md text-label-md text-secondary">#REP-0481</span>
+        <span class="text-outline-variant font-label-sm">•</span>
+        <span class="font-label-sm text-label-sm text-secondary uppercase font-semibold">REPARACIÓN</span>
+      </div>
+      <span class="px-2.5 py-1 rounded-full bg-secondary-container text-on-secondary-container font-label-sm text-label-sm whitespace-nowrap font-semibold">
+        Recibido
+      </span>
+    </div>
+    <h2 class="font-headline-sm text-headline-sm text-on-surface font-bold leading-snug">
+      Fuga de agua en red de baños subterráneo
+    </h2>
+    <div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm bg-surface-container-low p-2.5 rounded-lg">
+      <span class="material-symbols-outlined text-[18px] text-secondary">badge</span>
+      <span class="truncate"><strong class="font-semibold text-on-surface">Carla Mendoza</strong> · Operaciones</span>
+    </div>
+    <div class="flex items-center justify-between pt-1">
+      <div class="flex items-center gap-space-xs">
+        <span class="inline-flex items-center gap-1 bg-primary text-on-primary px-2.5 py-0.5 rounded-full font-label-sm text-label-sm shadow-sm font-semibold">
+          <span class="material-symbols-outlined text-[14px]" style="font-variation-settings: &quot;FILL&quot; 1;">error</span>
+          Urgente
+        </span>
+        <span class="font-body-sm text-body-sm text-secondary flex items-center gap-1 ml-1">
+          <span class="material-symbols-outlined text-[14px]">schedule</span>
+          Ayer 15:30 hrs
+        </span>
+      </div>
+      <button aria-label="Gestionar ticket #REP-0481" class="w-10 h-10 rounded-full bg-surface-container hover:bg-primary hover:text-on-primary text-on-surface flex items-center justify-center transition-colors min-w-[40px] min-h-[40px]" type="button">
+        <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+      </button>
+    </div>
+  </div>
+</article>
+
+<!-- Card 3: ID #REP-0480 (Alta / Reparación / En proceso) -->
+<article class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm relative overflow-hidden transition-transform active:scale-[0.99]">
+  <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-tertiary-fixed-dim"></div>
+  <div class="flex flex-col space-y-3 pl-1.5">
+    <div class="flex items-center justify-between gap-2">
+      <div class="flex items-center gap-space-xs min-w-0">
+        <span class="material-symbols-outlined text-tertiary text-[18px]">build</span>
+        <span class="font-label-md text-label-md text-secondary">#REP-0480</span>
+        <span class="text-outline-variant font-label-sm">•</span>
+        <span class="font-label-sm text-label-sm text-secondary uppercase font-semibold">REPARACIÓN</span>
+      </div>
+      <span class="px-2.5 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm whitespace-nowrap font-medium">
+        En proceso
+      </span>
+    </div>
+    <h2 class="font-headline-sm text-headline-sm text-on-surface font-bold leading-snug">
+      Aire acondicionado sala de reuniones goteando
+    </h2>
+    <div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm bg-surface-container-low p-2.5 rounded-lg">
+      <span class="material-symbols-outlined text-[18px] text-secondary">badge</span>
+      <span class="truncate"><strong class="font-semibold text-on-surface">Esteban Morales</strong> · Soporte Técnico</span>
+    </div>
+    <div class="flex items-center justify-between pt-1">
+      <div class="flex items-center gap-space-xs">
+        <span class="inline-flex items-center gap-1 bg-tertiary-container text-on-tertiary-container px-2.5 py-0.5 rounded-full font-label-sm text-label-sm font-semibold">
+          <span class="material-symbols-outlined text-[14px]">arrow_upward</span>
+          Alta
+        </span>
+        <span class="font-body-sm text-body-sm text-secondary flex items-center gap-1 ml-1">
+          <span class="material-symbols-outlined text-[14px]">calendar_today</span>
+          14 Oct
+        </span>
+      </div>
+      <button aria-label="Gestionar ticket #REP-0480" class="w-10 h-10 rounded-full bg-surface-container hover:bg-primary hover:text-on-primary text-on-surface flex items-center justify-center transition-colors min-w-[40px] min-h-[40px]" type="button">
+        <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+      </button>
+    </div>
+  </div>
+</article>
+
+<!-- Card 4: ID #REP-0478 (Normal / Reparación / Aprobado) -->
+<article class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm relative overflow-hidden transition-transform active:scale-[0.99]">
+  <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-surface-variant"></div>
+  <div class="flex flex-col space-y-3 pl-1.5">
+    <div class="flex items-center justify-between gap-2">
+      <div class="flex items-center gap-space-xs min-w-0">
+        <span class="material-symbols-outlined text-secondary text-[18px]">build</span>
+        <span class="font-label-md text-label-md text-secondary">#REP-0478</span>
+        <span class="text-outline-variant font-label-sm">•</span>
+        <span class="font-label-sm text-label-sm text-secondary uppercase font-semibold">REPARACIÓN</span>
+      </div>
+      <span class="px-2.5 py-1 rounded-full bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm whitespace-nowrap font-medium">
+        Aprobado
+      </span>
+    </div>
+    <h2 class="font-headline-sm text-headline-sm text-on-surface font-bold leading-snug">
+      Reparación de cerradura puerta acceso principal
+    </h2>
+    <div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm bg-surface-container-low p-2.5 rounded-lg">
+      <span class="material-symbols-outlined text-[18px] text-secondary">badge</span>
+      <span class="truncate"><strong class="font-semibold text-on-surface">Marcos Silva</strong> · Seguridad</span>
+    </div>
+    <div class="flex items-center justify-between pt-1">
+      <div class="flex items-center gap-space-xs">
+        <span class="inline-flex items-center bg-secondary-container text-on-secondary-container px-2.5 py-0.5 rounded-full font-label-sm text-label-sm font-semibold">
+          Normal
+        </span>
+        <span class="font-body-sm text-body-sm text-secondary flex items-center gap-1 ml-1">
+          <span class="material-symbols-outlined text-[14px]">calendar_today</span>
+          13 Oct
+        </span>
+      </div>
+      <button aria-label="Gestionar ticket #REP-0478" class="w-10 h-10 rounded-full bg-surface-container hover:bg-primary hover:text-on-primary text-on-surface flex items-center justify-center transition-colors min-w-[40px] min-h-[40px]" type="button">
+        <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+      </button>
+    </div>
+  </div>
+</article>
+
+<!-- Botón flotante de acción rápida Generar ticket -->
+<div class="pt-2">
+  <button class="w-full py-3 px-4 bg-primary hover:bg-primary-container text-on-primary font-label-lg text-label-lg font-semibold rounded-xl flex items-center justify-center gap-2 shadow-sm transition-colors" type="button">
+    <span class="material-symbols-outlined text-[20px]">add</span>
+    Generar ticket
+  </button>
+</div></div>
+<script>
+  // Dynamic Tab highlight alignment for shell navbar
+  document.addEventListener('DOMContentLoaded', () => {
+    const navItems = document.querySelectorAll('nav a');
+    navItems.forEach(item => {
+      const isTickets = item.getAttribute('data-path') === 'bandeja-de-tickets';
+      if (isTickets) {
+        item.classList.add('text-primary', 'font-bold');
+        item.classList.remove('text-secondary');
+        const icon = item.querySelector('.material-symbols-outlined');
+        if (icon) {
+          icon.style.fontVariationSettings = "'FILL' 1";
+        }
+      }
+    });
+  });
+</script></main><nav class="fixed bottom-0 inset-x-0 z-50 pb-safe bg-white border-t border-gray-200 shadow-[0_-4px_16px_rgba(17,17,17,0.06)]"><div class="flex justify-around items-center h-16 px-2 w-full"><a class="flex flex-col items-center justify-center min-w-[56px] min-h-[48px] py-1 text-secondary transition-colors relative hover:text-on-surface flex-1" data-path="inicio" href="#"><svg fill="none" height="24" stroke="#8A8A8A" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" viewBox="0 0 24 24" width="24"><path d="M3.75 10.5L10.7 4.28a1.95 1.95 0 0 1 2.6 0l6.95 6.22c.48.43.75 1.05.75 1.7v6.8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6.8c0-.65.27-1.27.75-1.7z"></path><path d="M9.5 21v-5.5a1.5 1.5 0 0 1 1.5-1.5h2a1.5 1.5 0 0 1 1.5 1.5V21"></path></svg><span class="font-['Inter'] text-[11px] leading-[14px] mt-0.5 text-[#8A8A8A]">Inicio</span></a><a aria-current="page" class="flex flex-col items-center justify-center min-w-[56px] min-h-[48px] py-1 transition-colors relative text-primary font-bold flex-1" data-path="bandeja-de-tickets" href="#"><div class="relative flex items-center justify-center px-4 py-1.5 rounded-full bg-[rgba(215,40,47,0.12)]"><svg fill="rgba(215, 40, 47, 0.12)" height="24" stroke="#D7282F" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" viewBox="0 0 24 24" width="24"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V6z"></path><line stroke="#D7282F" x1="8" x2="13" y1="8" y2="8"></line><line stroke="#D7282F" x1="8" x2="12" y1="11.5" y2="11.5"></line><polyline fill="none" points="14 15 15.5 16.5 18.5 13.5" stroke="#D7282F"></polyline></svg><span class="absolute -top-1 -right-2 bg-[#D7282F] text-white font-bold px-1.5 py-0.2 rounded-full min-w-[16px] h-4 flex items-center justify-center text-[10px] leading-none shadow-sm">3</span></div><span class="font-['Inter'] text-[11px] leading-[14px] font-semibold mt-0.5 text-[#D7282F]">Tickets</span></a><a class="flex flex-col items-center justify-center min-w-[56px] min-h-[48px] py-1 text-secondary transition-colors relative hover:text-on-surface flex-1" data-path="dashboard-metricas" href="#"><svg fill="none" height="24" stroke="#8A8A8A" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" viewBox="0 0 24 24" width="24"><rect height="7" rx="2" width="7" x="3.5" y="3.5"></rect><circle cx="7" cy="7" r="1.5"></circle><rect height="7" rx="2" width="7" x="13.5" y="3.5"></rect><rect height="7" rx="2" width="7" x="3.5" y="13.5"></rect><rect height="7" rx="2" width="7" x="13.5" y="13.5"></rect><line stroke="#8A8A8A" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" x1="15.5" x2="15.5" y1="18.5" y2="17"></line><line stroke="#8A8A8A" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" x1="17" x2="17" y1="18.5" y2="15.5"></line><line stroke="#8A8A8A" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" x1="18.5" x2="18.5" y1="18.5" y2="14"></line></svg><span class="font-['Inter'] text-[11px] leading-[14px] mt-0.5 text-[#8A8A8A]">Dashboard</span></a></div></nav>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</body></html>
