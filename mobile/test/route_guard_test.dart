@@ -26,6 +26,26 @@ void main() {
       expect(redirectFor(loggedIn: true, role: UserRole.admin, location: Routes.workerTickets), Routes.adminHome);
     });
 
+    test('en primer acceso solo se puede estar en esa pantalla (RF-02)', () {
+      expect(
+        redirectFor(loggedIn: true, role: UserRole.worker, location: Routes.login, needsFirstAccess: true),
+        Routes.firstAccess,
+      );
+      expect(
+        redirectFor(loggedIn: true, role: UserRole.worker, location: Routes.workerHome, needsFirstAccess: true),
+        Routes.firstAccess,
+      );
+      expect(
+        redirectFor(loggedIn: true, role: UserRole.worker, location: Routes.firstAccess, needsFirstAccess: true),
+        isNull,
+      );
+    });
+
+    test('terminado el primer acceso, esa pantalla lleva al home', () {
+      expect(redirectFor(loggedIn: true, role: UserRole.admin, location: Routes.firstAccess), Routes.adminHome);
+      expect(redirectFor(loggedIn: false, role: null, location: Routes.firstAccess), Routes.login);
+    });
+
     test('las rutas de desarrollo solo existen si se permiten', () {
       expect(redirectFor(loggedIn: false, role: null, location: Routes.devComponents), Routes.login);
       expect(

@@ -3,6 +3,7 @@ import '../../data/models/user_role.dart';
 /// Todas las rutas de la app en un solo lugar (nada de textos sueltos).
 abstract final class Routes {
   static const login = '/login';
+  static const firstAccess = '/primer-acceso';
   static const devComponents = '/dev/componentes';
 
   // Colaborador
@@ -31,6 +32,7 @@ String? redirectFor({
   required bool loggedIn,
   required UserRole? role,
   required String location,
+  bool needsFirstAccess = false,
   bool allowDevRoutes = false,
 }) {
   final isPublic = location == Routes.login ||
@@ -38,7 +40,12 @@ String? redirectFor({
 
   if (!loggedIn || role == null) return isPublic ? null : Routes.login;
 
+  // RF-02: hasta que decida si cambia o mantiene su contraseña, el usuario
+  // solo puede estar en la pantalla de primer acceso.
+  if (needsFirstAccess) return location == Routes.firstAccess ? null : Routes.firstAccess;
+
   final home = Routes.homeFor(role);
+  if (location == Routes.firstAccess) return home;
   if (location == Routes.login) return home;
   if (role == UserRole.worker && location.startsWith('/admin')) return home;
   if (role == UserRole.admin && location.startsWith('/worker')) return home;

@@ -174,3 +174,78 @@ test('login limita intentos y devuelve DEMASIADOS_INTENTOS', async () => {
   assert.equal(response.status, 429);
   assert.equal((await response.json()).error.code, 'DEMASIADOS_INTENTOS');
 });
+
+test('primer acceso permite cambiar o mantener la contraseña temporal (RF-02)', async () => {
+  const auditEvents = [];
+  const repository = await crearRepositorioEnMemoria([
+    {
+      id: 'worker-1',
+      name: 'Camila Henríquez',
+      email: 'camila@gamaitaly.cl',
+      password: 'Temporal2026!',
+      role: 'COLABORADOR',
+      isFirstLogin: true,
+    },
+    {
+      id: 'worker-2',
+      name: 'Pedro Soto',
+      email: 'pedro@gamaitaly.cl',
+      password: 'Temporal2026!',
+      role: 'COLABORADOR',
+      isFirstLogin: true,
+    },
+  ]);
+  const authService = new AuthService(repository, env, { log: (event) => auditEvents.push(event) });
+  const baseUrl = await start(crearApp({ env, authService }));
+  const primerAcceso = (userId, body) => fetch(`${baseUrl}/api/auth/primer-acceso`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(userId && {
+        authorization: `Bearer ${jwt.sign({ role: 'COLABORADOR' }, jwtSecret, { subject: userId })}`,
+      }),
+    },
+    body: JSON.stringify(body),
+  });
+  const login = (email, password) => fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+
+  assert.equal((await primerAcceso(null, {})).status, 401);
+
+  const weak = await primerAcceso('worker-1', { currentPassword: 'Temporal2026!', newPassword: 'corta' });
+  assert.equal(weak.status, 400);
+  assert.equal((await weak.json()).error.code, 'DATOS_INVALIDOS');
+
+  const wrongCurrent = await primerAcceso('worker-1', {
+    currentPassword: 'NoEsLaClave1',
+    newPassword: 'NuevaClave2026',
+  });
+  assert.equal(wrongCurrent.status, 400);
+  assert.equal((await wrongCurrent.json()).error.code, 'CONTRASENA_ACTUAL_INCORRECTA');
+
+  const changed = await primerAcceso('worker-1', {
+    currentPassword: 'Temporal2026!',
+    newPassword: 'NuevaClave2026',
+  });
+  assert.equal(changed.status, 200);
+  assert.equal((await changed.json()).data.user.isFirstLogin, false);
+  assert.equal((await login('camila@gamaitaly.cl', 'NuevaClave2026')).status, 200);
+  assert.equal((await login('camila@gamaitaly.cl', 'Temporal2026!')).status, 401);
+
+  const repeated = await primerAcceso('worker-1', {});
+  assert.equal(repeated.status, 409);
+  assert.equal((await repeated.json()).error.code, 'PRIMER_ACCESO_COMPLETADO');
+
+  const kept = await primerAcceso('worker-2', {});
+  assert.equal(kept.status, 200);
+  assert.equal((await kept.json()).data.user.isFirstLogin, false);
+
+  assert.deepEqual(
+    auditEvents.filter((event) => event.action.startsWith('password')).map((event) => event.action),
+    ['password_change_failed', 'password_changed', 'password_kept'],
+  );
+  assert.ok(auditEvents.every((event) => !('password' in event) && !('newPassword' in event)));
+});

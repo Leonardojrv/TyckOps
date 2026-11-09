@@ -4,11 +4,11 @@ import { autenticar } from '../../middlewares/autenticar.js';
 import { validar } from '../../middlewares/validar.js';
 import { HttpError } from '../../utils/http-error.js';
 import { responder } from '../../utils/respuestas.js';
-import { loginSchema } from './auth.schema.js';
+import { loginSchema, primerAccesoSchema } from './auth.schema.js';
 
-export function crearRutasAuth({ authService, jwtSecret }) {
-  const router = Router();
-  const limiterLogin = rateLimit({
+// Máximo 5 intentos cada 15 minutos (frena ataques de fuerza bruta).
+function limitarIntentos() {
+  return rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 5,
     standardHeaders: true,
@@ -18,6 +18,12 @@ export function crearRutasAuth({ authService, jwtSecret }) {
       error: { code: 'DEMASIADOS_INTENTOS', message: 'Espera antes de volver a intentar.' },
     },
   });
+}
+
+export function crearRutasAuth({ authService, jwtSecret }) {
+  const router = Router();
+  const limiterLogin = limitarIntentos();
+  const limiterPrimerAcceso = limitarIntentos();
 
   router.post('/login', limiterLogin, validar(loginSchema), async (req, res) => {
     if (!authService) {
@@ -35,6 +41,24 @@ export function crearRutasAuth({ authService, jwtSecret }) {
     }
     responder(res, { user: await authService.getCurrentUser(req.usuario.id) });
   });
+
+  // RF-02: cambiar la contraseña temporal o mantenerla (T3).
+  router.post(
+    '/primer-acceso',
+    autenticar(jwtSecret),
+    limiterPrimerAcceso,
+    validar(primerAccesoSchema),
+    async (req, res) => {
+      if (!authService) {
+        throw new HttpError(503, 'AUTENTICACION_NO_DISPONIBLE', 'La base de datos aún no está conectada.');
+      }
+      const user = await authService.completeFirstAccess(req.usuario.id, req.body, {
+        ip: req.ip,
+        userAgent: req.get('user-agent')?.slice(0, 512),
+      });
+      responder(res, { user });
+    },
+  );
 
   router.get('/sesion', autenticar(jwtSecret), (req, res) => {
     responder(res, { userId: req.usuario.id, role: req.usuario.role });

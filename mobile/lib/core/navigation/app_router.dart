@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../data/repositories/auth_repository.dart';
 import '../../features/auth/auth_session.dart';
+import '../../features/auth/first_access_screen.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/shared/components_gallery_screen.dart';
 import '../../features/shared/placeholder_screen.dart';
@@ -21,6 +22,7 @@ GoRouter createRouter(AuthSession session, AuthRepository authRepository) {
       loggedIn: session.isLoggedIn,
       role: session.role,
       location: state.matchedLocation,
+      needsFirstAccess: session.needsFirstAccess,
       allowDevRoutes: kDebugMode,
     ),
     routes: [
@@ -28,6 +30,11 @@ GoRouter createRouter(AuthSession session, AuthRepository authRepository) {
         path: Routes.login,
         builder: (context, state) =>
             LoginScreen(session: session, authRepository: authRepository),
+      ),
+      GoRoute(
+        path: Routes.firstAccess,
+        builder: (context, state) =>
+            FirstAccessScreen(session: session, authRepository: authRepository),
       ),
       if (kDebugMode)
         GoRoute(

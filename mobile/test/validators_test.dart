@@ -32,6 +32,13 @@ void main() {
       expect(Validators.confirmPassword('gama2026', 'gama2026'), isNull);
       expect(Validators.confirmPassword('gama2025', 'gama2026'), isNotNull);
     });
+
+    test('el medidor sigue los niveles del mockup', () {
+      expect(Validators.passwordStrength(''), PasswordStrength.none);
+      expect(Validators.passwordStrength('abc'), PasswordStrength.low);
+      expect(Validators.passwordStrength('gama2026'), PasswordStrength.medium);
+      expect(Validators.passwordStrength('Gama2026!'), PasswordStrength.strong);
+    });
   });
 
   group('Estados del ticket', () {

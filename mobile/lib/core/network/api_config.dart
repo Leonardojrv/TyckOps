@@ -4,6 +4,7 @@
 /// --dart-define. Ejemplos:
 ///
 ///   flutter run                                         → usa el valor por defecto
+///   flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:3000/api
 ///   flutter run --dart-define=API_BASE_URL=http://192.168.1.50:3000/api
 ///   flutter build apk --dart-define=API_BASE_URL=https://api.ejemplo.cl/api
 ///
@@ -14,6 +15,9 @@ abstract final class ApiConfig {
     'API_BASE_URL',
     defaultValue: 'http://10.0.2.2:3000/api',
   );
+
+  /// Para trabajar sin backend: flutter run --dart-define=FAKE_AUTH=true
+  static const useFakeAuth = bool.fromEnvironment('FAKE_AUTH');
 
   static const connectTimeout = Duration(seconds: 10);
   static const receiveTimeout = Duration(seconds: 20);

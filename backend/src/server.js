@@ -20,7 +20,9 @@ if (!prisma && env.nodeEnv === 'production') {
   throw new Error('En producción se requiere una conexión a PostgreSQL; no se usarán usuarios de demostración.');
 }
 
-const userRepository = prisma ?? await crearRepositorioEnMemoria([
+// Con PostgreSQL conectado, app.js crea el PrismaUserRepository. Antes se
+// pasaba el cliente Prisma directo como repositorio y el login fallaba.
+const userRepository = prisma ? null : await crearRepositorioEnMemoria([
   {
     id: 'demo-worker',
     name: 'Colaborador de prueba',
@@ -28,7 +30,7 @@ const userRepository = prisma ?? await crearRepositorioEnMemoria([
     password: env.demoWorkerPassword,
     role: 'COLABORADOR',
     termsAccepted: true,
-    isFirstLogin: false,
+    isFirstLogin: true, // muestra la pantalla de primer acceso (RF-02)
   },
   {
     id: 'demo-admin',

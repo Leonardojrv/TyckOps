@@ -16,4 +16,11 @@ export class PrismaUserRepository {
     }
     return this.prisma.user.findUnique({ where: { id } });
   }
+
+  update(id, data) {
+    if (!this.prisma.user?.update) {
+      throw new Error('El cliente Prisma no tiene el modelo User esperado.');
+    }
+    return this.prisma.user.update({ where: { id }, data });
+  }
 }

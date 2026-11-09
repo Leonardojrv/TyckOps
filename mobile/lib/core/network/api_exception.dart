@@ -5,10 +5,11 @@ import 'package:dio/dio.dart';
 /// Seguridad: nunca mostramos al usuario el error técnico completo (rutas,
 /// SQL, stack traces), porque le da pistas a un atacante sobre el servidor.
 class ApiException implements Exception {
-  const ApiException(this.message, {this.statusCode});
+  const ApiException(this.message, {this.statusCode, this.code});
 
   final String message;
   final int? statusCode;
+  final String? code; // código del backend, por ejemplo "CONTRASENA_ACTUAL_INCORRECTA"
 
   factory ApiException.fromDio(DioException error) {
     switch (error.type) {
@@ -23,14 +24,22 @@ class ApiException implements Exception {
     }
 
     final status = error.response?.statusCode;
-    final data = error.response?.data;
-    // Si el backend manda {"message": "..."} con un texto pensado para el
-    // usuario (por ejemplo, "Solo se puede cancelar en estado Recibido"),
-    // se muestra ese texto.
-    final serverMessage =
-        data is Map && data['message'] is String ? data['message'] as String : null;
+    final serverError = _serverError(error.response?.data);
+    return ApiException(
+      serverError?.message ?? _defaultMessage(status),
+      statusCode: status,
+      code: serverError?.code,
+    );
+  }
 
-    return ApiException(serverMessage ?? _defaultMessage(status), statusCode: status);
+  /// El backend responde los errores así:
+  /// {"success": false, "error": {"code": "...", "message": "..."}}
+  /// El "message" está pensado para el usuario, por eso se muestra tal cual.
+  static ({String? code, String message})? _serverError(Object? data) {
+    if (data is! Map) return null;
+    final error = data['error'];
+    if (error is! Map || error['message'] is! String) return null;
+    return (code: error['code'] as String?, message: error['message'] as String);
   }
 
   static String _defaultMessage(int? status) => switch (status) {
@@ -40,6 +49,7 @@ class ApiException implements Exception {
         404 => 'No se encontró lo solicitado.',
         409 => 'La acción no se puede realizar en el estado actual.',
         413 => 'El archivo es demasiado grande.',
+        429 => 'Demasiados intentos. Espera unos minutos.',
         final int code when code >= 500 => 'Error del servidor. Intenta más tarde.',
         _ => 'Ocurrió un error inesperado.',
       };
