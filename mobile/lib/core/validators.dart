@@ -9,8 +9,10 @@ abstract final class Validators {
   static const corporateDomain = 'gamaitaly.cl';
   static final _emailRegex = RegExp(r'^[a-z0-9._%+-]+@gamaitaly\.cl$');
 
-  static String? required(String? value, {String field = 'Este campo'}) =>
-      (value == null || value.trim().isEmpty) ? '$field es obligatorio' : null;
+  /// Campo obligatorio. El mensaje se escribe completo para que la frase
+  /// siempre concuerde ("Ingresa tu contraseña", no "La contraseña es obligatorio").
+  static String? required(String? value, {String message = 'Completa este campo'}) =>
+      (value == null || value.trim().isEmpty) ? message : null;
 
   /// RF-01: solo correos corporativos.
   static String? corporateEmail(String? value) {

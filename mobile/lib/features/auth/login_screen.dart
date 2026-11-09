@@ -135,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           isPassword: true,
                           textInputAction: TextInputAction.done,
                           autofillHints: const [AutofillHints.password],
-                          validator: (v) => Validators.required(v, field: 'La contraseña'),
+                          validator: (v) => Validators.required(v, message: 'Ingresa tu contraseña'),
                           enabled: !_loading,
                         ),
                         const SizedBox(height: 12),
