@@ -7,12 +7,13 @@ import '../../core/network/api_exception.dart';
 import '../../core/validators.dart';
 import '../../data/repositories/auth_repository.dart';
 import 'auth_session.dart';
+import 'terms_content.dart';
 
-/// Primer acceso (RF-02): cambiar la contraseña temporal o mantenerla.
+/// Primer acceso (RF-02 y RF-03): cambiar la contraseña temporal o mantenerla,
+/// y aceptar los Términos y Condiciones (sin aceptarlos no se puede continuar).
 /// Mockup: docs/mockups/login/primer_acceso_y_seguridad_del_colaborador
 ///
-/// La T4 completa la tarjeta de Términos y Condiciones (casilla obligatoria,
-/// botón "Rechazar términos" y registro en el servidor).
+/// Pendiente en la T4: botón "Rechazar términos" y registro en el servidor.
 class FirstAccessScreen extends StatefulWidget {
   const FirstAccessScreen({super.key, required this.session, required this.authRepository});
 
@@ -28,7 +29,7 @@ class _FirstAccessScreenState extends State<FirstAccessScreen> {
   final _currentPassword = TextEditingController();
   final _newPassword = TextEditingController();
   final _confirmPassword = TextEditingController();
-  bool _termsChecked = false; // la casilla pasa a ser obligatoria en la T4
+  bool _termsChecked = false; // RF-03: obligatoria para continuar
   bool _loading = false;
 
   @override
@@ -47,6 +48,7 @@ class _FirstAccessScreenState extends State<FirstAccessScreen> {
   Future<void> _skip() => _complete(changePassword: false);
 
   Future<void> _complete({required bool changePassword}) async {
+    if (!_termsChecked) return; // segunda barrera, por si el botón fallara
     FocusScope.of(context).unfocus();
     if (changePassword && !_formKey.currentState!.validate()) return;
 
@@ -121,10 +123,13 @@ class _FirstAccessScreenState extends State<FirstAccessScreen> {
                   ],
                 ),
                 const SizedBox(height: 20),
-                _PrimaryButton(loading: _loading, onPressed: _save),
+                // RF-03: sin marcar la casilla de términos no se puede continuar.
+                _PrimaryButton(loading: _loading, enabled: _termsChecked, onPressed: _save),
                 const SizedBox(height: 8),
                 TextButton(
-                  onPressed: _loading ? null : _skip,
+                  // "Omitir" solo salta el cambio de contraseña, no los términos
+                  // (decisión del equipo, docs/mockups/README.md).
+                  onPressed: _loading || !_termsChecked ? null : _skip,
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     overlayColor: Colors.transparent,
@@ -133,8 +138,11 @@ class _FirstAccessScreenState extends State<FirstAccessScreen> {
                     'Omitir por ahora y usar configuración predeterminada',
                     textAlign: TextAlign.center,
                     style: _T
-                        .bodySm(_C.secondary)
-                        .copyWith(decoration: TextDecoration.underline, decorationColor: _C.secondary),
+                        .bodySm(_termsChecked ? _C.secondary : _C.disabledText)
+                        .copyWith(
+                          decoration: TextDecoration.underline,
+                          decorationColor: _termsChecked ? _C.secondary : _C.disabledText,
+                        ),
                   ),
                 ),
               ],
@@ -741,9 +749,11 @@ class _TermsCard extends StatelessWidget {
             iconBackground: _C.container,
             iconColor: _C.onSurface,
             title: 'Términos y Condiciones',
-            trailing: Text('Doc. GA-TOS-2025', style: _T.labelSm(_C.secondary)),
+            trailing: Text('Doc. $termsDocCode', style: _T.labelSm(_C.secondary)),
           ),
           const SizedBox(height: 8),
+          // Caja con scroll (144 px de alto, como el mockup) con el texto de
+          // lib/features/auth/terms_content.dart.
           Container(
             constraints: const BoxConstraints(maxHeight: 144),
             padding: const EdgeInsets.all(8),
@@ -752,19 +762,15 @@ class _TermsCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (final (index, clause) in _termsClauses.indexed) ...[
-                    if (index > 0) const SizedBox(height: 8),
-                    Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(
-                            text: '${clause.$1} ',
-                            style: _T.labelMd().copyWith(height: 21 / 12),
-                          ),
-                          TextSpan(text: clause.$2, style: _T.bodySm(_C.secondary).copyWith(height: 1.625)),
-                        ],
-                      ),
-                    ),
+                  Text(termsTitle, style: _T.labelMd()),
+                  const SizedBox(height: 2),
+                  Text(termsSubtitle, style: _T.bodySm(_C.secondary)),
+                  const SizedBox(height: 2),
+                  Text(termsUpdatedAt, style: _T.caption(_C.secondary)),
+                  for (final section in termsSections) ...[
+                    const SizedBox(height: 12),
+                    Text(section.title, style: _T.labelMd()),
+                    for (final block in section.blocks) ...[const SizedBox(height: 4), _TermsBlockView(block)],
                   ],
                 ],
               ),
@@ -830,29 +836,44 @@ class _TermsCard extends StatelessWidget {
   }
 }
 
-const _termsClauses = [
-  (
-    '1. Propósito y Alcance:',
-    'La plataforma TyckOps - Servicios Generales es una herramienta de uso estrictamente corporativo '
-        'para colaboradores y personal autorizado de GA.MA Chile HQ. Su propósito es la gestión, '
-        'reporte y seguimiento de incidencias, mantenimiento e insumos.',
-  ),
-  (
-    '2. Responsabilidad de Credenciales:',
-    'El colaborador es el único custodio de sus credenciales de acceso. Cualquier requerimiento o '
-        'reporte generado bajo su cuenta será atribuido formalmente al titular.',
-  ),
-  (
-    '3. Uso Ético y Veracidad:',
-    'Los reportes de fallas y pedidos de suministros deben corresponder a requerimientos operativos '
-        'legítimos y comprobables dentro de las dependencias de la empresa.',
-  ),
-  (
-    '4. Tratamiento de Datos:',
-    'Los registros de actividad, geolocalización de incidentes e imágenes adjuntas serán resguardados '
-        'conforme a la normativa interna de seguridad de la información corporativa.',
-  ),
-];
+/// Dibuja un bloque de los términos: párrafo, subtítulo o viñeta/numeración.
+class _TermsBlockView extends StatelessWidget {
+  const _TermsBlockView(this.block);
+
+  final TermsBlock block;
+
+  @override
+  Widget build(BuildContext context) {
+    final body = _T.bodySm(_C.secondary).copyWith(height: 1.625);
+    final strong = _T.labelMd().copyWith(height: 21 / 12);
+    return switch (block) {
+      TermsParagraph(:final text) => Text(text, style: body),
+      TermsSubheading(:final text) => Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(text, style: strong),
+      ),
+      TermsItem(:final marker, :final label, :final text) => Padding(
+        padding: const EdgeInsets.only(left: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(width: 18, child: Text(marker, style: body)),
+            Expanded(
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    if (label != null) TextSpan(text: '$label ', style: strong),
+                    TextSpan(text: text, style: body),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    };
+  }
+}
 
 class _InfoTile extends StatelessWidget {
   const _InfoTile({required this.icon, required this.title, required this.value});
@@ -891,19 +912,21 @@ class _InfoTile extends StatelessWidget {
 }
 
 class _PrimaryButton extends StatelessWidget {
-  const _PrimaryButton({required this.loading, required this.onPressed});
+  const _PrimaryButton({required this.loading, required this.enabled, required this.onPressed});
 
   final bool loading;
+  final bool enabled; // false = gris y no responde (términos sin aceptar)
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final contentColor = enabled ? Colors.white : _C.disabledText;
     return DecoratedBox(
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), boxShadow: _shadowSm),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), boxShadow: enabled ? _shadowSm : const []),
       child: SizedBox(
         height: 48,
         child: FilledButton(
-          onPressed: loading
+          onPressed: loading || !enabled
               ? null
               : () {
                   HapticFeedback.lightImpact(); // pequeña vibración al tocar
@@ -911,11 +934,12 @@ class _PrimaryButton extends StatelessWidget {
                 },
           style: ButtonStyle(
             backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (!enabled) return _C.containerHighest; // bloqueado: gris
               if (states.contains(WidgetState.disabled)) return _C.primaryContainer.withValues(alpha: 0.7);
               if (states.contains(WidgetState.pressed)) return _C.primary;
               return _C.primaryContainer;
             }),
-            foregroundColor: const WidgetStatePropertyAll(Colors.white),
+            foregroundColor: WidgetStatePropertyAll(contentColor),
             overlayColor: const WidgetStatePropertyAll(Colors.transparent),
             elevation: const WidgetStatePropertyAll(0),
             padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 16)),
@@ -932,7 +956,7 @@ class _PrimaryButton extends StatelessWidget {
                     Flexible(
                       child: Text(
                         'Guardar preferencias y continuar',
-                        style: _T.labelLg(Colors.white),
+                        style: _T.labelLg(contentColor),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -964,6 +988,7 @@ abstract final class _C {
   static const primaryFixed = Color(0xFFFFDAD7);
   static const primaryFixedDim = Color(0xFFFFB3AD);
   static const onPrimaryFixedVariant = Color(0xFF930013);
+  static const disabledText = Color(0xFF8A8A8A); // "Text Secondary / inactive" del DESIGN.md
   static const inverseSurface = Color(0xFF2F3131);
   static const inverseOnSurface = Color(0xFFF1F1F1);
   static const containerLow = Color(0xFFF3F3F3);
