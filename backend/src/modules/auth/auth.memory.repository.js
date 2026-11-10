@@ -13,6 +13,13 @@ export class MemoryUserRepository {
   async findById(id) {
     return this.usersById.get(String(id)) ?? null;
   }
+
+  async update(id, data) {
+    const user = this.usersById.get(String(id));
+    if (!user) return null;
+    Object.assign(user, data); // ambos mapas apuntan al mismo objeto
+    return user;
+  }
 }
 
 export async function crearRepositorioEnMemoria(accounts) {

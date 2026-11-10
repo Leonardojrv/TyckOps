@@ -125,7 +125,11 @@ test('login valida datos y funciona para colaborador y administrador en memoria'
 });
 
 test('GET /api/admin/ejemplo requiere token válido y rol administrador', async () => {
-  const baseUrl = await start(crearApp({ env }));
+  const repository = await crearRepositorioEnMemoria([
+    { id: 'admin-1', name: 'Admin', email: 'admin@gamaitaly.cl', password: 'Temporal2026!', role: 'ADMINISTRADOR', termsAccepted: true },
+  ]);
+  const authService = new AuthService(repository, env, { log: () => {} });
+  const baseUrl = await start(crearApp({ env, authService }));
 
   const missingToken = await fetch(`${baseUrl}/api/admin/ejemplo`);
   assert.equal(missingToken.status, 401);
@@ -173,4 +177,121 @@ test('login limita intentos y devuelve DEMASIADOS_INTENTOS', async () => {
 
   assert.equal(response.status, 429);
   assert.equal((await response.json()).error.code, 'DEMASIADOS_INTENTOS');
+});
+
+test('primer acceso permite cambiar o mantener la contraseña temporal (RF-02)', async () => {
+  const auditEvents = [];
+  const repository = await crearRepositorioEnMemoria([
+    {
+      id: 'worker-1',
+      name: 'Camila Henríquez',
+      email: 'camila@gamaitaly.cl',
+      password: 'Temporal2026!',
+      role: 'COLABORADOR',
+      isFirstLogin: true,
+    },
+    {
+      id: 'worker-2',
+      name: 'Pedro Soto',
+      email: 'pedro@gamaitaly.cl',
+      password: 'Temporal2026!',
+      role: 'COLABORADOR',
+      isFirstLogin: true,
+    },
+  ]);
+  const authService = new AuthService(repository, env, { log: (event) => auditEvents.push(event) });
+  const baseUrl = await start(crearApp({ env, authService }));
+  const TERMS = { acceptTerms: true, termsVersion: 'GA-TOS-2026' };
+  const primerAcceso = (userId, body) => fetch(`${baseUrl}/api/auth/primer-acceso`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...(userId && {
+        authorization: `Bearer ${jwt.sign({ role: 'COLABORADOR' }, jwtSecret, { subject: userId })}`,
+      }),
+    },
+    body: JSON.stringify(body && body.noTerms ? {} : { ...TERMS, ...body }),
+  });
+  const login = (email, password) => fetch(`${baseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+
+  assert.equal((await primerAcceso(null, {})).status, 401);
+
+  const weak = await primerAcceso('worker-1', { currentPassword: 'Temporal2026!', newPassword: 'corta' });
+  assert.equal(weak.status, 400);
+  assert.equal((await weak.json()).error.code, 'DATOS_INVALIDOS');
+
+  const wrongCurrent = await primerAcceso('worker-1', {
+    currentPassword: 'NoEsLaClave1',
+    newPassword: 'NuevaClave2026',
+  });
+  assert.equal(wrongCurrent.status, 400);
+  assert.equal((await wrongCurrent.json()).error.code, 'CONTRASENA_ACTUAL_INCORRECTA');
+
+  const changed = await primerAcceso('worker-1', {
+    currentPassword: 'Temporal2026!',
+    newPassword: 'NuevaClave2026',
+  });
+  assert.equal(changed.status, 200);
+  assert.equal((await changed.json()).data.user.isFirstLogin, false);
+  assert.equal((await login('camila@gamaitaly.cl', 'NuevaClave2026')).status, 200);
+  assert.equal((await login('camila@gamaitaly.cl', 'Temporal2026!')).status, 401);
+
+  const repeated = await primerAcceso('worker-1', {});
+  assert.equal(repeated.status, 409);
+  assert.equal((await repeated.json()).error.code, 'PRIMER_ACCESO_COMPLETADO');
+
+  const kept = await primerAcceso('worker-2', {});
+  assert.equal(kept.status, 200);
+  assert.equal((await kept.json()).data.user.isFirstLogin, false);
+
+  assert.deepEqual(
+    auditEvents.filter((event) => event.action.startsWith('password')).map((event) => event.action),
+    ['password_change_failed', 'password_changed', 'password_kept'],
+  );
+  assert.ok(auditEvents.every((event) => !('password' in event) && !('newPassword' in event)));
+});
+
+test('sin aceptar los Términos el servidor rechaza y bloquea (RF-03)', async () => {
+  const auditEvents = [];
+  const repository = await crearRepositorioEnMemoria([
+    {
+      id: 'worker-9',
+      name: 'Luis Rojas',
+      email: 'luis@gamaitaly.cl',
+      password: 'Temporal2026!',
+      role: 'COLABORADOR',
+      termsAccepted: false,
+      isFirstLogin: true,
+    },
+  ]);
+  const authService = new AuthService(repository, env, { log: (event) => auditEvents.push(event) });
+  const baseUrl = await start(crearApp({ env, authService }));
+  const headers = {
+    'content-type': 'application/json',
+    authorization: `Bearer ${jwt.sign({ role: 'COLABORADOR' }, jwtSecret, { subject: 'worker-9' })}`,
+  };
+  const post = (body) => fetch(`${baseUrl}/api/auth/primer-acceso`, { method: 'POST', headers, body: JSON.stringify(body) });
+
+  // Aún sin aceptar: las rutas protegidas responden 403.
+  const blocked = await fetch(`${baseUrl}/api/auth/sesion`, { headers });
+  assert.equal(blocked.status, 403);
+  assert.equal((await blocked.json()).error.code, 'TERMINOS_NO_ACEPTADOS');
+
+  // Rechazar o aceptar una versión distinta no sirve.
+  assert.equal((await post({ acceptTerms: false, termsVersion: 'GA-TOS-2026' })).status, 400);
+  const old = await post({ acceptTerms: true, termsVersion: 'GA-TOS-2025' });
+  assert.equal((await old.json()).error.code, 'TERMINOS_REQUERIDOS');
+  assert.equal((await repository.findById('worker-9')).termsAccepted, false);
+
+  // Aceptar la versión vigente guarda quién, cuándo y qué versión.
+  assert.equal((await post({ acceptTerms: true, termsVersion: 'GA-TOS-2026' })).status, 200);
+  const saved = await repository.findById('worker-9');
+  assert.equal(saved.termsAccepted, true);
+  assert.equal(saved.termsVersion, 'GA-TOS-2026');
+  assert.ok(saved.termsAcceptedAt instanceof Date);
+  assert.equal((await fetch(`${baseUrl}/api/auth/sesion`, { headers })).status, 200);
 });

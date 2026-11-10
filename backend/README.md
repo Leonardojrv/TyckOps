@@ -22,6 +22,8 @@ El adaptador de login espera provisionalmente el modelo `User`, con `id`, `name`
 
 `GET /api/auth/me` requiere `Authorization: Bearer <token>` y devuelve `{ "success": true, "data": { "user": { "id": "...", "name": "...", "email": "...", "role": "COLABORADOR|ADMINISTRADOR", "area": null, "termsAccepted": true, "isFirstLogin": false } } }`. Responde `401` si falta el token, está vencido/no es válido o el usuario ya no existe. La app móvil debe llamar a esta ruta al iniciar, usando el token guardado, y restaurar su sesión con `data.user`.
 
+`POST /api/auth/primer-acceso` (RF-02) requiere `Authorization: Bearer <token>`. Con `{ "currentPassword": "...", "newPassword": "..." }` cambia la contraseña temporal (mínimo 8 caracteres con letras y números); con `{}` mantiene la actual. En ambos casos responde `{ "success": true, "data": { "user": { ..., "isFirstLogin": false } } }`. Errores: `400 CONTRASENA_ACTUAL_INCORRECTA`, `400 CONTRASENA_REPETIDA`, `409 PRIMER_ACCESO_COMPLETADO` y `429 DEMASIADOS_INTENTOS` (5 intentos cada 15 minutos). En desarrollo, la cuenta demo del colaborador parte con `isFirstLogin: true`.
+
 Las cuentas de demostración se configuran con `DEMO_WORKER_EMAIL`, `DEMO_WORKER_PASSWORD`, `DEMO_ADMIN_EMAIL` y `DEMO_ADMIN_PASSWORD` en `.env`. Se almacenan solo en memoria, las contraseñas se hashean con bcrypt al iniciar, y no se habilitan como fallback en producción. La auditoría escribe eventos JSON de éxito y rechazo a la salida del servidor; no registra contraseñas.
 
 Ejemplo Postman en desarrollo:
