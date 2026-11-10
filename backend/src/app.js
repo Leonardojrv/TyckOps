@@ -35,7 +35,7 @@ export function crearApp({
     responder(res, { status: 'ok', database: dbStatus });
   });
   app.use('/api/auth', crearRutasAuth({ authService: service, jwtSecret: env.jwtSecret }));
-  app.use('/api/admin', crearRutasAdmin({ jwtSecret: env.jwtSecret }));
+  app.use('/api/admin', crearRutasAdmin({ jwtSecret: env.jwtSecret, authService: service }));
   app.use(rutaNoEncontrada);
   app.use(manejarErrores);
 

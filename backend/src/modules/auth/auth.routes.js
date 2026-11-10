@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { autenticar } from '../../middlewares/autenticar.js';
+import { exigirTerminos } from '../../middlewares/exigirTerminos.js';
 import { validar } from '../../middlewares/validar.js';
 import { HttpError } from '../../utils/http-error.js';
 import { responder } from '../../utils/respuestas.js';
@@ -60,7 +61,7 @@ export function crearRutasAuth({ authService, jwtSecret }) {
     },
   );
 
-  router.get('/sesion', autenticar(jwtSecret), (req, res) => {
+  router.get('/sesion', autenticar(jwtSecret), exigirTerminos(authService), (req, res) => {
     responder(res, { userId: req.usuario.id, role: req.usuario.role });
   });
 

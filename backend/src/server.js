@@ -29,7 +29,7 @@ const userRepository = prisma ? null : await crearRepositorioEnMemoria([
     email: env.demoWorkerEmail,
     password: env.demoWorkerPassword,
     role: 'COLABORADOR',
-    termsAccepted: true,
+    termsAccepted: false, // debe aceptar los Términos en el primer acceso (RF-03)
     isFirstLogin: true, // muestra la pantalla de primer acceso (RF-02)
   },
   {

@@ -21,15 +21,21 @@ class AuthSession extends ChangeNotifier {
   bool get isLoggedIn => _user != null;
   UserRole? get role => _user?.role;
 
-  /// RF-02: el usuario todavía no decide si cambia o mantiene su contraseña.
-  bool get needsFirstAccess => _user?.isFirstLogin ?? false;
+  /// RF-02 y RF-03: falta decidir la contraseña o aceptar los términos.
+  /// Mientras sea true, el router solo deja ver la pantalla de primer acceso.
+  bool get needsFirstAccess {
+    final user = _user;
+    return user != null && (user.isFirstLogin || !user.termsAccepted);
+  }
 
   /// Al abrir la app: si hay un token guardado, se le pregunta al servidor
   /// quién es el usuario (GET /auth/me) para no pedir el login otra vez.
   Future<void> restore(AuthRepository repository) async {
     if (await _tokenStorage.readToken() == null) return;
     try {
-      _user = await repository.currentUser().timeout(const Duration(seconds: 5));
+      _user = await repository.currentUser().timeout(
+        const Duration(seconds: 5),
+      );
       notifyListeners();
     } on Exception {
       // Token vencido (el ApiClient ya lo borró al recibir 401), servidor
@@ -50,9 +56,19 @@ class AuthSession extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> signOut() async {
+  /// Mensaje para mostrar en el login tras cerrar sesión (ej. términos rechazados).
+  String? _notice;
+
+  String? takeNotice() {
+    final notice = _notice;
+    _notice = null;
+    return notice;
+  }
+
+  Future<void> signOut({String? notice}) async {
     await _tokenStorage.clear();
     _user = null;
+    _notice = notice;
     notifyListeners();
   }
 }

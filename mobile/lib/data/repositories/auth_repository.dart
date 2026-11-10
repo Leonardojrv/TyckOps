@@ -16,7 +16,11 @@ abstract interface class AuthRepository {
   Future<AppUser> currentUser();
 
   /// RF-02: POST /auth/primer-acceso. Sin [newPassword] mantiene la actual.
-  Future<AppUser> completeFirstAccess({String? currentPassword, String? newPassword});
+  Future<AppUser> completeFirstAccess({
+    String? currentPassword,
+    String? newPassword,
+    required String termsVersion,
+  });
 }
 
 /// Versión real: habla con la API del backend (backend/src/modules/auth).
@@ -26,12 +30,20 @@ class ApiAuthRepository implements AuthRepository {
   final ApiClient _api;
 
   @override
-  Future<LoginResult> login({required String email, required String password}) async {
-    final data = _unwrap(await _api.post<Map<String, dynamic>>(
-      '/auth/login',
-      body: {'email': email.trim().toLowerCase(), 'password': password},
-    ));
-    return (user: AppUser.fromJson(_map(data['user'])), token: data['token'] as String);
+  Future<LoginResult> login({
+    required String email,
+    required String password,
+  }) async {
+    final data = _unwrap(
+      await _api.post<Map<String, dynamic>>(
+        '/auth/login',
+        body: {'email': email.trim().toLowerCase(), 'password': password},
+      ),
+    );
+    return (
+      user: AppUser.fromJson(_map(data['user'])),
+      token: data['token'] as String,
+    );
   }
 
   @override
@@ -41,20 +53,30 @@ class ApiAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<AppUser> completeFirstAccess({String? currentPassword, String? newPassword}) async {
+  Future<AppUser> completeFirstAccess({
+    String? currentPassword,
+    String? newPassword,
+    required String termsVersion,
+  }) async {
     final changing = newPassword != null && newPassword.isNotEmpty;
-    final data = _unwrap(await _api.post<Map<String, dynamic>>(
-      '/auth/primer-acceso',
-      body: {
-        if (changing) 'currentPassword': currentPassword,
-        if (changing) 'newPassword': newPassword,
-      },
-    ));
+    final data = _unwrap(
+      await _api.post<Map<String, dynamic>>(
+        '/auth/primer-acceso',
+        body: {
+          // RF-03: el servidor guarda quién aceptó y qué versión.
+          'acceptTerms': true,
+          'termsVersion': termsVersion,
+          if (changing) 'currentPassword': currentPassword,
+          if (changing) 'newPassword': newPassword,
+        },
+      ),
+    );
     return AppUser.fromJson(_map(data['user']));
   }
 
   /// Las respuestas vienen como {"success": true, "data": {...}}: nos quedamos con "data".
-  static Map<String, dynamic> _unwrap(Map<String, dynamic>? body) => _map(body?['data']);
+  static Map<String, dynamic> _unwrap(Map<String, dynamic>? body) =>
+      _map(body?['data']);
 
   static Map<String, dynamic> _map(Object? value) {
     if (value is Map) return value.cast<String, dynamic>();
@@ -72,12 +94,18 @@ class FakeAuthRepository implements AuthRepository {
   AppUser? _current;
 
   @override
-  Future<LoginResult> login({required String email, required String password}) async {
+  Future<LoginResult> login({
+    required String email,
+    required String password,
+  }) async {
     await _simulateNetwork();
     if (password.length < 4) {
       // Mensaje genérico a propósito: nunca decir si falló el correo o la
       // contraseña, para no ayudar a adivinar qué cuentas existen.
-      throw const ApiException('Correo o contraseña incorrectos.', statusCode: 401);
+      throw const ApiException(
+        'Correo o contraseña incorrectos.',
+        statusCode: 401,
+      );
     }
 
     final normalized = email.trim().toLowerCase();
@@ -98,17 +126,28 @@ class FakeAuthRepository implements AuthRepository {
   Future<AppUser> currentUser() async => _current ?? (throw _expired);
 
   @override
-  Future<AppUser> completeFirstAccess({String? currentPassword, String? newPassword}) async {
+  Future<AppUser> completeFirstAccess({
+    String? currentPassword,
+    String? newPassword,
+    required String termsVersion,
+  }) async {
     await _simulateNetwork();
     final user = _current ?? (throw _expired);
     final changing = newPassword != null && newPassword.isNotEmpty;
     if (changing && (currentPassword ?? '').length < 4) {
-      throw const ApiException('La contraseña temporal actual no es correcta.', statusCode: 400);
+      throw const ApiException(
+        'La contraseña temporal actual no es correcta.',
+        statusCode: 400,
+      );
     }
-    return _current = user.copyWith(isFirstLogin: false);
+    return _current = user.copyWith(isFirstLogin: false, termsAccepted: true);
   }
 
-  static const _expired = ApiException('Tu sesión expiró. Inicia sesión nuevamente.', statusCode: 401);
+  static const _expired = ApiException(
+    'Tu sesión expiró. Inicia sesión nuevamente.',
+    statusCode: 401,
+  );
 
-  static Future<void> _simulateNetwork() => Future<void>.delayed(const Duration(milliseconds: 900));
+  static Future<void> _simulateNetwork() =>
+      Future<void>.delayed(const Duration(milliseconds: 900));
 }

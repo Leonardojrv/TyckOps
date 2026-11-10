@@ -21,6 +21,8 @@ export const primerAccesoSchema = z
       .regex(/[A-Za-z]/, 'La nueva contraseña debe incluir letras.')
       .regex(/\d/, 'La nueva contraseña debe incluir números.')
       .optional(),
+    acceptTerms: z.boolean(),
+    termsVersion: z.string().min(1).max(32),
   })
   .strict()
   .refine((data) => !data.newPassword || data.currentPassword, {

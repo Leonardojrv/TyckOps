@@ -30,6 +30,18 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _loading = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // Si venimos de rechazar los términos, se explica por qué se cerró la sesión.
+    final notice = widget.session.takeNotice();
+    if (notice != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showMessage(notice);
+      });
+    }
+  }
+
   // Los controllers ocupan memoria: se liberan cuando la pantalla se cierra.
   @override
   void dispose() {

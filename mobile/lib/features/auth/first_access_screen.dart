@@ -44,9 +44,6 @@ class _FirstAccessScreenState extends State<FirstAccessScreen> {
   /// la cambia; si el campo quedó vacío, mantiene la actual.
   Future<void> _save() => _complete(changePassword: _newPassword.text.isNotEmpty);
 
-  /// "Omitir por ahora": mantiene la contraseña actual.
-  Future<void> _skip() => _complete(changePassword: false);
-
   Future<void> _complete({required bool changePassword}) async {
     if (!_termsChecked) return; // segunda barrera, por si el botón fallara
     FocusScope.of(context).unfocus();
@@ -57,6 +54,7 @@ class _FirstAccessScreenState extends State<FirstAccessScreen> {
       final user = await widget.authRepository.completeFirstAccess(
         currentPassword: changePassword ? _currentPassword.text : null,
         newPassword: changePassword ? _newPassword.text : null,
+        termsVersion: termsDocCode,
       );
       // Seguridad: las claves no se quedan escritas en memoria.
       _currentPassword.clear();
@@ -71,6 +69,11 @@ class _FirstAccessScreenState extends State<FirstAccessScreen> {
       if (mounted) setState(() => _loading = false);
     }
   }
+
+  /// "Rechazar términos": sin aceptarlos no se puede usar la app (RF-03).
+  Future<void> _rejectTerms() => widget.session.signOut(
+        notice: 'Debes aceptar los Términos y Condiciones para usar TyckOps.',
+      );
 
   void _showMessage(String text) {
     ScaffoldMessenger.of(context)
@@ -127,22 +130,15 @@ class _FirstAccessScreenState extends State<FirstAccessScreen> {
                 _PrimaryButton(loading: _loading, enabled: _termsChecked, onPressed: _save),
                 const SizedBox(height: 8),
                 TextButton(
-                  // "Omitir" solo salta el cambio de contraseña, no los términos
-                  // (decisión del equipo, docs/mockups/README.md).
-                  onPressed: _loading || !_termsChecked ? null : _skip,
+                  onPressed: _loading ? null : _rejectTerms,
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     overlayColor: Colors.transparent,
                   ),
                   child: Text(
-                    'Omitir por ahora y usar configuración predeterminada',
+                    'Rechazar términos y cerrar sesión',
                     textAlign: TextAlign.center,
-                    style: _T
-                        .bodySm(_termsChecked ? _C.secondary : _C.disabledText)
-                        .copyWith(
-                          decoration: TextDecoration.underline,
-                          decorationColor: _termsChecked ? _C.secondary : _C.disabledText,
-                        ),
+                    style: _T.bodySm(_C.error).copyWith(fontWeight: FontWeight.w600),
                   ),
                 ),
               ],
