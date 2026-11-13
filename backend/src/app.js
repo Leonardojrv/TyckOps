@@ -6,6 +6,7 @@ import { crearRutasAdmin } from './modules/admin/admin.routes.js';
 import { PrismaUserRepository } from './modules/auth/auth.repository.js';
 import { crearRutasAuth } from './modules/auth/auth.routes.js';
 import { AuthService } from './modules/auth/auth.service.js';
+import { crearRutasTickets } from './modules/tickets/tickets.routes.js';
 import { responder } from './utils/respuestas.js';
 
 export function crearApp({
@@ -13,6 +14,7 @@ export function crearApp({
   prisma = null,
   userRepository,
   authService,
+  ticketService = null,
   auditLogger,
   databaseStatus,
 } = {}) {
@@ -35,6 +37,7 @@ export function crearApp({
     responder(res, { status: 'ok', database: dbStatus });
   });
   app.use('/api/auth', crearRutasAuth({ authService: service, jwtSecret: env.jwtSecret }));
+  app.use('/api/tickets', crearRutasTickets({ ticketService, authService: service, jwtSecret: env.jwtSecret }));
   app.use('/api/admin', crearRutasAdmin({ jwtSecret: env.jwtSecret, authService: service }));
   app.use(rutaNoEncontrada);
   app.use(manejarErrores);

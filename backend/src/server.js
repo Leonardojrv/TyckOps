@@ -2,6 +2,8 @@ import { crearApp } from './app.js';
 import { loadEnv } from './config/env.js';
 import { connectPrisma } from './config/prisma.js';
 import { crearRepositorioEnMemoria } from './modules/auth/auth.memory.repository.js';
+import { MemoryTicketRepository, ticketsDeDemostracion } from './modules/tickets/tickets.memory.repository.js';
+import { TicketService } from './modules/tickets/tickets.service.js';
 
 const env = loadEnv();
 let prisma = null;
@@ -25,7 +27,9 @@ if (!prisma && env.nodeEnv === 'production') {
 const userRepository = prisma ? null : await crearRepositorioEnMemoria([
   {
     id: 'demo-worker',
-    name: 'Colaborador de prueba',
+    // Nombre neutro mientras no haya datos reales: el saludo muestra
+    // el nombre de cada cuenta, así que aquí no va una persona inventada.
+    name: 'Colaborador GA.MA',
     email: env.demoWorkerEmail,
     password: env.demoWorkerPassword,
     role: 'COLABORADOR',
@@ -43,7 +47,13 @@ const userRepository = prisma ? null : await crearRepositorioEnMemoria([
   },
 ]);
 
-const app = crearApp({ env, prisma, userRepository, databaseStatus });
+// Tickets de demostración solo sin base de datos (la tabla real llega en la T6).
+const ticketService = prisma ? null : new TicketService(
+  new MemoryTicketRepository(ticketsDeDemostracion('demo-worker')),
+  { slaCumplido: 98.4 },
+);
+
+const app = crearApp({ env, prisma, userRepository, ticketService, databaseStatus });
 const server = app.listen(env.port, () => {
   console.log(`TyckOps API escuchando en http://localhost:${env.port}`);
 });

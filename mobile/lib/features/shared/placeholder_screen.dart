@@ -12,11 +12,13 @@ class PlaceholderScreen extends StatelessWidget {
     required this.title,
     required this.task,
     this.onSignOut,
+    this.onBack,
   });
 
   final String title;
   final String task;
   final VoidCallback? onSignOut;
+  final VoidCallback? onBack; // muestra una flecha para volver
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +29,12 @@ class PlaceholderScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (onBack != null)
+                IconButton(
+                  tooltip: 'Volver',
+                  onPressed: onBack,
+                  icon: const Icon(Icons.arrow_back),
+                ),
               Text(
                 'SERVICIOS GENERALES',
                 style: AppTypography.labelMedium.copyWith(color: AppColors.textSecondary),

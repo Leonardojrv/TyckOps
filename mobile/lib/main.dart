@@ -5,7 +5,9 @@ import 'core/network/api_client.dart';
 import 'core/network/api_config.dart';
 import 'core/network/token_storage.dart';
 import 'data/repositories/auth_repository.dart';
+import 'data/repositories/ticket_repository.dart';
 import 'features/auth/auth_session.dart';
+import 'features/worker/my_tickets_store.dart';
 
 /// Punto de entrada. Aquí se crean los objetos compartidos UNA sola vez y
 /// se pasan hacia abajo (esto se llama "inyección de dependencias").
@@ -21,6 +23,10 @@ Future<void> main() async {
   final AuthRepository authRepository =
       ApiConfig.useFakeAuth ? FakeAuthRepository() : ApiAuthRepository(apiClient);
 
+  final TicketRepository ticketRepository =
+      ApiConfig.useFakeAuth ? FakeTicketRepository() : ApiTicketRepository(apiClient);
+  final ticketsStore = MyTicketsStore(ticketRepository, session);
+
   // Mientras se restaura la sesión, Android e iOS siguen mostrando su
   // pantalla de carga nativa (la app aún no dibuja nada).
   await session.restore(authRepository);
@@ -29,5 +35,6 @@ Future<void> main() async {
     session: session,
     apiClient: apiClient,
     authRepository: authRepository,
+    ticketsStore: ticketsStore,
   ));
 }

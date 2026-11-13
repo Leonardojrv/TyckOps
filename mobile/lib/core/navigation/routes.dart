@@ -10,6 +10,7 @@ abstract final class Routes {
   static const workerHome = '/worker/inicio';
   static const workerReport = '/worker/reportar';
   static const workerTickets = '/worker/solicitudes';
+  static String workerTicketDetail(String id) => '$workerTickets/${Uri.encodeComponent(id)}';
 
   // Administrador
   static const adminHome = '/admin/inicio';
