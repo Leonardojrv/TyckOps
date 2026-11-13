@@ -22,27 +22,7 @@
 </button>
 </div>
 <!-- Active Filter Chips Carousel -->
-<div class="flex items-center gap-space-xs overflow-x-auto no-scrollbar py-1 text-label-sm font-label-sm">
-<button class="area-pill px-3 py-1.5 rounded-full bg-primary text-on-primary font-semibold flex items-center gap-1 shrink-0 shadow-sm" onclick="filterByArea('Todos', this)">
-<span class="">Todos</span>
-<span class="bg-surface-container-lowest/20 text-on-primary px-1.5 py-0.2 rounded-full text-[10px]">86</span>
-</button>
-<button class="area-pill px-3 py-1.5 rounded-full bg-surface-container-low text-secondary font-semibold hover:bg-surface-container hover:text-on-surface shrink-0 transition-colors" onclick="filterByArea('Marketing', this)">
-        Marketing &amp; Salones
-      </button>
-<button class="area-pill px-3 py-1.5 rounded-full bg-surface-container-low text-secondary font-semibold hover:bg-surface-container hover:text-on-surface shrink-0 transition-colors" onclick="filterByArea('Logística', this)">
-        Logística y Bodega
-      </button>
-<button class="area-pill px-3 py-1.5 rounded-full bg-surface-container-low text-secondary font-semibold hover:bg-surface-container hover:text-on-surface shrink-0 transition-colors" onclick="filterByArea('Operaciones', this)">
-        Operaciones &amp; Salones
-      </button>
-<button class="area-pill px-3 py-1.5 rounded-full bg-surface-container-low text-secondary font-semibold hover:bg-surface-container hover:text-on-surface shrink-0 transition-colors" onclick="filterByArea('Finanzas', this)">
-        Finanzas &amp; RRHH
-      </button>
-<button class="area-pill px-3 py-1.5 rounded-full bg-surface-container-low text-secondary font-semibold hover:bg-surface-container hover:text-on-surface shrink-0 transition-colors" onclick="filterByArea('TI', this)">
-        TI &amp; Soporte
-      </button>
-</div>
+<div class="grid grid-cols-3 gap-1.5 py-1 text-label-sm font-label-sm w-full"><button class="area-pill px-3 py-1.5 rounded-full bg-primary text-on-primary font-semibold flex items-center gap-1 shrink-0 shadow-sm" onclick="filterByArea('Todos', this)"><span class="truncate">Todos</span><span class="bg-surface-container-lowest/20 text-on-primary px-1.5 py-0.2 rounded-full text-[10px]">86</span></button><button class="area-pill px-3 py-1.5 rounded-full bg-surface-container-low text-secondary font-semibold hover:bg-surface-container hover:text-on-surface shrink-0 transition-colors" onclick="filterByArea('Marketing', this)"><span class="truncate">Tesorería</span></button><button class="area-pill px-3 py-1.5 rounded-full bg-surface-container-low text-secondary font-semibold hover:bg-surface-container hover:text-on-surface shrink-0 transition-colors" onclick="filterByArea('Logística', this)"><span class="truncate">Marketing</span></button><button class="area-pill px-3 py-1.5 rounded-full bg-surface-container-low text-secondary font-semibold hover:bg-surface-container hover:text-on-surface shrink-0 transition-colors" onclick="filterByArea('Operaciones', this)"><span class="truncate">Gerencia</span></button><button class="area-pill px-3 py-1.5 rounded-full bg-surface-container-low text-secondary font-semibold hover:bg-surface-container hover:text-on-surface shrink-0 transition-colors" onclick="filterByArea('Finanzas', this)"><span class="truncate">Ventas Masivo</span></button><button class="area-pill px-3 py-1.5 rounded-full bg-surface-container-low text-secondary font-semibold hover:bg-surface-container hover:text-on-surface shrink-0 transition-colors" onclick="filterByArea('TI', this)"><span class="truncate">Contabilidad</span></button></div>
 </div>
 <!-- Operational Pulse & Metrics Micro-Bar -->
 <div class="bg-surface-container-low rounded-xl p-space-md mb-space-md flex items-center justify-between shadow-sm">
@@ -61,13 +41,13 @@
 <!-- Workers List Cards Container -->
 <div class="flex flex-col gap-space-sm" id="workersList">
 <!-- Worker 1 -->
-<div class="worker-card bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm active:scale-[0.99] transition-transform" data-area="Marketing &amp; Salones" data-email="camila.soto@gamaprofessional.cl" data-name="Camila Soto Valenzuela">
+<div class="worker-card bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex-col gap-space-sm active:scale-[0.99] transition-transform flex" data-area="Marketing &amp; Salones" data-email="camila.soto@gamaprofessional.cl" data-name="Camila Soto Valenzuela">
 <div class="flex items-start justify-between gap-space-sm">
 <div class="flex items-center gap-space-sm min-w-0">
 
 <div class="flex flex-col min-w-0">
 <h3 class="font-headline-sm text-headline-sm text-on-surface truncate">Camila Soto Valenzuela</h3>
-<span class="font-body-sm text-body-sm text-secondary truncate">Marketing &amp; Salones</span>
+<span class="font-body-sm text-body-sm text-secondary truncate">Tesorería</span>
 </div>
 </div>
 <span class="px-2.5 py-0.5 rounded-full bg-surface-container-high text-on-surface font-label-sm text-label-sm whitespace-nowrap">Trabajador</span>
@@ -84,13 +64,13 @@
 </div>
 </div>
 <!-- Worker 2 -->
-<div class="worker-card bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm active:scale-[0.99] transition-transform" data-area="Logística y Bodega" data-email="rodrigo.palma@gamaprofessional.cl" data-name="Rodrigo Palma Henríquez">
+<div class="worker-card bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex-col gap-space-sm active:scale-[0.99] transition-transform flex" data-area="Logística y Bodega" data-email="rodrigo.palma@gamaprofessional.cl" data-name="Rodrigo Palma Henríquez">
 <div class="flex items-start justify-between gap-space-sm">
 <div class="flex items-center gap-space-sm min-w-0">
 
 <div class="flex flex-col min-w-0">
 <h3 class="font-headline-sm text-headline-sm text-on-surface truncate">Rodrigo Palma Henríquez</h3>
-<span class="font-body-sm text-body-sm text-secondary truncate">Logística y Bodega</span>
+<span class="font-body-sm text-body-sm text-secondary truncate">Marketing</span>
 </div>
 </div>
 <span class="px-2.5 py-0.5 rounded-full bg-surface-container-high text-on-surface font-label-sm text-label-sm whitespace-nowrap">Trabajador</span>
@@ -107,13 +87,13 @@
 </div>
 </div>
 <!-- Worker 3 -->
-<div class="worker-card bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm active:scale-[0.99] transition-transform" data-area="Ventas Retail" data-email="ignacio.valenzuela@gamaprofessional.cl" data-name="Ignacio Valenzuela Cruz">
+<div class="worker-card bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex-col gap-space-sm active:scale-[0.99] transition-transform flex" data-area="Ventas Retail" data-email="ignacio.valenzuela@gamaprofessional.cl" data-name="Ignacio Valenzuela Cruz">
 <div class="flex items-start justify-between gap-space-sm">
 <div class="flex items-center gap-space-sm min-w-0">
 
 <div class="flex flex-col min-w-0">
 <h3 class="font-headline-sm text-headline-sm text-on-surface truncate">Ignacio Valenzuela Cruz</h3>
-<span class="font-body-sm text-body-sm text-secondary truncate">Ventas Retail</span>
+<span class="font-body-sm text-body-sm text-secondary truncate">Marketing</span>
 </div>
 </div>
 <span class="px-2.5 py-0.5 rounded-full bg-surface-container-high text-on-surface font-label-sm text-label-sm whitespace-nowrap">Trabajador</span>
@@ -130,13 +110,13 @@
 </div>
 </div>
 <!-- Worker 4 -->
-<div class="worker-card bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm active:scale-[0.99] transition-transform" data-area="Finanzas y RRHH" data-email="marcela.fuentes@gamaprofessional.cl" data-name="Marcela Fuentes Rojas">
+<div class="worker-card bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex-col gap-space-sm active:scale-[0.99] transition-transform flex" data-area="Finanzas y RRHH" data-email="marcela.fuentes@gamaprofessional.cl" data-name="Marcela Fuentes Rojas">
 <div class="flex items-start justify-between gap-space-sm">
 <div class="flex items-center gap-space-sm min-w-0">
 
 <div class="flex flex-col min-w-0">
 <h3 class="font-headline-sm text-headline-sm text-on-surface truncate">Marcela Fuentes Rojas</h3>
-<span class="font-body-sm text-body-sm text-secondary truncate">Finanzas y RRHH</span>
+<span class="font-body-sm text-body-sm text-secondary truncate">Ventas Masivo</span>
 </div>
 </div>
 <span class="px-2.5 py-0.5 rounded-full bg-surface-container-high text-on-surface font-label-sm text-label-sm whitespace-nowrap">Administrador</span>
@@ -153,13 +133,13 @@
 </div>
 </div>
 <!-- Worker 5 -->
-<div class="worker-card bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-sm active:scale-[0.99] transition-transform" data-area="Soporte Técnico Salones" data-email="esteban.morales@gamaprofessional.cl" data-name="Esteban Morales Peña">
+<div class="worker-card bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex-col gap-space-sm active:scale-[0.99] transition-transform flex" data-area="Soporte Técnico Salones" data-email="esteban.morales@gamaprofessional.cl" data-name="Esteban Morales Peña">
 <div class="flex items-start justify-between gap-space-sm">
 <div class="flex items-center gap-space-sm min-w-0">
 
 <div class="flex flex-col min-w-0">
 <h3 class="font-headline-sm text-headline-sm text-on-surface truncate">Esteban Morales Peña</h3>
-<span class="font-body-sm text-body-sm text-secondary truncate">Soporte Técnico Salones</span>
+<span class="font-body-sm text-body-sm text-secondary truncate">Contabilidad</span>
 </div>
 </div>
 <span class="px-2.5 py-0.5 rounded-full bg-surface-container-high text-on-surface font-label-sm text-label-sm whitespace-nowrap">Trabajador</span>
@@ -177,7 +157,7 @@
 </div>
 </div>
 <!-- Empty State (Hidden by default) -->
-<div class="hidden flex-col items-center justify-center py-12 px-space-md text-center" id="noResults">
+<div class="flex-col items-center justify-center py-12 px-space-md text-center hidden" id="noResults">
 <div class="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mb-space-sm text-secondary">
 <span class="material-symbols-outlined text-[32px]">person_search</span>
 </div>
@@ -227,7 +207,7 @@
 <div class="fixed bottom-20 z-40 right-4">
 <button aria-label="Agregar nuevo trabajador" class="h-12 px-4 bg-primary-container text-on-primary rounded-xl shadow-lg hover:shadow-xl active:scale-95 flex items-center gap-2 font-label-lg text-label-lg transition-all" onclick="toggleAddModal()">
 <span class="material-symbols-outlined text-[22px]">person_add</span>
-<span class="">+ Agregar trabajador</span>
+<span>+ Agregar trabajador</span>
 </button>
 </div>
 </div>
@@ -311,6 +291,14 @@
     input.focus();
   }
 </script></main><nav class="fixed bottom-0 inset-x-0 z-50 pb-safe bg-surface-container-lowest shadow-[0_-4px_16px_rgba(17,17,17,0.06)] border-t border-surface-container" data-active-classes="text-primary font-bold"><div class="flex justify-around items-center h-16 px-2 w-full"><a class="flex flex-col items-center justify-center min-w-[56px] min-h-[48px] py-1 text-secondary transition-colors relative hover:text-on-surface" data-path="inicio" href="#"><div class="flex items-center justify-center"><svg class="w-6 h-6 stroke-[#8A8A8A]" fill="none" height="24" stroke="#8A8A8A" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" viewBox="0 0 24 24" width="24"><path d="M3.75 10.5L10.7 4.28a1.95 1.95 0 0 1 2.6 0l6.95 6.22c.48.43.75 1.05.75 1.7v6.8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6.8c0-.65.27-1.27.75-1.7z"></path><path d="M9.5 21v-5.5a1.5 1.5 0 0 1 1.5-1.5h2a1.5 1.5 0 0 1 1.5 1.5V21"></path></svg></div><span class="font-label-sm text-label-sm mt-0.5 text-[#8A8A8A]">Inicio</span></a><a class="flex flex-col items-center justify-center min-w-[56px] min-h-[48px] py-1 text-primary font-semibold transition-colors relative" data-path="bandeja-de-tickets" href="#"><div class="relative flex items-center justify-center px-4 py-1.5 rounded-full bg-primary-container/10"><svg class="w-6 h-6 stroke-[#D7282F]" fill="none" height="24" stroke="#D7282F" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" viewBox="0 0 24 24" width="24"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V6z"></path><line stroke="#D7282F" x1="8" x2="13" y1="8" y2="8"></line><line stroke="#D7282F" x1="8" x2="12" y1="11.5" y2="11.5"></line><polyline fill="none" points="14 15 15.5 16.5 18.5 13.5" stroke="#D7282F"></polyline></svg><span class="absolute -top-1 -right-2 bg-primary text-on-primary font-label-sm text-label-sm px-1.5 py-0.2 rounded-full min-w-[16px] h-4 flex items-center justify-center text-[10px] leading-none shadow-sm font-bold">3</span></div><span class="font-label-sm text-label-sm mt-0.5 text-[#D7282F] font-semibold">Tickets</span></a><a class="flex flex-col items-center justify-center min-w-[56px] min-h-[48px] py-1 text-secondary transition-colors relative hover:text-on-surface" data-path="dashboard-metricas" href="#"><div class="flex items-center justify-center"><svg class="w-6 h-6 stroke-[#8A8A8A]" fill="none" height="24" stroke="#8A8A8A" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" viewBox="0 0 24 24" width="24"><rect height="7" rx="2" width="7" x="3.5" y="3.5"></rect><circle cx="7" cy="7" r="1.5"></circle><rect height="7" rx="2" width="7" x="13.5" y="3.5"></rect><rect height="7" rx="2" width="7" x="3.5" y="13.5"></rect><rect height="7" rx="2" width="7" x="13.5" y="13.5"></rect><line stroke="#8A8A8A" x1="15.5" x2="15.5" y1="18.5" y2="17"></line><line stroke="#8A8A8A" x1="17" x2="17" y1="18.5" y2="15.5"></line><line stroke="#8A8A8A" x1="18.5" x2="18.5" y1="18.5" y2="14"></line></svg></div><span class="font-label-sm text-label-sm mt-0.5 text-[#8A8A8A]">Dashboard</span></a></div></nav>
+
+
+
+
+
+
+
+
 
 
 
