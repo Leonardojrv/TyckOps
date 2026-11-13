@@ -19,22 +19,23 @@
 </div>
 <div class="px-margin flex flex-col gap-space-lg mt-space-sm pb-space-xl">
 <!-- Filtros de Período y Vista Interactiva -->
-<div class="flex items-center justify-between gap-space-sm overflow-x-auto py-1 no-scrollbar">
-<div class="flex items-center gap-space-xs shrink-0">
-<button class="h-10 px-3.5 rounded-full bg-surface-container-lowest text-on-surface shadow-sm flex items-center gap-2 active:scale-95 transition-all text-body-sm font-body-sm" type="button">
-<span class="material-symbols-outlined text-[18px] text-primary-container">calendar_month</span>
-<span class="font-semibold text-label-md font-label-md">Octubre 2026</span>
-<span class="material-symbols-outlined text-[16px] text-secondary">expand_more</span>
-</button>
-<button class="h-10 px-3.5 rounded-full bg-surface-container-lowest text-on-surface shadow-sm flex items-center gap-2 active:scale-95 transition-all text-body-sm font-body-sm" type="button">
-<span class="material-symbols-outlined text-[18px] text-secondary">layers</span>
-<span class="font-semibold text-label-md font-label-md">Vista General</span>
-<span class="material-symbols-outlined text-[16px] text-secondary">expand_more</span>
-</button>
-</div>
-<button aria-label="Actualizar datos" class="w-10 h-10 shrink-0 rounded-full bg-surface-container-lowest shadow-sm flex items-center justify-center text-secondary hover:text-on-surface active:rotate-180 transition-transform duration-500" id="refresh-btn" type="button">
-<span class="material-symbols-outlined text-[20px]">refresh</span>
-</button>
+<div class="grid grid-cols-2 gap-2.5 w-full">
+  <button class="h-11 px-3 rounded-xl bg-primary-container text-white font-medium text-label-md flex items-center justify-center gap-1.5 shadow-sm transition-all whitespace-nowrap" type="button">
+    <span class="material-symbols-outlined text-[17px]">grid_view</span>
+    <span>Vista General</span>
+  </button>
+  <button class="h-11 px-3 rounded-xl bg-surface-container-lowest text-on-surface hover:bg-surface-container font-medium text-label-md flex items-center justify-center gap-1.5 border border-outline-variant/50 shadow-sm transition-all whitespace-nowrap" type="button">
+    <span class="material-symbols-outlined text-[17px] text-secondary">warning</span>
+    <span>Fallas por Prioridad</span>
+  </button>
+  <button class="h-11 px-3 rounded-xl bg-surface-container-lowest text-on-surface hover:bg-surface-container font-medium text-label-md flex items-center justify-center gap-1.5 border border-outline-variant/50 shadow-sm transition-all whitespace-nowrap" type="button">
+    <span class="material-symbols-outlined text-[17px] text-secondary">confirmation_number</span>
+    <span>Incidentes Menores</span>
+  </button>
+  <button class="h-11 px-3 rounded-xl bg-surface-container-lowest text-on-surface hover:bg-surface-container font-medium text-label-md flex items-center justify-center gap-1.5 border border-outline-variant/50 shadow-sm transition-all whitespace-nowrap" type="button">
+    <span class="material-symbols-outlined text-[17px] text-secondary">bar_chart</span>
+    <span>Carga por Área</span>
+  </button>
 </div>
 <!-- KPIs Superiores: 3 Tarjetas Compactas -->
 <section class="grid grid-cols-3 gap-2.5">
@@ -242,12 +243,12 @@
 </svg>
 <!-- Eje Horizontal: Etiquetas de Meses -->
 <div class="flex justify-between text-label-sm font-label-sm text-secondary mt-2 px-1">
-<span class="">Jul</span>
-<span class="">Ago</span>
-<span class="">Sep</span>
+<span>Jul</span>
+<span>Ago</span>
+<span>Sep</span>
 <span class="text-primary font-bold">Oct</span>
-<span class="">Nov</span>
-<span class="">Dic</span>
+<span>Nov</span>
+<span>Dic</span>
 </div>
 </div>
 </section>
@@ -274,7 +275,12 @@
 
 <!-- Botón Principal Redondeado (rounded-full) -->
 
-</div>
+<div class="w-full pt-2">
+  <button id="export-report-btn" class="w-full py-3.5 px-4 rounded-xl bg-[#d7282f] text-white font-medium text-body-md shadow-sm flex items-center justify-center gap-2 active:opacity-90 transition-all" type="button">
+    <span class="material-symbols-outlined text-[20px]">table_view</span>
+    <span>Exportar en Excel</span>
+  </button>
+</div></div>
 </div>
 <script>
   // Micro-interacción: refrescar y feedback táctil al exportar
@@ -296,6 +302,10 @@
     }, 1200);
   });
 </script></main><nav class="fixed bottom-0 w-full z-50 pb-safe bg-surface/90 backdrop-blur-xl shadow-[0_-4px_16px_rgba(0,0,0,0.04)]" data-active-classes="text-primary-container font-semibold"><div class="flex justify-around items-center h-16 px-margin"><a class="flex flex-col items-center justify-center min-w-[64px] min-h-[48px] text-secondary hover:text-on-surface transition-colors gap-0.5" data-path="inicio" href="#"><svg class="w-6 h-6 text-secondary" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg><span class="text-[11px] font-medium text-secondary">Inicio</span></a><a class="flex flex-col items-center justify-center min-w-[64px] min-h-[48px] text-secondary hover:text-on-surface transition-colors gap-0.5 relative" data-path="tickets" href="#"><div class="relative flex items-center justify-center"><svg class="w-6 h-6 text-secondary" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" viewBox="0 0 24 24"><path d="M2 9a3 3 0 0 1 0 6v3a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-3a3 3 0 0 1 0-6V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"></path><path d="M13 5v2"></path><path d="M13 11v2"></path><path d="M13 17v2"></path><path d="m8 12 2 2 3-3"></path></svg><span class="absolute -top-1.5 -right-3 min-w-[18px] h-[18px] px-1 bg-[#E30613] text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none shadow-sm">3</span></div><span class="text-[11px] font-medium text-secondary">Tickets</span></a><a aria-current="page" class="flex flex-col items-center justify-center min-w-[64px] min-h-[48px] transition-colors gap-0.5" data-path="dashboard-colaborativo" href="#"><div class="flex items-center justify-center px-4 py-1 rounded-full bg-[#fde8e8]"><svg class="w-6 h-6 text-[#E30613]" fill="currentColor" viewBox="0 0 24 24"><rect height="7.5" rx="2" width="7.5" x="3.5" y="3.5"></rect><rect height="7.5" rx="2" width="7.5" x="13" y="3.5"></rect><rect height="7.5" rx="2" width="7.5" x="3.5" y="13"></rect><rect height="7.5" rx="2" width="7.5" x="13" y="13"></rect></svg></div><span class="text-[11px] font-bold text-[#E30613]">Dashboard</span></a></div></nav>
+
+
+
+
 
 
 

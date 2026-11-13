@@ -9,23 +9,7 @@
 
 
 <!-- Filtros de estado deslizables -->
-<div class="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-margin px-margin">
-  <button class="px-2.5 py-1 rounded-full bg-surface-container-highest text-on-surface font-label-sm text-label-sm whitespace-nowrap font-semibold" type="button">
-    Todos los estados (7)
-  </button>
-  <button class="px-2.5 py-1 rounded-full bg-surface-container-low text-secondary hover:text-on-surface font-label-sm text-label-sm whitespace-nowrap font-medium" type="button">
-    En revisión (2)
-  </button>
-  <button class="px-2.5 py-1 rounded-full bg-surface-container-low text-secondary hover:text-on-surface font-label-sm text-label-sm whitespace-nowrap font-medium" type="button">
-    Recibido (1)
-  </button>
-  <button class="px-2.5 py-1 rounded-full bg-surface-container-low text-secondary hover:text-on-surface font-label-sm text-label-sm whitespace-nowrap font-medium" type="button">
-    En proceso (2)
-  </button>
-  <button class="px-2.5 py-1 rounded-full bg-surface-container-low text-secondary hover:text-on-surface font-label-sm text-label-sm whitespace-nowrap font-medium" type="button">
-    Aprobado (2)
-  </button>
-</div>
+<div id="status-filters" class="flex flex-col gap-1.5 pb-1"><div class="flex items-center gap-1.5"><button class="filter-btn px-2.5 py-1 rounded-full bg-[#D7282F] text-white font-label-sm text-label-sm whitespace-nowrap font-semibold shadow-sm transition-colors" data-status="all" type="button" onclick="selectFilter(this)">Todos los estados (7)</button><button class="filter-btn px-2.5 py-1 rounded-full bg-surface-container-low text-secondary hover:text-on-surface font-label-sm text-label-sm whitespace-nowrap font-medium transition-colors" data-status="review" type="button" onclick="selectFilter(this)">En revisión (2)</button><button class="filter-btn px-2.5 py-1 rounded-full bg-surface-container-low text-secondary hover:text-on-surface font-label-sm text-label-sm whitespace-nowrap font-medium transition-colors" data-status="received" type="button" onclick="selectFilter(this)">Recibido (1)</button></div><div class="flex items-center gap-1.5"><button class="filter-btn px-2.5 py-1 rounded-full bg-surface-container-low text-secondary hover:text-on-surface font-label-sm text-label-sm whitespace-nowrap font-medium transition-colors" data-status="progress" type="button" onclick="selectFilter(this)">En proceso (2)</button><button class="filter-btn px-2.5 py-1 rounded-full bg-surface-container-low text-secondary hover:text-on-surface font-label-sm text-label-sm whitespace-nowrap font-medium transition-colors" data-status="approved" type="button" onclick="selectFilter(this)">Aprobado (2)</button></div><script>function selectFilter(btn) { document.querySelectorAll('#status-filters .filter-btn').forEach(b => { b.className = 'filter-btn px-2.5 py-1 rounded-full bg-surface-container-low text-secondary hover:text-on-surface font-label-sm text-label-sm whitespace-nowrap font-medium transition-colors'; }); btn.className = 'filter-btn px-2.5 py-1 rounded-full bg-[#D7282F] text-white font-label-sm text-label-sm whitespace-nowrap font-semibold shadow-sm transition-colors'; }</script></div>
 
 <!-- Banner de orden y gestión operacional -->
 <div class="flex items-center justify-between bg-surface-container-low p-2.5 rounded-xl text-on-surface-variant font-body-sm text-body-sm">
@@ -52,11 +36,11 @@
       </span>
     </div>
     <h2 class="font-headline-sm text-headline-sm text-on-surface font-bold leading-snug">
-      Falla eléctrica cortadora de cable - Taller Central
+      Falla eléctrica cortadora de cable - Edificio Central
     </h2>
     <div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm bg-surface-container-low p-2.5 rounded-lg">
       <span class="material-symbols-outlined text-[18px] text-secondary">badge</span>
-      <span class="truncate"><strong class="font-semibold text-on-surface">Rodrigo Palma</strong> · Logística y Distribución</span>
+      <span class="truncate"><strong class="font-semibold text-on-surface">Rodrigo Palma</strong> · Recursos Humanos</span>
     </div>
     <div class="flex items-center justify-between pt-1">
       <div class="flex items-center gap-space-xs">
@@ -96,7 +80,7 @@
     </h2>
     <div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm bg-surface-container-low p-2.5 rounded-lg">
       <span class="material-symbols-outlined text-[18px] text-secondary">badge</span>
-      <span class="truncate"><strong class="font-semibold text-on-surface">Carla Mendoza</strong> · Operaciones</span>
+      <span class="truncate"><strong class="font-semibold text-on-surface">Carla Mendoza</strong> · Recursos Humanos</span>
     </div>
     <div class="flex items-center justify-between pt-1">
       <div class="flex items-center gap-space-xs">
@@ -136,7 +120,7 @@
     </h2>
     <div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm bg-surface-container-low p-2.5 rounded-lg">
       <span class="material-symbols-outlined text-[18px] text-secondary">badge</span>
-      <span class="truncate"><strong class="font-semibold text-on-surface">Esteban Morales</strong> · Soporte Técnico</span>
+      <span class="truncate"><strong class="font-semibold text-on-surface">Esteban Morales</strong> · Gerencia</span>
     </div>
     <div class="flex items-center justify-between pt-1">
       <div class="flex items-center gap-space-xs">
@@ -176,7 +160,7 @@
     </h2>
     <div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm bg-surface-container-low p-2.5 rounded-lg">
       <span class="material-symbols-outlined text-[18px] text-secondary">badge</span>
-      <span class="truncate"><strong class="font-semibold text-on-surface">Marcos Silva</strong> · Seguridad</span>
+      <span class="truncate"><strong class="font-semibold text-on-surface">Marcos Silva</strong> · Recursos Humanos</span>
     </div>
     <div class="flex items-center justify-between pt-1">
       <div class="flex items-center gap-space-xs">
@@ -219,6 +203,14 @@
     });
   });
 </script></main><nav class="fixed bottom-0 inset-x-0 z-50 pb-safe bg-white border-t border-gray-200 shadow-[0_-4px_16px_rgba(17,17,17,0.06)]"><div class="flex justify-around items-center h-16 px-2 w-full"><a class="flex flex-col items-center justify-center min-w-[56px] min-h-[48px] py-1 text-secondary transition-colors relative hover:text-on-surface flex-1" data-path="inicio" href="#"><svg fill="none" height="24" stroke="#8A8A8A" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" viewBox="0 0 24 24" width="24"><path d="M3.75 10.5L10.7 4.28a1.95 1.95 0 0 1 2.6 0l6.95 6.22c.48.43.75 1.05.75 1.7v6.8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6.8c0-.65.27-1.27.75-1.7z"></path><path d="M9.5 21v-5.5a1.5 1.5 0 0 1 1.5-1.5h2a1.5 1.5 0 0 1 1.5 1.5V21"></path></svg><span class="font-['Inter'] text-[11px] leading-[14px] mt-0.5 text-[#8A8A8A]">Inicio</span></a><a aria-current="page" class="flex flex-col items-center justify-center min-w-[56px] min-h-[48px] py-1 transition-colors relative text-primary font-bold flex-1" data-path="bandeja-de-tickets" href="#"><div class="relative flex items-center justify-center px-4 py-1.5 rounded-full bg-[rgba(215,40,47,0.12)]"><svg fill="rgba(215, 40, 47, 0.12)" height="24" stroke="#D7282F" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" viewBox="0 0 24 24" width="24"><path d="M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V6z"></path><line stroke="#D7282F" x1="8" x2="13" y1="8" y2="8"></line><line stroke="#D7282F" x1="8" x2="12" y1="11.5" y2="11.5"></line><polyline fill="none" points="14 15 15.5 16.5 18.5 13.5" stroke="#D7282F"></polyline></svg><span class="absolute -top-1 -right-2 bg-[#D7282F] text-white font-bold px-1.5 py-0.2 rounded-full min-w-[16px] h-4 flex items-center justify-center text-[10px] leading-none shadow-sm">3</span></div><span class="font-['Inter'] text-[11px] leading-[14px] font-semibold mt-0.5 text-[#D7282F]">Tickets</span></a><a class="flex flex-col items-center justify-center min-w-[56px] min-h-[48px] py-1 text-secondary transition-colors relative hover:text-on-surface flex-1" data-path="dashboard-metricas" href="#"><svg fill="none" height="24" stroke="#8A8A8A" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" viewBox="0 0 24 24" width="24"><rect height="7" rx="2" width="7" x="3.5" y="3.5"></rect><circle cx="7" cy="7" r="1.5"></circle><rect height="7" rx="2" width="7" x="13.5" y="3.5"></rect><rect height="7" rx="2" width="7" x="3.5" y="13.5"></rect><rect height="7" rx="2" width="7" x="13.5" y="13.5"></rect><line stroke="#8A8A8A" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" x1="15.5" x2="15.5" y1="18.5" y2="17"></line><line stroke="#8A8A8A" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" x1="17" x2="17" y1="18.5" y2="15.5"></line><line stroke="#8A8A8A" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" x1="18.5" x2="18.5" y1="18.5" y2="14"></line></svg><span class="font-['Inter'] text-[11px] leading-[14px] mt-0.5 text-[#8A8A8A]">Dashboard</span></a></div></nav>
+
+
+
+
+
+
+
+
 
 
 

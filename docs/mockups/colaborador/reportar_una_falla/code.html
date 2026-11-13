@@ -28,7 +28,7 @@
 <!-- Category Selection (2x2 Grid) -->
 <div class="flex flex-col gap-space-xs">
 <label class="font-label-lg text-label-lg text-on-surface flex items-center justify-between">
-<span class="">1. Tipo de avería <span class="text-primary-container">*</span></span>
+<span>1. Tipo de avería <span class="text-primary-container">*</span></span>
 <span class="font-label-sm text-label-sm text-primary-container" id="selected-category-text">Mobiliario y Cerrajería</span>
 </label>
 <div aria-label="Categoría del reporte" class="grid grid-cols-2 gap-gutter-sm mt-1" role="radiogroup">
@@ -115,17 +115,17 @@
 <label class="font-label-lg text-label-lg text-on-surface">
           4. Adjuntar fotografías
         </label>
-<span class="font-caption text-caption text-secondary">Máximo 3 imágenes</span>
+<span class="font-caption text-caption text-secondary">Máximo 1 imágen</span>
 </div>
 <!-- Action buttons -->
 <div class="grid grid-cols-2 gap-space-sm">
 <button class="h-12 flex items-center justify-center gap-space-xs rounded-lg bg-surface-container-lowest text-on-surface font-label-md text-label-md shadow-sm active:bg-surface-container-high transition-colors" onclick="triggerPhotoUpload('camera')" type="button">
 <span class="material-symbols-outlined text-[20px] text-primary-container">photo_camera</span>
-<span class="">Tomar foto</span>
+<span>Tomar foto</span>
 </button>
 <button class="h-12 flex items-center justify-center gap-space-xs rounded-lg bg-surface-container-lowest text-on-surface font-label-md text-label-md shadow-sm active:bg-surface-container-high transition-colors" onclick="triggerPhotoUpload('gallery')" type="button">
 <span class="material-symbols-outlined text-[20px] text-secondary">photo_library</span>
-<span class="">Elegir de galería</span>
+<span>Elegir de galería</span>
 </button>
 </div>
 <!-- Thumbnail Carousel/Row -->
@@ -141,15 +141,7 @@
 </div>
 </div>
 <!-- Thumbnail 2: Wall socket close up -->
-<div class="relative w-20 h-20 shrink-0 rounded-lg overflow-hidden bg-surface-container-high shadow-sm group" id="photo-thumb-2">
-<img class="w-full h-full object-cover" data-alt="Architectural macro shot of a sleek recessed dual AC wall power outlet on a modern matte white architectural wall, slight scorch marks or misalignment visible, studio lighting, industrial corporate elegance" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB7epHzv4Rga1vHi4Vflrp3l8ZHr_JSLHMi15lGp5r-fvj2itxXhQJlvLwvVZj8LAbxWBiVilLtQMw87T1MmGEFztGvs1xsTAEeBb0dbfKiqtUwU1SlNjvyRxE2xJslsYiWiXbCqh-53Us0HwEfKmv_l1C-VDTva8BpDuWmfvfvWEoPXIsFGBrbjIbIbcpGL6auXL9m2FgmCl2lOrbOW55Im9Eo4POJeClpScR_KmfE5RKCAcrTwOoEyQ">
-<button aria-label="Eliminar foto" class="absolute top-1 right-1 w-6 h-6 rounded-full bg-inverse-surface/85 text-inverse-on-surface flex items-center justify-center hover:bg-primary-container transition-colors shadow" onclick="removeThumbnail('photo-thumb-2')" type="button">
-<span class="material-symbols-outlined text-[14px]">close</span>
-</button>
-<div class="absolute bottom-0 inset-x-0 bg-inverse-surface/60 px-1 py-0.5">
-<span class="font-caption text-[9px] text-on-primary truncate block text-center font-medium">Enchufe_B.jpg</span>
-</div>
-</div>
+
 <!-- Add Photo Slot -->
 <button class="w-20 h-20 shrink-0 rounded-lg bg-surface-container-lowest flex flex-col items-center justify-center text-secondary hover:text-primary-container hover:bg-surface-container-low transition-colors shadow-sm" onclick="triggerPhotoUpload('gallery')" type="button">
 <span class="material-symbols-outlined text-[24px]">add_a_photo</span>
@@ -173,7 +165,7 @@
 <div class="pt-space-xs pb-space-lg flex flex-col gap-space-sm">
 <button class="w-full h-12 flex items-center justify-center gap-space-xs rounded-lg bg-primary-container text-on-primary font-label-lg text-label-lg shadow-md active:bg-primary transition-all duration-150" id="submit-btn" type="submit">
 <span class="material-symbols-outlined text-[20px]">send</span>
-<span class="">Enviar reporte</span>
+<span>Enviar reporte</span>
 </button><button class="w-full h-12 flex items-center justify-center rounded-lg bg-surface-container-high text-on-surface font-label-lg text-label-lg hover:bg-surface-container-highest active:bg-surface-container-high transition-colors" type="button" onclick="window.history.back()">Cancelar</button>
 
 </div>
@@ -327,6 +319,8 @@
     }
   }
 </script></main><nav class="fixed bottom-0 inset-x-0 z-50 pb-safe bg-surface/95 backdrop-blur-xl shadow-[0_-1px_12px_rgba(0,0,0,0.04)] max-w-md mx-auto" data-active-classes="text-primary-container font-headline-sm [&amp;_span.material-symbols-outlined]:fill-1 [&amp;_.active-indicator]:opacity-100"><div class="grid items-center h-16 max-w-md mx-auto px-space-xs w-full grid-cols-3"><a class="group relative flex flex-col items-center justify-center h-full min-h-[48px] text-secondary hover:text-on-surface transition-colors" data-path="inicio" href="#"><span class="material-symbols-outlined text-[24px] leading-none mb-0.5">home</span><span class="font-label-sm text-caption tracking-tight">Inicio</span><span class="active-indicator opacity-0 absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary-container transition-opacity duration-200"></span></a><a aria-current="page" class="group relative flex flex-col items-center justify-center h-full min-h-[48px] transition-colors text-primary-container font-headline-sm [&amp;_span.material-symbols-outlined]:fill-1 [&amp;_.active-indicator]:opacity-100" data-path="reportar-falla" href="#"><div class="relative flex items-center justify-center"><span class="material-symbols-outlined text-[24px] leading-none mb-0.5">build_circle</span></div><span class="font-label-sm text-caption tracking-tight">Reportar falla</span><span class="active-indicator opacity-0 absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary-container transition-opacity duration-200"></span></a><a class="group relative flex flex-col items-center justify-center h-full min-h-[48px] text-secondary hover:text-on-surface transition-colors" data-path="mis-solicitudes" href="#"><div class="relative flex items-center justify-center"><span class="material-symbols-outlined text-[24px] leading-none mb-0.5">assignment_turned_in</span><span class="absolute -top-1 -right-2 px-1 min-w-[14px] h-3.5 flex items-center justify-center rounded-full bg-surface-container-highest text-on-surface font-caption text-[9px] font-semibold leading-none">3</span></div><span class="font-label-sm text-caption tracking-tight">Mis solicitudes</span><span class="active-indicator opacity-0 absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary-container transition-opacity duration-200"></span></a></div></nav>
+
+
 
 
 

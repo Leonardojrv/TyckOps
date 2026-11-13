@@ -28,7 +28,7 @@
 <div class="flex items-center gap-2">
 <span class="font-headline-sm text-headline-sm text-on-surface truncate" id="profile-display-name">Rodrigo Palma Henríquez</span>
 </div>
-<p class="font-body-sm text-body-sm text-secondary truncate mt-0.5" id="profile-display-role">Jefe de Despacho</p>
+<p class="font-body-sm text-body-sm text-secondary truncate mt-0.5" id="profile-display-role">Jefe de Contabilidad</p>
 <div class="flex items-center gap-2 mt-1.5">
 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-sm text-label-sm font-medium">
 <span class="material-symbols-outlined text-[13px] text-tertiary">verified_user</span>
@@ -42,7 +42,7 @@
 <!-- 1. Nombre Completo -->
 <div class="flex flex-col gap-1.5">
 <label class="font-label-md text-label-md text-on-surface flex items-center justify-between" for="full-name">
-<span class="">Nombre completo <span class="text-primary">*</span></span>
+<span>Nombre completo <span class="text-primary">*</span></span>
 <span class="font-body-sm text-body-sm text-secondary flex items-center gap-1">
 <span class="material-symbols-outlined text-[14px] text-secondary">check_circle</span> Válido
         </span>
@@ -55,7 +55,7 @@
 <!-- 2. Correo Corporativo -->
 <div class="flex flex-col gap-1.5">
 <label class="font-label-md text-label-md text-on-surface flex items-center justify-between" for="corporate-email">
-<span class="">Correo corporativo <span class="text-primary">*</span></span>
+<span>Correo corporativo <span class="text-primary">*</span></span>
 <span class="font-label-sm text-label-sm text-secondary">Dominio bloqueado</span>
 </label>
 <div class="flex items-center h-12 bg-surface-container-low rounded-xl overflow-hidden focus-within:bg-surface-container-lowest focus-within:ring-2 focus-within:ring-primary/20 transition-all">
@@ -76,22 +76,23 @@
 </label>
 <div class="relative flex items-center">
 <span class="material-symbols-outlined absolute left-3.5 text-secondary text-[20px]">apartment</span>
-<select class="w-full h-12 pl-11 pr-10 bg-surface-container-low rounded-xl text-on-surface font-body-md text-body-md appearance-none focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer" id="department-select" required="">
-<option selected="" value="Logística y Bodega">Logística y Bodega</option>
-<option value="Salones GA.MA">Salones GA.MA</option>
-<option value="Marketing">Marketing y Comunicaciones</option>
-<option value="Administración">Administración &amp; Finanzas</option>
-<option value="Retail">Retail &amp; Franquicias Chile</option>
-</select>
+<select class="w-full h-12 pl-11 pr-10 bg-surface-container-low rounded-xl text-on-surface font-body-md text-body-md appearance-none focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer" id="department-select" required=""><option selected="" value="Tesorería">Tesorería</option>
+<option value="Marketing">Marketing</option>
+<option value="Gerencia">Gerencia</option>
+<option value="Ventas Masivo">Ventas Masivo</option>
+<option value="Contabilidad">Contabilidad</option>
+<option value="Control de Gestión">Control de Gestión</option>
+<option value="Educación">Educación</option>
+<option value="Recursos Humanos">Recursos Humanos</option></select>
 <span class="material-symbols-outlined absolute right-3.5 text-secondary text-[20px] pointer-events-none">expand_more</span>
 </div>
 </div>
 <!-- 4. Rol / Cargo -->
-<div class="flex flex-col gap-3"><div class="flex flex-col gap-1.5"><label class="font-label-md text-label-md text-on-surface" for="system-role-select">Rol del sistema <span class="text-primary">*</span></label><div class="relative flex items-center"><span class="material-symbols-outlined absolute left-3.5 text-secondary text-[20px]">admin_panel_settings</span><select class="w-full h-12 pl-11 pr-10 bg-surface-container-low rounded-xl text-on-surface font-body-md text-body-md appearance-none focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer" id="system-role-select" required=""><option selected="" value="Trabajador">Trabajador</option><option value="Administrador">Administrador</option></select><span class="material-symbols-outlined absolute right-3.5 text-secondary text-[20px] pointer-events-none">expand_more</span></div></div><div class="flex flex-col gap-1.5"><label class="font-label-md text-label-md text-on-surface" for="job-role">Cargo / Función <span class="text-primary">*</span></label><div class="relative flex items-center"><span class="material-symbols-outlined absolute left-3.5 text-secondary text-[20px]">work</span><input class="w-full h-12 pl-11 pr-4 bg-surface-container-low rounded-xl text-on-surface font-body-md text-body-md placeholder:text-secondary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" id="job-role" oninput="document.getElementById('profile-display-role').textContent = this.value || 'Cargo sin definir'" placeholder="Ej. Jefe de Despacho" required="" type="text" value="Jefe de Despacho"></div></div></div>
+<div class="flex flex-col gap-3"><div class="flex flex-col gap-1.5"><label class="font-label-md text-label-md text-on-surface" for="system-role-select">Rol del sistema <span class="text-primary">*</span></label><div class="relative flex items-center"><span class="material-symbols-outlined absolute left-3.5 text-secondary text-[20px]">admin_panel_settings</span><select class="w-full h-12 pl-11 pr-10 bg-surface-container-low rounded-xl text-on-surface font-body-md text-body-md appearance-none focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all cursor-pointer" id="system-role-select" required=""><option selected="" value="Trabajador">Trabajador</option><option value="Administrador">Administrador</option></select><span class="material-symbols-outlined absolute right-3.5 text-secondary text-[20px] pointer-events-none">expand_more</span></div></div><div class="flex flex-col gap-1.5"><label class="font-label-md text-label-md text-on-surface" for="job-role">Cargo / Función <span class="text-primary">*</span></label><div class="relative flex items-center"><span class="material-symbols-outlined absolute left-3.5 text-secondary text-[20px]">work</span><input class="w-full h-12 pl-11 pr-4 bg-surface-container-low rounded-xl text-on-surface font-body-md text-body-md placeholder:text-secondary focus:bg-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" id="job-role" oninput="document.getElementById('profile-display-role').textContent = this.value || 'Cargo sin definir'" placeholder="Jefe de Contabilidad" required="" type="text" value="Jefe de Despacho"></div></div></div>
 <!-- 5. Teléfono / Anexo Interno -->
 <div class="flex flex-col gap-1.5">
 <label class="font-label-md text-label-md text-on-surface flex items-center justify-between" for="phone-number">
-<span class="">Teléfono / Anexo interno</span>
+<span>Teléfono / Anexo interno</span>
 <span class="font-label-sm text-label-sm text-secondary">Chile (+56)</span>
 </label>
 <div class="relative flex items-center">
@@ -113,7 +114,7 @@
 <div class="flex flex-col gap-2.5 pt-4 mt-2">
 <button class="w-full h-12 bg-primary-container text-on-primary font-label-lg text-label-lg font-semibold rounded-xl flex items-center justify-center gap-2 shadow-sm active:bg-primary transition-all duration-150" id="save-submit-btn" type="submit">
 <span class="material-symbols-outlined text-[20px]">save</span>
-<span id="save-btn-text" class="">Guardar cambios</span>
+<span id="save-btn-text">Guardar cambios</span>
 </button>
 <button class="w-full h-12 bg-surface-container text-on-surface-variant font-label-lg text-label-lg rounded-xl flex items-center justify-center gap-1 active:bg-surface-container-high transition-colors" onclick="handleCancel()" type="button">
         Cancelar
@@ -210,6 +211,14 @@
     }
   }
 </script></main>
+
+
+
+
+
+
+
+
 
 
 
