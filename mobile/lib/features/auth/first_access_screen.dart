@@ -129,18 +129,7 @@ class _FirstAccessScreenState extends State<FirstAccessScreen> {
                 // RF-03: sin marcar la casilla de términos no se puede continuar.
                 _PrimaryButton(loading: _loading, enabled: _termsChecked, onPressed: _save),
                 const SizedBox(height: 8),
-                TextButton(
-                  onPressed: _loading ? null : _rejectTerms,
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    overlayColor: Colors.transparent,
-                  ),
-                  child: Text(
-                    'Rechazar términos y cerrar sesión',
-                    textAlign: TextAlign.center,
-                    style: _T.bodySm(_C.error).copyWith(fontWeight: FontWeight.w600),
-                  ),
-                ),
+                _RejectButton(onPressed: _loading ? null : _rejectTerms),
               ],
             ),
           ),
@@ -218,7 +207,7 @@ class _HeroBanner extends StatelessWidget {
                   children: [
                     const _BrandChip(),
                     const Spacer(),
-                    Text('TYCKOPS V2.4', style: _T.caption(_C.surfaceDim).copyWith(letterSpacing: 0.5)),
+                    Text('TYCKOPS', style: _T.caption(_C.surfaceDim).copyWith(letterSpacing: 0.5)),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -784,7 +773,7 @@ class _TermsCard extends StatelessWidget {
                   duration: const Duration(milliseconds: 150),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: checked ? _C.primaryFixed.withValues(alpha: 0.2) : _C.containerLow,
+                    color: _C.primaryFixed.withValues(alpha: 0.2), // fondo rosado suave del mockup
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -907,6 +896,46 @@ class _InfoTile extends StatelessWidget {
   }
 }
 
+// "Rechazar los términos y condiciones": cierra la sesión (RF-03).
+class _RejectButton extends StatelessWidget {
+  const _RejectButton({required this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 48,
+      child: FilledButton(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          backgroundColor: _C.container, // #EEEEEE
+          foregroundColor: _C.secondary,
+          disabledBackgroundColor: _C.container,
+          elevation: 0,
+          overlayColor: Colors.transparent,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Symbols.block, size: 20),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                'Rechazar los términos y condiciones',
+                style: _T.labelLg(_C.secondary),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _PrimaryButton extends StatelessWidget {
   const _PrimaryButton({required this.loading, required this.enabled, required this.onPressed});
 
@@ -931,9 +960,9 @@ class _PrimaryButton extends StatelessWidget {
           style: ButtonStyle(
             backgroundColor: WidgetStateProperty.resolveWith((states) {
               if (!enabled) return _C.containerHighest; // bloqueado: gris
-              if (states.contains(WidgetState.disabled)) return _C.primaryContainer.withValues(alpha: 0.7);
-              if (states.contains(WidgetState.pressed)) return _C.primary;
-              return _C.primaryContainer;
+              if (states.contains(WidgetState.disabled)) return _C.primary.withValues(alpha: 0.7);
+              if (states.contains(WidgetState.pressed)) return _C.onPrimaryFixedVariant;
+              return _C.primary; // #B3011A, rojo del mockup
             }),
             foregroundColor: WidgetStatePropertyAll(contentColor),
             overlayColor: const WidgetStatePropertyAll(Colors.transparent),
