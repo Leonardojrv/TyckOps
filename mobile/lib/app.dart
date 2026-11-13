@@ -6,6 +6,7 @@ import 'core/network/api_client.dart';
 import 'core/theme/app_theme.dart';
 import 'data/repositories/auth_repository.dart';
 import 'features/auth/auth_session.dart';
+import 'features/worker/my_tickets_store.dart';
 
 /// Widget raíz: aplica el tema GA.MA y el router.
 class TyckOpsApp extends StatefulWidget {
@@ -14,11 +15,13 @@ class TyckOpsApp extends StatefulWidget {
     required this.session,
     required this.apiClient,
     required this.authRepository,
+    required this.ticketsStore,
   });
 
   final AuthSession session;
   final ApiClient apiClient; // lo usarán los repositorios reales desde la T3
   final AuthRepository authRepository;
+  final MyTicketsStore ticketsStore;
 
   @override
   State<TyckOpsApp> createState() => _TyckOpsAppState();
@@ -27,7 +30,11 @@ class TyckOpsApp extends StatefulWidget {
 class _TyckOpsAppState extends State<TyckOpsApp> {
   // El router se crea UNA vez. Si se creara dentro de build(), se
   // reiniciaría la navegación cada vez que la pantalla se redibuja.
-  late final GoRouter _router = createRouter(widget.session, widget.authRepository);
+  late final GoRouter _router = createRouter(
+    widget.session,
+    widget.authRepository,
+    widget.ticketsStore,
+  );
 
   @override
   void dispose() {

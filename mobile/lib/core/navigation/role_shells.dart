@@ -1,33 +1,31 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/worker/my_tickets_store.dart';
+import '../../features/worker/worker_bottom_nav.dart';
 import '../widgets/app_bottom_nav.dart';
 import '../widgets/ticket_check_icon.dart';
 
 /// "Cascarón" del colaborador: la pantalla de la pestaña actual + su barra
 /// inferior (Inicio · Reportar falla · Mis solicitudes).
 class WorkerShell extends StatelessWidget {
-  const WorkerShell({super.key, required this.navigationShell});
+  const WorkerShell({super.key, required this.navigationShell, required this.ticketsStore});
 
   final StatefulNavigationShell navigationShell;
+  final MyTicketsStore ticketsStore;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: navigationShell,
-      bottomNavigationBar: AppBottomNav(
-        currentIndex: navigationShell.currentIndex,
-        onTap: (i) => _goTo(navigationShell, i),
-        indicatorStyle: NavIndicatorStyle.dot,
-        items: const [
-          AppNavItem(icon: Icons.home_outlined, activeIcon: Icons.home, label: 'Inicio'),
-          AppNavItem(icon: Icons.build_circle_outlined, activeIcon: Icons.build_circle, label: 'Reportar falla'),
-          AppNavItem(
-            icon: Icons.assignment_turned_in_outlined,
-            activeIcon: Icons.assignment_turned_in,
-            label: 'Mis solicitudes',
-          ),
-        ],
+      // El número sobre "Mis solicitudes" se actualiza solo cuando cambian los tickets.
+      bottomNavigationBar: ListenableBuilder(
+        listenable: ticketsStore,
+        builder: (context, _) => WorkerBottomNav(
+          currentIndex: navigationShell.currentIndex,
+          onTap: (i) => _goTo(navigationShell, i),
+          activeTickets: ticketsStore.data?.inAttention ?? 0,
+        ),
       ),
     );
   }

@@ -112,7 +112,8 @@ class FakeAuthRepository implements AuthRepository {
     final isAdmin = normalized.startsWith('admin');
     final user = AppUser(
       id: 'demo-${isAdmin ? 'admin' : 'worker'}',
-      name: isAdmin ? 'Felipe Morales' : 'Camila Henríquez',
+      // Nombres neutros: no inventamos personas en los datos de prueba.
+      name: isAdmin ? 'Administrador GA.MA' : 'Colaborador GA.MA',
       email: normalized,
       role: isAdmin ? UserRole.admin : UserRole.worker,
       termsAccepted: true,
