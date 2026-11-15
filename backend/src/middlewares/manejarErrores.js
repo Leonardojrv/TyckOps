@@ -7,6 +7,13 @@ export function rutaNoEncontrada(_req, _res, next) {
 }
 
 export function manejarErrores(error, _req, res, _next) {
+  if (error?.type === 'entity.parse.failed') {
+    return responderError(
+      res,
+      new HttpError(400, 'DATOS_INVALIDOS', 'El cuerpo de la solicitud debe contener JSON válido.'),
+    );
+  }
+
   if (error instanceof ZodError) {
     const details = error.issues.map((issue) => ({
       field: issue.path.join('.'),

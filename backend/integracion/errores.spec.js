@@ -124,7 +124,7 @@ describe('400 - Datos inválidos', () => {
     expect(res.body.error.details.map((d) => d.field)).toEqual(expect.arrayContaining(['email', 'password']));
   });
 
-  test('HALLAZGO: JSON mal formado responde 500 ERROR_INTERNO (lo correcto sería 400)', async () => {
+  test('JSON mal formado responde 400 DATOS_INVALIDOS sin registrar una traza', async () => {
     const { app } = crearAppPruebas(prisma);
     const silenciar = jest.spyOn(console, 'error').mockImplementation(() => {});
     try {
@@ -132,12 +132,8 @@ describe('400 - Datos inválidos', () => {
         .post('/api/auth/login')
         .set('Content-Type', 'application/json')
         .send('{"email": "roto"');
-      // express.json() marca el error con status 400 (type 'entity.parse.failed'),
-      // pero manejarErrores solo reconoce ZodError y HttpError, así que lo
-      // convierte en 500. Esta prueba fija el comportamiento ACTUAL: cuando se
-      // corrija el backend, debe cambiarse a 400 y fallará como aviso.
-      formatoDeError(res, 500, 'ERROR_INTERNO');
-      expect(silenciar).toHaveBeenCalled();
+      formatoDeError(res, 400, 'DATOS_INVALIDOS');
+      expect(silenciar).not.toHaveBeenCalled();
     } finally {
       silenciar.mockRestore();
     }

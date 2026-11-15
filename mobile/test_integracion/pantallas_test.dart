@@ -18,7 +18,9 @@ import 'package:tyckops/app.dart';
 import 'package:tyckops/core/navigation/routes.dart';
 import 'package:tyckops/core/network/api_client.dart';
 import 'package:tyckops/data/repositories/auth_repository.dart';
+import 'package:tyckops/data/repositories/ticket_repository.dart';
 import 'package:tyckops/features/auth/auth_session.dart';
+import 'package:tyckops/features/worker/my_tickets_store.dart';
 
 import 'soporte/entorno.dart';
 
@@ -52,10 +54,14 @@ void main() {
     final tokens = TokenEnMemoria();
     final session = AuthSession(tokens);
     final api = ApiClient(tokenStorage: tokens, baseUrl: urlApi, onUnauthorized: session.signOut);
+    final ticketRepository = ApiTicketRepository(api);
+    final ticketsStore = MyTicketsStore(ticketRepository, session);
+    addTearDown(ticketsStore.dispose);
     await tester.pumpWidget(TyckOpsApp(
       session: session,
       apiClient: api,
       authRepository: ApiAuthRepository(api),
+      ticketsStore: ticketsStore,
     ));
     await tester.pumpAndSettle();
     return session;
