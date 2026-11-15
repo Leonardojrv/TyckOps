@@ -1,0 +1,132 @@
+// Esquema TyckOps — alineado con el "Modelo relacional TyckOps (PostgreSQL)".
+// Las restricciones CHECK de Ticket (ck_ticket_*) no se pueden declarar en Prisma:
+// viven en el SQL de la migración que las crea.
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Roles {
+  ID_Rol    Int    @id(map: "Roles_PK") @default(autoincrement())
+  NombreRol String @db.VarChar(100)
+
+  usuarios User[]
+}
+
+model Departamento {
+  ID_depa  Int    @id(map: "Departamento_PK") @default(autoincrement())
+  nom_depa String @db.VarChar(50)
+
+  usuarios User[]
+}
+
+// Tabla "Usuario" del diagrama. En Prisma se llama User y usa los nombres de campo
+// que espera el backend (id, name, email, passwordHash); @map los une a las columnas reales.
+model User {
+  id           Int     @id(map: "Usuario_PK") @default(autoincrement()) @map("ID_user")
+  name         String  @map("nombre") @db.VarChar(50)
+  appat        String  @db.VarChar(50)
+  apmat        String  @db.VarChar(50)
+  email        String  @unique(map: "Usuario_correo_UK") @map("correo") @db.VarChar(100)
+  passwordHash String  @map("password") @db.VarChar(255)
+  estado       String? @db.VarChar(50)
+  Cargo        String? @db.VarChar(150)
+  telefono     String? @db.VarChar(50)
+
+  // Primer acceso y Términos (RF-02 / RF-03). No están en el diagrama: los pide el backend.
+  isFirstLogin    Boolean   @default(true) @map("primerAcceso")
+  termsAccepted   Boolean   @default(false) @map("terminosAceptados")
+  termsVersion    String?   @map("versionTerminos") @db.VarChar(32)
+  termsAcceptedAt DateTime? @map("fechaAceptacionTerminos") @db.Timestamp(6)
+
+  // trabaja (N:1 Departamento)
+  ID_depa      Int
+  departamento Departamento @relation(fields: [ID_depa], references: [ID_depa], map: "Usuario_Departamento_FK")
+
+  // tiene (N:1 Roles)
+  ID_Rol Int
+  rol    Roles @relation(fields: [ID_Rol], references: [ID_Rol], map: "Usuario_Roles_FK")
+
+  // Relaciones inversas
+  ticketsCreados   Ticket[]          @relation("crea")
+  ticketsAprobados Ticket[]          @relation("aprueba")
+  informes         Informe[]
+  reglasPrioridad  ReglasPrioridad[]
+  guiasAutoayuda   GuiaAutoayuda[]
+
+  @@map("Usuario")
+}
+
+model CategoriaReparacion {
+  ID_CateRepa Int    @id(map: "CategoriaReparacion_PK") @default(autoincrement())
+  nombre      String @db.VarChar(150)
+
+  tickets Ticket[]
+}
+
+model Ticket {
+  ID_Ticket       Int       @id(map: "Ticket_PK") @default(autoincrement())
+  Descripcion     String    @db.VarChar(500)
+  Estado          String    @default("recibido") @db.VarChar(50)
+  Ubicacion       String    @db.VarChar(150)
+  Piso            String?   @db.VarChar(50)
+  Prioridad       String?   @db.VarChar(150)
+  imagen          Bytes?
+  NivelIncidencia String?   @db.VarChar(150)
+  TipoSolucion    String?   @db.VarChar(150)
+  FechaCreacion   DateTime  @default(now()) @db.Timestamp(6)
+  FechaCierre     DateTime? @db.Timestamp(6)
+  MotivoRechazo   String?   @db.VarChar(255)
+
+  // duplica (autorrelación: N duplicados -> 1 original)
+  ID_TicketOriginal Int?
+  ticketOriginal    Ticket?  @relation("duplica", fields: [ID_TicketOriginal], references: [ID_Ticket], onDelete: SetNull, map: "Ticket_Ticket_FK")
+  duplicados        Ticket[] @relation("duplica")
+
+  // crea (N:1 Usuario)
+  ID_user Int
+  creador User @relation("crea", fields: [ID_user], references: [id], map: "Ticket_Usuario_FK")
+
+  // clasifica (N:1 CategoriaReparacion)
+  ID_CateRepa         Int
+  categoriaReparacion CategoriaReparacion @relation(fields: [ID_CateRepa], references: [ID_CateRepa], map: "Ticket_CategoriaReparacion_FK")
+
+  // aprueba (N:0..1 Usuario, opcional)
+  ID_admin_aprobador Int?
+  aprobador          User? @relation("aprueba", fields: [ID_admin_aprobador], references: [id], onDelete: SetNull, map: "Ticket_Aprobador_FK")
+}
+
+model Informe {
+  ID_informe      Int      @id(map: "Informe_PK") @default(autoincrement())
+  Archivo         Bytes
+  FechaGeneracion DateTime @default(now()) @db.Timestamp(6)
+
+  // genera (N:1 Usuario)
+  ID_user Int
+  usuario User @relation(fields: [ID_user], references: [id], map: "Informe_Usuario_FK")
+}
+
+model ReglasPrioridad {
+  ID_Regla       Int      @id(map: "ReglasPrioridad_PK") @default(autoincrement())
+  archivo        String   @db.Text
+  FechaInsercion DateTime @default(now()) @db.Timestamp(6)
+
+  // carga (N:1 Usuario)
+  ID_user Int
+  usuario User @relation(fields: [ID_user], references: [id], map: "ReglasPrioridad_Usuario_FK")
+}
+
+model GuiaAutoayuda {
+  ID_Guia        Int      @id(map: "GuiaAutoayuda_PK") @default(autoincrement())
+  archivo        String   @db.Text
+  FechaInsercion DateTime @default(now()) @db.Timestamp(6)
+
+  // sube (N:1 Usuario)
+  ID_user Int
+  usuario User @relation(fields: [ID_user], references: [id], map: "GuiaAutoayuda_Usuario_FK")
+}
