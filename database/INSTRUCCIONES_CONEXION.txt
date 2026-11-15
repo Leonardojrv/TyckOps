@@ -1,0 +1,241 @@
+===============================================================================
+ TyckOps - Cómo levantar la base de datos y conectarla con el backend
+===============================================================================
+
+Estas instrucciones dejan funcionando, en tu computador:
+  - PostgreSQL 15 dentro de Docker (carpeta database/)
+  - Las tablas creadas con Prisma (carpeta database/BaseDatos/)
+  - Datos iniciales de prueba (roles, departamentos, categorías y 2 usuarios)
+  - El backend conectado a esa base (carpeta backend/)
+
+Todos los comandos se ejecutan desde la raíz del repositorio salvo que se diga
+otra cosa.
+
+
+-------------------------------------------------------------------------------
+ 0. REQUISITOS
+-------------------------------------------------------------------------------
+  - Docker Desktop instalado y ABIERTO (la ballena debe estar en verde).
+  - Node.js 20 o superior        ->  node --version
+  - pnpm 10 (para el backend)    ->  pnpm --version
+      Si no lo tienes:  npm install -g pnpm@10
+  - El puerto 5432 libre (si tienes otro PostgreSQL instalado, deténlo).
+
+
+-------------------------------------------------------------------------------
+ 1. LEVANTAR POSTGRESQL (Docker)
+-------------------------------------------------------------------------------
+  1.1  Entra a la carpeta database:
+
+         cd database
+
+  1.2  Crea el archivo de credenciales copiando el ejemplo:
+
+         cp .env.example .env          (Windows CMD:  copy .env.example .env)
+
+       Abre database/.env y elige tu usuario, contraseña y nombre de base.
+       Ejemplo:
+         POSTGRES_USER=tyckops
+         POSTGRES_PASSWORD=una-clave-tuya
+         POSTGRES_DB=BDTyckOps
+
+       IMPORTANTE: anota estos tres valores, los vas a repetir en los pasos
+       2 y 4. Este .env NO se sube a git.
+
+  1.3  Levanta el contenedor:
+
+         docker compose up -d
+
+  1.4  Comprueba que está corriendo:
+
+         docker ps
+       Debe aparecer "postgres_db" con estado "Up".
+
+
+-------------------------------------------------------------------------------
+ 2. CREAR LAS TABLAS (Prisma, carpeta database/BaseDatos)
+-------------------------------------------------------------------------------
+  2.1  Entra a la carpeta e instala dependencias:
+
+         cd BaseDatos
+         npm install
+
+  2.2  Crea el .env de Prisma copiando el ejemplo:
+
+         cp .env.example .env          (Windows CMD:  copy .env.example .env)
+
+       Edita database/BaseDatos/.env:
+
+         DATABASE_URL="postgresql://USUARIO:CLAVE@localhost:5432/BASE?schema=public"
+         SEED_COLABORADOR_PASSWORD=una-clave-para-el-colaborador
+         SEED_ADMIN_PASSWORD=otra-clave-para-el-admin
+
+       USUARIO, CLAVE y BASE = los mismos del paso 1.2.
+       Las dos SEED_* son las contraseñas de los usuarios de prueba
+       (mínimo 8 caracteres). Anótalas, las usarás para iniciar sesión.
+
+  2.3  Aplica las migraciones (crea todas las tablas):
+
+         npx prisma migrate deploy
+
+       Debe terminar con: "All migrations have been successfully applied."
+
+  2.4  Carga los datos iniciales:
+
+         npx prisma db seed
+
+       Crea (si no existen):
+         - Roles:         colaborador, administrador
+         - Departamentos: RRHH, Administracion, Servicios generales
+         - Categorías:    Inmoviliario, Electrica, Baños, Aire acondicionado
+         - Usuarios:      colaborador@gamaitaly.cl  (rol colaborador, RRHH)
+                          admin@gamaitaly.cl        (rol administrador, Administracion)
+
+       Se puede ejecutar varias veces: no duplica ni modifica lo que ya existe.
+
+  2.5  (Opcional) Ver los datos en el navegador:
+
+         npx prisma studio
+       Abre http://localhost:5555
+
+
+-------------------------------------------------------------------------------
+ 3. CONFIGURAR EL BACKEND (carpeta backend)
+-------------------------------------------------------------------------------
+  3.1  Desde la raíz del repositorio:
+
+         cd backend
+         pnpm install
+
+  3.2  Crea el .env del backend:
+
+         cp .env.example .env          (Windows CMD:  copy .env.example .env)
+
+       Edita backend/.env y cambia SOLO estas dos líneas:
+
+         DATABASE_URL=postgresql://USUARIO:CLAVE@localhost:5432/BASE?schema=public
+           -> la MISMA URL del paso 2.2 (la del ejemplo apunta a otra base).
+
+         JWT_SECRET=...
+           -> un texto aleatorio de al menos 32 caracteres. Puedes generarlo con:
+              node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+
+  3.3  Genera el cliente de Prisma del backend:
+
+         pnpm prisma:generate
+
+       Este comando copia database/BaseDatos/prisma/schema.prisma a
+       backend/prisma/schema.prisma y genera el cliente. No edites la copia
+       del backend: los cambios al schema se hacen en database/BaseDatos.
+
+  3.4  Corre los tests y levanta el servidor:
+
+         pnpm test
+         pnpm dev
+
+       Debe decir: "TyckOps API escuchando en http://localhost:3000"
+
+
+-------------------------------------------------------------------------------
+ 4. COMPROBAR QUE TODO FUNCIONA
+-------------------------------------------------------------------------------
+  Puedes usar Postman o curl. (En Windows usa Git Bash para los curl.)
+
+  4.1  Salud:
+         GET http://localhost:3000/salud
+       Esperado: "database":"connected"
+       Si dice "disconnected" -> revisa la sección 6.
+
+  4.2  Login del colaborador:
+         POST http://localhost:3000/api/auth/login
+         Content-Type: application/json
+         {"email":"colaborador@gamaitaly.cl","password":"<SEED_COLABORADOR_PASSWORD>"}
+
+       Esperado: success true, un "token" y un "user" con
+         "role":"COLABORADOR", "area":"RRHH",
+         "termsAccepted":false, "isFirstLogin":true
+
+  4.3  Sesión actual (copia el token del paso anterior):
+         GET http://localhost:3000/api/auth/me
+         Authorization: Bearer <token>
+       Esperado: el mismo usuario.
+
+  4.4  Primer acceso (acepta Términos; newPassword es opcional):
+         POST http://localhost:3000/api/auth/primer-acceso
+         Authorization: Bearer <token>
+         Content-Type: application/json
+         {"acceptTerms":true,"termsVersion":"GA-TOS-2026"}
+
+       Esperado: "termsAccepted":true, "isFirstLogin":false.
+       Para cambiar la clave en el mismo paso agrega:
+         "currentPassword":"<clave actual>","newPassword":"<nueva, 8+ con letras y números>"
+
+  4.5  Ruta de administrador:
+         GET http://localhost:3000/api/admin/ejemplo
+         Authorization: Bearer <token>
+
+       - Con el colaborador:                      403 SIN_ROL_ADMIN
+       - Con admin@gamaitaly.cl ANTES del paso 4.4: 403 TERMINOS_NO_ACEPTADOS
+       - Con admin@gamaitaly.cl DESPUÉS del 4.4:    200 "Acceso de administrador autorizado."
+
+       Es decir: para probar el admin, inicia sesión con admin@gamaitaly.cl,
+       hazle el primer acceso (4.4) con su token y vuelve a probar.
+
+
+-------------------------------------------------------------------------------
+ 5. SI ALGUIEN CAMBIA EL SCHEMA (trabajo del día a día)
+-------------------------------------------------------------------------------
+  Quien hace el cambio (equipo de base de datos), en database/BaseDatos:
+         npx prisma migrate dev --name descripcion_del_cambio
+     y sube a git el schema.prisma y la nueva carpeta en prisma/migrations.
+
+  Los demás, después de hacer pull:
+         cd database/BaseDatos
+         npx prisma migrate deploy
+         cd ../../backend
+         pnpm prisma:generate
+
+  Nombres que usa el backend (no cambiarlos sin avisar):
+    - En Prisma el modelo es "User" (campos id, name, email, passwordHash);
+      en PostgreSQL la tabla sigue llamándose "Usuario".
+    - El rol sale de la tabla Roles: debe ser "colaborador" o "administrador".
+    - El área sale de la tabla Departamento.
+    - El login solo acepta correos @gamaitaly.cl.
+
+
+-------------------------------------------------------------------------------
+ 6. PROBLEMAS FRECUENTES
+-------------------------------------------------------------------------------
+  * "Falta POSTGRES_USER en database/.env" al hacer docker compose up
+      -> No creaste database/.env (paso 1.2).
+
+  * "port is already allocated" / el puerto 5432 está ocupado
+      -> Tienes otro PostgreSQL corriendo. Detén ese servicio o cierra el
+         otro contenedor.
+
+  * /salud dice "disconnected", o Prisma dice "Authentication failed"
+      -> El usuario/clave de DATABASE_URL no coincide con database/.env.
+      -> OJO: PostgreSQL guarda las credenciales la PRIMERA vez que se crea el
+         volumen. Si después cambias database/.env, no se actualizan. Para
+         empezar de cero (BORRA todos los datos de tu base local):
+             cd database
+             docker compose down -v
+             docker compose up -d
+         y repite los pasos 2.3 y 2.4.
+
+  * Login responde 400 "Usa tu correo corporativo @gamaitaly.cl"
+      -> El correo no termina en @gamaitaly.cl.
+
+  * Login responde 401 CREDENCIALES_INVALIDAS con los usuarios del seed
+      -> Usa las contraseñas SEED_* de database/BaseDatos/.env que tenías
+         cuando ejecutaste el seed por primera vez (el seed no modifica
+         usuarios que ya existen).
+
+  * Login responde 403 ROL_INVALIDO
+      -> El rol del usuario en la tabla Roles no es "colaborador" ni
+         "administrador".
+
+  * Error "El cliente Prisma no tiene el modelo User esperado"
+      -> Falta el paso 3.3 (pnpm prisma:generate).
+
+  * NUNCA subas a git ningún archivo .env (ya están en .gitignore).
