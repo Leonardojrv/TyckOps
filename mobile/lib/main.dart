@@ -5,6 +5,7 @@ import 'core/network/api_client.dart';
 import 'core/network/api_config.dart';
 import 'core/network/token_storage.dart';
 import 'data/repositories/auth_repository.dart';
+import 'data/repositories/report_repository.dart';
 import 'data/repositories/ticket_repository.dart';
 import 'features/auth/auth_session.dart';
 import 'features/worker/my_tickets_store.dart';
@@ -26,6 +27,8 @@ Future<void> main() async {
   final TicketRepository ticketRepository =
       ApiConfig.useFakeAuth ? FakeTicketRepository() : ApiTicketRepository(apiClient);
   final ticketsStore = MyTicketsStore(ticketRepository, session);
+  final ReportRepository reportRepository =
+      ApiConfig.useFakeAuth ? FakeReportRepository() : ApiReportRepository(apiClient);
 
   // Mientras se restaura la sesión, Android e iOS siguen mostrando su
   // pantalla de carga nativa (la app aún no dibuja nada).
@@ -36,5 +39,6 @@ Future<void> main() async {
     apiClient: apiClient,
     authRepository: authRepository,
     ticketsStore: ticketsStore,
+    reportRepository: reportRepository,
   ));
 }

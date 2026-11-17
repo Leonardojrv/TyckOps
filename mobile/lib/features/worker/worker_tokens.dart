@@ -17,6 +17,9 @@ abstract final class WorkerColors {
   static const secondaryFixed = Color(0xFFE5E2E1);
   static const outline = Color(0xFF906F6C);
   static const primaryContainer = Color(0xFFD7282F); // rojo GA.MA
+  static const primary = Color(0xFFB3011A); // rojo presionado
+  static const primaryFixed = Color(0xFFFFDAD7); // rosado suave
+  static const onPrimaryFixed = Color(0xFF410004);
   static const error = Color(0xFFBA1A1A);
   static const inverseSurface = Color(0xFF2F3131);
   static const inverseOnSurface = Color(0xFFF1F1F1);
@@ -34,6 +37,7 @@ abstract final class WorkerText {
       );
 
   static TextStyle headlineLg([Color? c]) => _inter(24, 30, FontWeight.w600, -0.015).copyWith(color: c);
+  static TextStyle headlineMd([Color? c]) => _inter(20, 26, FontWeight.w600, -0.01).copyWith(color: c);
   static TextStyle headlineSm([Color? c]) => _inter(18, 24, FontWeight.w600).copyWith(color: c);
   static TextStyle bodyMd([Color? c]) => _inter(14, 20, FontWeight.w400).copyWith(color: c);
   static TextStyle bodySm([Color? c]) => _inter(13, 18, FontWeight.w400).copyWith(color: c);

@@ -11,11 +11,14 @@ enum TicketPriority {
 
   final String apiValue;
 
-  /// Si el servidor manda algo nuevo, no se cae la app: se trata como baja.
-  static TicketPriority fromApi(Object? value) => TicketPriority.values.firstWhere(
-        (p) => p.apiValue == value.toString().toUpperCase(),
-        orElse: () => TicketPriority.low,
-      );
+  /// null = todavía sin prioridad (ticket recién creado). Si el servidor manda
+  /// algo nuevo, no se cae la app: se trata como baja.
+  static TicketPriority? fromApi(Object? value) => value == null
+      ? null
+      : TicketPriority.values.firstWhere(
+          (p) => p.apiValue == value.toString().toUpperCase(),
+          orElse: () => TicketPriority.low,
+        );
 }
 
 /// Ticket tal como lo ve el colaborador dueño (GET /api/tickets/mis-tickets).
@@ -36,7 +39,7 @@ class Ticket {
   final String category;
   final String title;
   final TicketStatus status;
-  final TicketPriority priority;
+  final TicketPriority? priority; // null = por asignar
   final String location;
   final DateTime createdAt; // siempre en hora local
 
