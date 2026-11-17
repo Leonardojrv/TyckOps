@@ -18,7 +18,36 @@ export class MemoryTicketRepository {
       (ticket) => ticket.id === String(id) && ticket.ownerId === String(ownerId),
     ) ?? null;
   }
+
+  async create({ ownerId, category, location, description }) {
+    const numeros = this.tickets.map((t) => Number(String(t.code).replace(/\D/g, '')) || 0);
+    const siguiente = Math.max(0, ...numeros) + 1;
+    const ticket = {
+      id: `t-${siguiente}`,
+      code: `REP-${String(siguiente).padStart(4, '0')}`,
+      category: CATEGORIA_VISIBLE[category] ?? category,
+      title: description,
+      status: 'RECIBIDO', // RF-04: todo reporte nuevo parte en Recibido
+      priority: null, // la asigna la IA o el administrador
+      location,
+      createdAt: new Date(),
+      ownerId: String(ownerId),
+    };
+    this.tickets.push(ticket);
+    return ticket;
+  }
+
+  async delete(id) {
+    this.tickets = this.tickets.filter((ticket) => ticket.id !== String(id));
+  }
 }
+
+const CATEGORIA_VISIBLE = {
+  ELECTRICA: 'Eléctrica',
+  BANOS: 'Baños',
+  AIRE_ACONDICIONADO: 'Aire acondicionado',
+  INMOBILIARIO: 'Inmobiliario',
+};
 
 // Fecha relativa a hoy, para que la demo siempre muestre "Hoy" y "Ayer".
 function haceDias(dias, hora, minuto) {

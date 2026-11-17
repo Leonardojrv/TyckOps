@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../data/models/ticket.dart';
 import '../../data/repositories/auth_repository.dart';
+import '../../data/repositories/report_repository.dart';
 import '../../features/auth/auth_session.dart';
 import '../../features/auth/first_access_screen.dart';
 import '../../features/auth/login_screen.dart';
@@ -10,6 +11,8 @@ import '../../features/shared/components_gallery_screen.dart';
 import '../../features/shared/placeholder_screen.dart';
 import '../../features/worker/home/worker_home_screen.dart';
 import '../../features/worker/my_tickets_store.dart';
+import '../../features/worker/report/report_fault_screen.dart';
+import '../../features/worker/report/report_sent_screen.dart';
 import 'role_shells.dart';
 import 'routes.dart';
 
@@ -21,6 +24,7 @@ GoRouter createRouter(
   AuthSession session,
   AuthRepository authRepository,
   MyTicketsStore ticketsStore,
+  ReportRepository reportRepository,
 ) {
   return GoRouter(
     initialLocation: Routes.login,
@@ -50,6 +54,13 @@ GoRouter createRouter(
         ),
 
       // ===== Colaborador =====
+      // Confirmación del reporte (T6): fuera de las pestañas, sin barra inferior.
+      // Solo se llega desde el formulario con el ticket recién creado.
+      GoRoute(
+        path: Routes.workerReportSent,
+        redirect: (context, state) => state.extra is Ticket ? null : Routes.workerHome,
+        builder: (context, state) => ReportSentScreen(ticket: state.extra! as Ticket),
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, shell) =>
             WorkerShell(navigationShell: shell, ticketsStore: ticketsStore),
@@ -64,8 +75,11 @@ GoRouter createRouter(
           StatefulShellBranch(routes: [
             GoRoute(
               path: Routes.workerReport,
-              builder: (context, state) =>
-                  const PlaceholderScreen(title: 'Reportar una falla', task: 'T6'),
+              builder: (context, state) => ReportFaultScreen(
+                session: session,
+                store: ticketsStore,
+                reports: reportRepository,
+              ),
             ),
           ]),
           StatefulShellBranch(routes: [

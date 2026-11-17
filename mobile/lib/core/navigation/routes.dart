@@ -9,6 +9,7 @@ abstract final class Routes {
   // Colaborador
   static const workerHome = '/worker/inicio';
   static const workerReport = '/worker/reportar';
+  static const workerReportSent = '/worker/reporte-enviado'; // confirmación (T6)
   static const workerTickets = '/worker/solicitudes';
   static String workerTicketDetail(String id) => '$workerTickets/${Uri.encodeComponent(id)}';
 

@@ -18,6 +18,7 @@ import 'package:tyckops/app.dart';
 import 'package:tyckops/core/navigation/routes.dart';
 import 'package:tyckops/core/network/api_client.dart';
 import 'package:tyckops/data/repositories/auth_repository.dart';
+import 'package:tyckops/data/repositories/report_repository.dart';
 import 'package:tyckops/data/repositories/ticket_repository.dart';
 import 'package:tyckops/features/auth/auth_session.dart';
 import 'package:tyckops/features/worker/my_tickets_store.dart';
@@ -62,6 +63,7 @@ void main() {
       apiClient: api,
       authRepository: ApiAuthRepository(api),
       ticketsStore: ticketsStore,
+      reportRepository: ApiReportRepository(api),
     ));
     await tester.pumpAndSettle();
     return session;

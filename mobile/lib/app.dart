@@ -5,6 +5,7 @@ import 'core/navigation/app_router.dart';
 import 'core/network/api_client.dart';
 import 'core/theme/app_theme.dart';
 import 'data/repositories/auth_repository.dart';
+import 'data/repositories/report_repository.dart';
 import 'features/auth/auth_session.dart';
 import 'features/worker/my_tickets_store.dart';
 
@@ -16,12 +17,14 @@ class TyckOpsApp extends StatefulWidget {
     required this.apiClient,
     required this.authRepository,
     required this.ticketsStore,
+    required this.reportRepository,
   });
 
   final AuthSession session;
   final ApiClient apiClient; // lo usarán los repositorios reales desde la T3
   final AuthRepository authRepository;
   final MyTicketsStore ticketsStore;
+  final ReportRepository reportRepository;
 
   @override
   State<TyckOpsApp> createState() => _TyckOpsAppState();
@@ -34,6 +37,7 @@ class _TyckOpsAppState extends State<TyckOpsApp> {
     widget.session,
     widget.authRepository,
     widget.ticketsStore,
+    widget.reportRepository,
   );
 
   @override

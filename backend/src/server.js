@@ -2,7 +2,9 @@ import { crearApp } from './app.js';
 import { loadEnv } from './config/env.js';
 import { connectPrisma } from './config/prisma.js';
 import { crearRepositorioEnMemoria } from './modules/auth/auth.memory.repository.js';
+import { fileURLToPath } from 'node:url';
 import { MemoryTicketRepository, ticketsDeDemostracion } from './modules/tickets/tickets.memory.repository.js';
+import { PrismaTicketRepository } from './modules/tickets/tickets.prisma.repository.js';
 import { TicketService } from './modules/tickets/tickets.service.js';
 
 const env = loadEnv();
@@ -47,10 +49,14 @@ const userRepository = prisma ? null : await crearRepositorioEnMemoria([
   },
 ]);
 
-// Tickets de demostración solo sin base de datos (la tabla real llega en la T6).
-const ticketService = prisma ? null : new TicketService(
-  new MemoryTicketRepository(ticketsDeDemostracion('demo-worker')),
-  { slaCumplido: 98.4 },
+// Tickets: en PostgreSQL si hay base de datos; si no, datos de demostración en memoria.
+// Las fotos se guardan en backend/uploads/tickets (no se publica ni se sube a git).
+const uploadsDir = fileURLToPath(new URL('../uploads/tickets', import.meta.url));
+const ticketService = new TicketService(
+  prisma
+    ? new PrismaTicketRepository(prisma)
+    : new MemoryTicketRepository(ticketsDeDemostracion('demo-worker')),
+  { slaCumplido: prisma ? null : 98.4, uploadsDir },
 );
 
 const app = crearApp({ env, prisma, userRepository, ticketService, databaseStatus });
