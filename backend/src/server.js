@@ -1,6 +1,7 @@
 import { crearApp } from './app.js';
 import { loadEnv } from './config/env.js';
 import { connectPrisma } from './config/prisma.js';
+import { ClienteGroq } from './ia/clienteGroq.js';
 import { crearRepositorioEnMemoria } from './modules/auth/auth.memory.repository.js';
 import { fileURLToPath } from 'node:url';
 import { MemoryTicketRepository, ticketsDeDemostracion } from './modules/tickets/tickets.memory.repository.js';
@@ -8,6 +9,12 @@ import { PrismaTicketRepository } from './modules/tickets/tickets.prisma.reposit
 import { TicketService } from './modules/tickets/tickets.service.js';
 
 const env = loadEnv();
+const groqClient = new ClienteGroq({
+  apiKey: env.groqApiKey,
+  model: env.groqModel,
+  reasoningEffort: env.groqReasoningEffort,
+  timeoutMs: env.groqTimeoutMs,
+});
 let prisma = null;
 let databaseStatus = env.databaseUrl ? 'disconnected' : 'not_configured';
 
@@ -59,7 +66,7 @@ const ticketService = new TicketService(
   { slaCumplido: prisma ? null : 98.4, uploadsDir },
 );
 
-const app = crearApp({ env, prisma, userRepository, ticketService, databaseStatus });
+const app = crearApp({ env, prisma, userRepository, ticketService, groqClient, databaseStatus });
 const server = app.listen(env.port, () => {
   console.log(`TyckOps API escuchando en http://localhost:${env.port}`);
 });

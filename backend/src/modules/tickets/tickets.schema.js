@@ -8,14 +8,36 @@ export const CATEGORIAS = {
   INMOBILIARIO: 'Inmobiliario',
 };
 
+const ALIAS_CATEGORIA = {
+  electrica: 'ELECTRICA',
+  banos: 'BANOS',
+  aire_acondicionado: 'AIRE_ACONDICIONADO',
+  inmobiliario: 'INMOBILIARIO',
+  mobiliario: 'INMOBILIARIO',
+};
+
+function normalizarCategoria(valor) {
+  if (typeof valor !== 'string') return valor;
+  const clave = valor
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+  return ALIAS_CATEGORIA[clave] ?? valor;
+}
+
+const categoriaSchema = z.preprocess(
+  normalizarCategoria,
+  z.enum(Object.keys(CATEGORIAS), { errorMap: () => ({ message: 'Elige el tipo de avería.' }) }),
+);
+
 // Quita caracteres de control (deja los saltos de línea de la descripción).
 const sinControl = (texto) => texto.replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, ' ');
 
 export const reporteSchema = z
   .object({
-    categoria: z.enum(Object.keys(CATEGORIAS), {
-      errorMap: () => ({ message: 'Elige el tipo de avería.' }),
-    }),
+    categoria: categoriaSchema,
     ubicacion: z
       .string()
       .transform(sinControl)

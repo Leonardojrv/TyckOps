@@ -19,6 +19,10 @@ export class MemoryTicketRepository {
     ) ?? null;
   }
 
+  async findById(id) {
+    return this.tickets.find((ticket) => ticket.id === String(id)) ?? null;
+  }
+
   async create({ ownerId, category, location, description }) {
     const numeros = this.tickets.map((t) => Number(String(t.code).replace(/\D/g, '')) || 0);
     const siguiente = Math.max(0, ...numeros) + 1;
