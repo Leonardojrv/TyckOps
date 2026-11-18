@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tyckops/core/format/ticket_time.dart';
 import 'package:tyckops/core/navigation/routes.dart';
@@ -5,6 +7,7 @@ import 'package:tyckops/core/network/api_exception.dart';
 import 'package:tyckops/core/network/token_storage.dart';
 import 'package:tyckops/data/models/app_user.dart';
 import 'package:tyckops/data/models/ticket.dart';
+import 'package:tyckops/data/models/ticket_detail.dart';
 import 'package:tyckops/data/models/ticket_status.dart';
 import 'package:tyckops/data/models/user_role.dart';
 import 'package:tyckops/data/repositories/ticket_repository.dart';
@@ -28,6 +31,10 @@ class _StubTickets implements TicketRepository {
   Object result; // MyTickets o una excepción
   @override
   Future<MyTickets> myTickets() async => result is MyTickets ? result as MyTickets : throw result;
+  @override
+  Future<TicketDetail> ticketDetail(String id) => throw UnimplementedError();
+  @override
+  Future<Uint8List> ticketPhoto(String id) => throw UnimplementedError();
 }
 
 AppUser _user(String id) => AppUser(id: id, name: 'Ana', email: 'ana@gamaitaly.cl', role: UserRole.worker, termsAccepted: true);

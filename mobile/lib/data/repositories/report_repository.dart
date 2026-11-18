@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Envía el reporte de una falla al servidor (T6).
+//
+// ¿QUÉ HACE?
+//   Arma el formulario con la categoría, la ubicación, la descripción y la foto
+//   (si hay), y devuelve el ticket recién creado.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si el formulario suma un campo, agrégalo aquí y en el servidor. El nombre de la
+//   foto lo pone el servidor; nunca se manda el del teléfono.
+
 import 'package:dio/dio.dart';
 
 import '../../core/network/api_client.dart';

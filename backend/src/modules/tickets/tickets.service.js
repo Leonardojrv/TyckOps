@@ -1,3 +1,15 @@
+// ¿PARA QUÉ SIRVE?
+//   Es el "cerebro" de los tickets: aquí están las reglas, no las rutas ni la base.
+//
+// ¿QUÉ HACE?
+//   Arma la lista y el resumen del home, el detalle (con comentarios y motivo de
+//   rechazo), entrega la foto solo a su dueño y crea los reportes nuevos.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si cambia una regla (por ejemplo, qué estados cuentan como "en atención"),
+//   cámbiala aquí y corre `pnpm test`. Lo que se guarda o se lee de la base va en
+//   los repositorios.
+
 import { HttpError } from '../../utils/http-error.js';
 import { detectarTipoImagen, quitarMetadatos } from './tickets.fotos.js';
 
@@ -40,14 +52,33 @@ export class TicketService {
     };
   }
 
+  // Detalle de un ticket para su dueño (pantalla "Detalle del ticket", T7).
+  // Junta lo que la pantalla necesita: los datos básicos, la descripción, si
+  // tiene foto, el motivo de rechazo y los comentarios del administrador.
+  // Si quieres mostrar un dato nuevo en el detalle, súmalo aquí y en el repositorio.
   async detalle(userId, id) {
     // IDs con formato raro ni siquiera se buscan.
     const ticket = /^[A-Za-z0-9-]{1,40}$/.test(String(id))
-      ? await this.ticketRepository.findByIdForOwner(id, userId)
+      ? await this.ticketRepository.findDetailForOwner(id, userId)
       : null;
-    // Ajeno o inexistente: mismo 404, para no revelar qué IDs existen.
+    // Ajeno o inexistente responden igual (404): así nadie puede adivinar qué tickets existen.
     if (!ticket) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
-    return publicTicket(ticket);
+
+    return {
+      ...publicTicket(ticket),
+      description: ticket.description ?? ticket.title,
+      hasPhoto: Boolean(ticket.hasPhoto),
+      // El motivo solo viaja si el ticket está rechazado (RF-07), aunque la base tenga algo escrito.
+      rejectionReason: ticket.status === 'RECHAZADO' ? ticket.rejectionReason ?? null : null,
+      closedAt: ticket.closedAt ? new Date(ticket.closedAt).toISOString() : null,
+      // La consulta ya filtró por este ticket: nunca se mezclan comentarios de otro.
+      comments: (ticket.comments ?? []).map((comentario) => ({
+        id: String(comentario.id),
+        author: comentario.author,
+        createdAt: new Date(comentario.createdAt).toISOString(),
+        text: comentario.text,
+      })),
+    };
   }
 
   // Foto de un ticket propio (columna imagen). Devuelve los bytes y su tipo.

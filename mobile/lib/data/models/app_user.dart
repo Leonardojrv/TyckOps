@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Representa a la persona que inició sesión.
+//
+// ¿QUÉ HACE?
+//   Guarda su nombre, correo, rol, área y si ya aceptó los términos o tiene el
+//   primer acceso pendiente. Se arma con lo que responde el servidor.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si el servidor agrega un dato del usuario (por ejemplo, teléfono), súmalo aquí y
+//   en fromJson.
+
 import 'user_role.dart';
 
 /// Usuario con sesión iniciada.
@@ -20,8 +31,8 @@ class AppUser {
   final bool termsAccepted; // RF-03
   final bool isFirstLogin; // RF-02: mostrar "cambiar o mantener contraseña"
 
-  /// Convierte el JSON del backend en un objeto Dart.
-  /// Campos confirmados con la API de Moisés (backend/README.md).
+  /// Arma el usuario con lo que responde el servidor.
+  /// Los campos están acordados con Moisés (ver backend/README.md).
   factory AppUser.fromJson(Map<String, dynamic> json) => AppUser(
         id: json['id'].toString(),
         name: json['name'] as String,

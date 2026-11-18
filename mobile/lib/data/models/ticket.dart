@@ -1,3 +1,13 @@
+// ¿PARA QUÉ SIRVE?
+//   Representa un ticket tal como lo ve su dueño.
+//
+// ¿QUÉ HACE?
+//   Guarda código, categoría, título, estado, prioridad, ubicación y fecha, y valida
+//   que el id sea seguro para ponerlo en una dirección.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si el servidor agrega un dato a la lista de tickets, súmalo aquí y en fromJson.
+
 import 'ticket_status.dart';
 
 /// Prioridad que asigna el sistema (la IA solo usa Media y Alta; la baja
@@ -44,14 +54,7 @@ class Ticket {
   final DateTime createdAt; // siempre en hora local
 
   /// Sigue en atención (RF-05): aún no está resuelto, cerrado, rechazado ni cancelado.
-  bool get isActive => switch (status) {
-        TicketStatus.received ||
-        TicketStatus.inReview ||
-        TicketStatus.approved ||
-        TicketStatus.inProgress =>
-          true,
-        _ => false,
-      };
+  bool get isActive => status.isActiveStatus;
 
   /// Seguridad: el id viaja en la URL del detalle, así que solo se aceptan
   /// letras, números y guiones (nada de "/", "?" o "..").

@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Prueba el envío de reportes con y sin foto (T6).
+//
+// ¿QUÉ HACE?
+//   Revisa que se rechacen archivos falsos, fotos de más de 5 MB y datos inválidos,
+//   que la foto pierda su GPS y que el ticket nazca en estado Recibido.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si cambias las reglas del reporte o de las fotos, ajusta esta prueba y corre
+//   `pnpm test`.
+
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import jwt from 'jsonwebtoken';

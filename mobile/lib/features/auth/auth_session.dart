@@ -1,3 +1,13 @@
+// ¿PARA QUÉ SIRVE?
+//   Recuerda quién inició sesión mientras la app está abierta.
+//
+// ¿QUÉ HACE?
+//   Guarda el usuario actual, avisa a la app cuando entra o sale alguien (así el
+//   router cambia de pantalla) y borra el token al cerrar sesión.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si necesitas saber algo más de la sesión en varias pantallas, agrégalo aquí.
+
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -9,8 +19,8 @@ import '../../data/repositories/auth_repository.dart';
 
 /// Guarda quién tiene la sesión iniciada y avisa cuando cambia.
 ///
-/// Es un ChangeNotifier: cuando llamamos a notifyListeners(), el router se
-/// entera y vuelve a evaluar a qué pantalla mandar al usuario.
+/// Cada vez que cambia la sesión, "avisa" a la app. Así el mapa de pantallas
+/// se entera y vuelve a decidir a dónde mandar a la persona.
 class AuthSession extends ChangeNotifier {
   AuthSession(this._tokenStorage);
 
@@ -38,8 +48,8 @@ class AuthSession extends ChangeNotifier {
       );
       notifyListeners();
     } on Exception {
-      // Token vencido (el ApiClient ya lo borró al recibir 401), servidor
-      // caído o sin internet: se muestra el login normal.
+      // La sesión venció (ya se borró), el servidor no responde o no hay
+      // internet: en cualquiera de esos casos se muestra el login normal.
     }
   }
 

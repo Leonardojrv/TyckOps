@@ -1,3 +1,12 @@
+// ¿PARA QUÉ SIRVE?
+//   Es el ícono de "ticket con check" de la barra del administrador.
+//
+// ¿QUÉ HACE?
+//   Lo dibuja a mano porque no existe en los íconos de Material.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si el mockup cambia el ícono, se redibuja aquí.
+
 import 'package:flutter/material.dart';
 
 /// Ícono "ticket con check" de la pestaña Tickets del administrador.

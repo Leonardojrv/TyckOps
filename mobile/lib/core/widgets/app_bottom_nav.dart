@@ -1,3 +1,13 @@
+// ¿PARA QUÉ SIRVE?
+//   Es la barra de pestañas de abajo que usa el administrador.
+//
+// ¿QUÉ HACE?
+//   Dibuja 3 pestañas con su ícono, su texto y la marca de la pestaña activa.
+//
+// ¿CÓMO LO CAMBIO?
+//   Para el colaborador hay una barra propia (worker_bottom_nav.dart). Si cambias
+//   el diseño de la del administrador, hazlo aquí (T11).
+
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';

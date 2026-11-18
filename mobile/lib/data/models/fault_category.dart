@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Define los 4 tipos de avería del reporte y la foto elegida.
+//
+// ¿QUÉ HACE?
+//   Guarda el código que se envía al servidor, el texto, el ícono de cada categoría
+//   y los límites del formulario (largos y 5 MB de foto).
+//
+// ¿CÓMO LO CAMBIO?
+//   Para agregar una categoría nueva, súmala aquí Y en el servidor
+//   (tickets.schema.js). Los límites deben coincidir con los del servidor.
+
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';

@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Es quien lee y guarda los tickets en la base de datos real (PostgreSQL).
+//
+// ¿QUÉ HACE?
+//   Traduce entre la base (ID_Ticket, Estado...) y lo que entiende la app (id,
+//   status...). TODAS las consultas filtran por el dueño en la misma búsqueda.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si la base cambia un nombre de columna, ajústalo aquí. Si agregas un dato al
+//   detalle, súmalo en findDetailForOwner sin quitar el filtro por dueño.
+
 import { HttpError } from '../../utils/http-error.js';
 
 // Nombres aceptados en la tabla CategoriaReparacion para cada código de la app.
@@ -112,6 +123,61 @@ export class PrismaTicketRepository {
       omit: sinImagen,
     });
     return aTicket(fila);
+  }
+
+  /**
+   * Todo lo que necesita la pantalla de detalle (T7) de un ticket del dueño:
+   * los datos de siempre, la descripción completa, el motivo de rechazo, la
+   * fecha de cierre, si tiene foto y los comentarios del administrador.
+   *
+   * Ojo con dos cosas si la modificas:
+   * - El filtro por dueño (ID_user) va en la MISMA consulta: así es imposible
+   *   que alguien vea el detalle o los comentarios de un ticket ajeno.
+   * - La foto no se trae aquí (puede pesar MB); solo preguntamos si existe.
+   */
+  async findDetailForOwner(id, ownerId) {
+    const ticketId = idNumerico(id);
+    const dueno = idNumerico(ownerId);
+    if (ticketId === null || dueno === null) return null;
+
+    const fila = await this.prisma.ticket.findFirst({
+      where: { ID_Ticket: ticketId, ID_user: dueno },
+      include: {
+        ...incluir,
+        // Solo los comentarios de este ticket, del más antiguo al más nuevo.
+        comentarios: {
+          orderBy: { FechaCreacion: 'asc' },
+          select: {
+            ID_Comentario: true,
+            Texto: true,
+            FechaCreacion: true,
+            // Del autor solo sale el nombre: nada de correo ni datos internos.
+            autor: { select: { name: true, appat: true } },
+          },
+        },
+      },
+      omit: sinImagen,
+    });
+    if (!fila) return null;
+
+    // ¿Tiene foto? Lo preguntamos sin descargar los bytes de la imagen.
+    const conFoto = await this.prisma.ticket.count({
+      where: { ID_Ticket: ticketId, imagen: { not: null } },
+    });
+
+    return {
+      ...aTicket(fila),
+      description: fila.Descripcion,
+      rejectionReason: fila.MotivoRechazo,
+      closedAt: fila.FechaCierre,
+      hasPhoto: conFoto > 0,
+      comments: fila.comentarios.map((c) => ({
+        id: c.ID_Comentario,
+        author: [c.autor?.name, c.autor?.appat].filter(Boolean).join(' ') || 'Servicios Generales',
+        createdAt: c.FechaCreacion,
+        text: c.Texto,
+      })),
+    };
   }
 
   /**

@@ -53,8 +53,9 @@ model User {
   rol    Roles @relation(fields: [ID_Rol], references: [ID_Rol], map: "Usuario_Roles_FK")
 
   // Relaciones inversas
-  ticketsCreados   Ticket[]          @relation("crea")
-  ticketsAprobados Ticket[]          @relation("aprueba")
+  ticketsCreados   Ticket[]           @relation("crea")
+  ticketsAprobados Ticket[]           @relation("aprueba")
+  comentarios      ComentarioTicket[] @relation("comenta")
   informes         Informe[]
   reglasPrioridad  ReglasPrioridad[]
   guiasAutoayuda   GuiaAutoayuda[]
@@ -99,6 +100,28 @@ model Ticket {
   // aprueba (N:0..1 Usuario, opcional)
   ID_admin_aprobador Int?
   aprobador          User? @relation("aprueba", fields: [ID_admin_aprobador], references: [id], onDelete: SetNull, map: "Ticket_Aprobador_FK")
+
+  // tiene (1:N ComentarioTicket)
+  comentarios ComentarioTicket[]
+}
+
+// Comentarios que el administrador deja en un ticket (T7 los muestra al
+// colaborador, T13 los escribe). No es un chat: el colaborador solo los lee.
+// Si se borra el ticket, sus comentarios se van con él (Cascade).
+model ComentarioTicket {
+  ID_Comentario Int      @id(map: "ComentarioTicket_PK") @default(autoincrement())
+  Texto         String   @db.VarChar(500)
+  FechaCreacion DateTime @default(now()) @db.Timestamp(6)
+
+  // pertenece a (N:1 Ticket)
+  ID_Ticket Int
+  ticket    Ticket @relation(fields: [ID_Ticket], references: [ID_Ticket], onDelete: Cascade, map: "ComentarioTicket_Ticket_FK")
+
+  // escribe (N:1 Usuario administrador)
+  ID_admin Int
+  autor    User @relation("comenta", fields: [ID_admin], references: [id], map: "ComentarioTicket_Usuario_FK")
+
+  @@index([ID_Ticket], map: "ComentarioTicket_Ticket_IDX")
 }
 
 model Informe {

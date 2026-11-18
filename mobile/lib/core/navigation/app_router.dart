@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Es el mapa de pantallas de la app: qué pantalla corresponde a cada dirección.
+//
+// ¿QUÉ HACE?
+//   Define las rutas del colaborador y del administrador, y cada vez que cambia la
+//   sesión decide a dónde mandarte (login, primer acceso o tu inicio).
+//
+// ¿CÓMO LO CAMBIO?
+//   Para agregar una pantalla nueva, súmala aquí con su ruta (y la ruta en
+//   routes.dart). Las reglas de quién puede entrar están en routes.dart.
+
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 
@@ -13,13 +24,15 @@ import '../../features/worker/home/worker_home_screen.dart';
 import '../../features/worker/my_tickets_store.dart';
 import '../../features/worker/report/report_fault_screen.dart';
 import '../../features/worker/report/report_sent_screen.dart';
+import '../../features/worker/tickets/my_tickets_screen.dart';
+import '../../features/worker/tickets/ticket_detail_screen.dart';
 import 'role_shells.dart';
 import 'routes.dart';
 
 /// Mapa de navegación de la app.
 ///
-/// [refreshListenable] hace que, cuando la sesión cambia (login o logout),
-/// el router vuelva a ejecutar [redirect] y lleve al usuario a donde debe.
+/// Este mapa "escucha" a la sesión: cada vez que alguien entra o sale, vuelve
+/// a revisar a qué pantalla debe ir la persona (login, primer acceso o su inicio).
 GoRouter createRouter(
   AuthSession session,
   AuthRepository authRepository,
@@ -85,18 +98,20 @@ GoRouter createRouter(
           StatefulShellBranch(routes: [
             GoRoute(
               path: Routes.workerTickets,
-              builder: (context, state) =>
-                  const PlaceholderScreen(title: 'Mis Solicitudes', task: 'T7'),
+              // T7 · Lista "Mis Solicitudes" (usa los mismos datos que el home).
+              builder: (context, state) => MyTicketsScreen(session: session, store: ticketsStore),
               routes: [
-                // Detalle del ticket (T7). El servidor valida que sea del usuario.
+                // T7 · Detalle del ticket. Un id con caracteres raros vuelve a la
+                // lista; además, el servidor responde 404 si el ticket no es tuyo.
                 GoRoute(
                   path: ':ticketId',
                   redirect: (context, state) =>
                       Ticket.isSafeId(state.pathParameters['ticketId'] ?? '') ? null : Routes.workerTickets,
-                  builder: (context, state) => PlaceholderScreen(
-                    title: 'Detalle de la solicitud',
-                    task: 'T7',
-                    onBack: () => context.go(Routes.workerTickets),
+                  builder: (context, state) => TicketDetailScreen(
+                    // Al abrir un ticket distinto, la pantalla se carga de cero (no reusa el anterior).
+                    key: ValueKey(state.pathParameters['ticketId']),
+                    ticketId: state.pathParameters['ticketId']!,
+                    repository: ticketsStore.repository,
                   ),
                 ),
               ],
