@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Prueba que cada colaborador vea solo sus propios tickets.
+//
+// ¿QUÉ HACE?
+//   Crea dos colaboradores y comprueba que ninguno pueda ver los tickets del otro
+//   (el servidor responde 404).
+//
+// ¿CÓMO LO CAMBIO?
+//   Si cambias cómo se listan los tickets, corre `pnpm test` para confirmar que
+//   sigue sin filtrarse información ajena.
+
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import jwt from 'jsonwebtoken';

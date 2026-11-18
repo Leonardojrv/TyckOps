@@ -1,3 +1,16 @@
+// ¿PARA QUÉ SIRVE?
+//   Son las "puertas" del servidor para los tickets del colaborador: reportar una
+//   falla, ver mis tickets, ver un detalle y ver su foto.
+//
+// ¿QUÉ HACE?
+//   Antes de cualquier cosa revisa tres llaves: sesión válida, rol colaborador y
+//   términos aceptados. El dueño del ticket SIEMPRE sale de la sesión, nunca de
+//   lo que mande el teléfono.
+//
+// ¿CÓMO LO CAMBIO?
+//   Para agregar una ruta nueva (por ejemplo, cancelar en la T8), súmala aquí y pon
+//   la lógica en tickets.service.js. No quites los tres controles de arriba.
+
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';

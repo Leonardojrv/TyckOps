@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Guarda el texto oficial de los Términos y Condiciones (secciones 1 a 9).
+//
+// ¿QUÉ HACE?
+//   Lo divide en secciones, párrafos y listas para que la pantalla de primer acceso
+//   lo muestre ordenado.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si Legal cambia el texto, edítalo aquí y cambia también termsDocCode: así el
+//   servidor sabe que hay una versión nueva que aceptar.
+
 /// Términos y Condiciones (RF-03). Si cambias el texto, cambia también
 /// [termsDocCode]: en la T4 el servidor guardará qué versión aceptó cada usuario.
 const termsDocCode = 'GA-TOS-2026';

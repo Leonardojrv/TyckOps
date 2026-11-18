@@ -1,3 +1,13 @@
+// ¿PARA QUÉ SIRVE?
+//   Es la barra de pestañas de abajo del colaborador.
+//
+// ¿QUÉ HACE?
+//   Muestra Inicio · Reportar falla · Mis solicitudes, marca la pestaña activa y
+//   el número gris de solicitudes en curso.
+//
+// ¿CÓMO LO CAMBIO?
+//   Para cambiar los íconos o textos de las pestañas, edita la lista _items.
+
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 

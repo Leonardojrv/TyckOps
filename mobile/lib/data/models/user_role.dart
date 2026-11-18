@@ -1,3 +1,12 @@
+// ¿PARA QUÉ SIRVE?
+//   Define los dos roles de la app: colaborador y administrador.
+//
+// ¿QUÉ HACE?
+//   Traduce el rol que manda el servidor al de la app.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si aparece un rol nuevo, súmalo aquí y en las reglas de routes.dart.
+
 /// Roles del sistema. El servidor es quien dice qué rol tiene cada usuario
 /// (RF-11 adm): la app nunca decide el rol por su cuenta.
 enum UserRole {

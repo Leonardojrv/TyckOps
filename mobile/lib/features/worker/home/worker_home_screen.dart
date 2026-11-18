@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Es el inicio del colaborador (T5).
+//
+// ¿QUÉ HACE?
+//   Saluda con tu nombre, ofrece "Crear reporte", muestra el resumen y tus 3
+//   solicitudes activas más recientes, y lleva a cada pantalla.
+//
+// ¿CÓMO LO CAMBIO?
+//   Los colores y letras salen de worker_tokens.dart. Si quieres mostrar más o menos
+//   solicitudes, cambia _maxActiveShown.
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';

@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Es el botón estándar de la app.
+//
+// ¿QUÉ HACE?
+//   Ofrece las variantes de los mockups (rojo principal, oscuro, borde) con su
+//   estado de carga.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si cambia el diseño de los botones base, cámbialo aquí. Las pantallas que
+//   copian el mockup al detalle usan sus propios botones.
+
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';

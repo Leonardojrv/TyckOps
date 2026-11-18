@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Guarda tus tickets para que varias pantallas los compartan.
+//
+// ¿QUÉ HACE?
+//   Los pide al servidor, los guarda mientras la sesión esté abierta y los BORRA al
+//   cerrar sesión, para que la siguiente persona nunca los vea.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si otra pantalla necesita los tickets, úsala con este mismo store en vez de
+//   pedirlos de nuevo.
+
 import 'package:flutter/foundation.dart';
 
 import '../../core/network/api_exception.dart';
@@ -19,6 +30,10 @@ class MyTicketsStore extends ChangeNotifier {
   String? _error;
   bool _loading = false;
   String? _ownerId; // de quién son los datos que hay en memoria
+
+  /// El mismo repositorio, para pantallas que piden más datos de un ticket
+  /// (por ejemplo el detalle de la T7). Así no hay que pasarlo por todos lados.
+  TicketRepository get repository => _repository;
 
   MyTickets? get data => _data;
   String? get error => _error;

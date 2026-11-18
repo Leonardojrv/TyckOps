@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Es la "caja" que envuelve toda la app.
+//
+// ¿QUÉ HACE?
+//   Aplica los colores y letras de GA.MA (el tema) y conecta el mapa de
+//   pantallas (el router).
+//
+// ¿CÓMO LO CAMBIO?
+//   Normalmente no hay que tocarlo. Si sumas una dependencia que el router necesita,
+//   agrégala como parámetro aquí y en main.dart.
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -31,8 +42,8 @@ class TyckOpsApp extends StatefulWidget {
 }
 
 class _TyckOpsAppState extends State<TyckOpsApp> {
-  // El router se crea UNA vez. Si se creara dentro de build(), se
-  // reiniciaría la navegación cada vez que la pantalla se redibuja.
+  // El mapa de pantallas se crea una sola vez. Si se creara cada vez que la
+  // pantalla se vuelve a dibujar, la app volvería al inicio a cada rato.
   late final GoRouter _router = createRouter(
     widget.session,
     widget.authRepository,

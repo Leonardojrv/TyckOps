@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Es quien habla con el servidor para todo lo de la sesión.
+//
+// ¿QUÉ HACE?
+//   Inicia sesión, pregunta "¿quién soy?" al abrir la app y completa el primer
+//   acceso (contraseña y términos). Trae también una versión de prueba sin servidor.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si cambia una ruta de login en el servidor, cámbiala aquí. La versión de prueba
+//   (FakeAuthRepository) solo se usa con --dart-define=FAKE_AUTH=true.
+
 import '../../core/network/api_client.dart';
 import '../../core/network/api_exception.dart';
 import '../models/app_user.dart';

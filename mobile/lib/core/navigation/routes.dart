@@ -1,3 +1,15 @@
+// ¿PARA QUÉ SIRVE?
+//   Junta todas las direcciones de la app y las reglas de quién puede verlas.
+//
+// ¿QUÉ HACE?
+//   Guarda las rutas como constantes (nada de textos sueltos) y decide si alguien
+//   debe ir al login, al primer acceso o a su inicio según su sesión y su rol.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si agregas una ruta, ponla aquí. Si cambias una regla de acceso, actualiza
+//   test/route_guard_test.dart. Ojo: esto solo esconde pantallas; quien protege
+//   los datos de verdad es el servidor.
+
 import '../../data/models/user_role.dart';
 
 /// Todas las rutas de la app en un solo lugar (nada de textos sueltos).
@@ -29,7 +41,7 @@ abstract final class Routes {
 /// un test simple (test/route_guard_test.dart).
 ///
 /// Seguridad: esta guardia solo esconde pantallas. Quien protege los datos
-/// de verdad es el backend, que debe revisar el rol en CADA endpoint.
+/// de verdad es el servidor, que revisa el rol en CADA una de sus rutas.
 String? redirectFor({
   required bool loggedIn,
   required UserRole? role,

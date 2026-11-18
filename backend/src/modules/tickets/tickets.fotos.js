@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Revisa y limpia las fotos que llegan con los reportes.
+//
+// ¿QUÉ HACE?
+//   Reconoce si es JPG o PNG por su contenido (no por el nombre) y le borra los
+//   datos ocultos, como la ubicación GPS de quien la tomó.
+//
+// ¿CÓMO LO CAMBIO?
+//   Para aceptar otro formato (por ejemplo, WEBP), agrega su firma aquí y su
+//   limpieza de metadatos. El tamaño máximo está en MAX_FOTO_BYTES.
+
 // RF-04: una foto por reporte, JPG o PNG, máximo 5 MB.
 export const MAX_FOTO_BYTES = 5 * 1024 * 1024;
 

@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Es la pantalla "Reportar falla" (T6).
+//
+// ¿QUÉ HACE?
+//   Pide el tipo de avería, la ubicación, la descripción y una foto opcional
+//   (cámara o galería), revisa todo y envía el reporte.
+//
+// ¿CÓMO LO CAMBIO?
+//   Los límites del formulario están en fault_category.dart. Si cambias uno,
+//   cámbialo también en el servidor (tickets.schema.js).
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -752,7 +763,7 @@ class _Thumbnail extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // cacheWidth: decodifica la miniatura pequeña (no 1600 px en memoria).
+          // La miniatura se carga en tamaño pequeño para no gastar memoria del teléfono.
           Image.memory(photo.bytes, fit: BoxFit.cover, cacheWidth: 240, gaplessPlayback: true),
           Positioned(
             left: 0,

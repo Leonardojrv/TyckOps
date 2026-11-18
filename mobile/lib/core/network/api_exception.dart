@@ -1,9 +1,21 @@
+// ¿PARA QUÉ SIRVE?
+//   Es la forma en que la app entiende los errores del servidor.
+//
+// ¿QUÉ HACE?
+//   Traduce cualquier falla (sin internet, sesión vencida, datos inválidos...) a un
+//   mensaje que una persona entiende, sin mostrar detalles técnicos que le den
+//   pistas a un atacante.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si quieres cambiar el texto de un error común (por ejemplo, sin conexión), se
+//   hace aquí. Los mensajes propios del servidor se muestran tal cual.
+
 import 'package:dio/dio.dart';
 
 /// Error de la API ya traducido a un mensaje que el usuario entiende.
 ///
-/// Seguridad: nunca mostramos al usuario el error técnico completo (rutas,
-/// SQL, stack traces), porque le da pistas a un atacante sobre el servidor.
+/// Seguridad: nunca mostramos el detalle técnico de un fallo (rutas internas,
+/// consultas a la base de datos, etc.), porque le daría pistas a un atacante.
 class ApiException implements Exception {
   const ApiException(this.message, {this.statusCode, this.code});
 
@@ -32,9 +44,9 @@ class ApiException implements Exception {
     );
   }
 
-  /// El backend responde los errores así:
-  /// {"success": false, "error": {"code": "...", "message": "..."}}
-  /// El "message" está pensado para el usuario, por eso se muestra tal cual.
+  /// Cuando algo falla, el servidor responde con un código y un mensaje
+  /// escrito para la persona (por ejemplo: {"error": {"message": "..."}}).
+  /// Ese mensaje se muestra tal cual.
   static ({String? code, String message})? _serverError(Object? data) {
     if (data is! Map) return null;
     final error = data['error'];

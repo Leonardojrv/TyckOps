@@ -1,3 +1,15 @@
+// ¿PARA QUÉ SIRVE?
+//   Es un "guardia" que no deja pasar a quien no aceptó los Términos y Condiciones.
+//
+// ¿QUÉ HACE?
+//   Antes de entrar a una ruta protegida, busca al usuario y, si no aceptó los
+//   términos, corta con un error 403. Si no puede revisarlo, también bloquea
+//   (prefiere cerrar la puerta antes que dejarla abierta).
+//
+// ¿CÓMO LO CAMBIO?
+//   Para proteger una ruta nueva, agrégalo después de autenticar(), como en
+//   tickets.routes.js. No lo quites de las rutas que ya lo tienen.
+
 import { HttpError } from '../utils/http-error.js';
 
 // Va después de autenticar(): corta con 403 a quien no aceptó los Términos.

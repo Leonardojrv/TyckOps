@@ -1,3 +1,13 @@
+// ¿PARA QUÉ SIRVE?
+//   Elige los colores de cada estado de ticket (Recibido, Rechazado, etc.).
+//
+// ¿QUÉ HACE?
+//   Devuelve el color de fondo y de texto para los chips de estado.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si el equipo cambia el color de un estado, se cambia aquí y se aplica en todos
+//   los chips.
+
 import 'package:flutter/material.dart';
 
 import '../../data/models/ticket_status.dart';

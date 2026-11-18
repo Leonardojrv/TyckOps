@@ -1,3 +1,13 @@
+// ¿PARA QUÉ SIRVE?
+//   Define los tamaños y grosores de letra de la app (fuente Inter).
+//
+// ¿QUÉ HACE?
+//   Da nombres a cada estilo de texto (títulos, cuerpo, etiquetas) para usarlos igual
+//   en todas las pantallas.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si un título debe ser más grande en toda la app, cámbialo aquí.
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
