@@ -61,7 +61,13 @@ const ticketService = new TicketService(
   prisma
     ? new PrismaTicketRepository(prisma)
     : new MemoryTicketRepository(ticketsDeDemostracion('demo-worker')),
-  { slaCumplido: prisma ? null : 98.4 },
+  {
+    slaCumplido: prisma ? null : 98.4,
+    // Motor de IA (módulo de Moisés): cuando exista su analizador con
+    // `analizar({ ticketId, categoria, descripcion, ubicacion })`, se conecta
+    // aquí. Mientras sea null, los tickets Recibidos quedan como pendiente_ia.
+    analizadorIA: null,
+  },
 );
 
 const app = crearApp({ env, prisma, userRepository, ticketService, groqClient, databaseStatus });

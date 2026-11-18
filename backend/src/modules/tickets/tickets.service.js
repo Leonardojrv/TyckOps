@@ -1,5 +1,6 @@
 import { HttpError } from '../../utils/http-error.js';
 import { detectarTipoImagen, quitarMetadatos } from './tickets.fotos.js';
+import { datosParaIA, evaluarFlujoIA } from './tickets.flujoIA.js';
 
 // Estados en los que el ticket sigue "en atención" (RF-05).
 const ESTADOS_ACTIVOS = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROCESO']);
@@ -21,10 +22,14 @@ function publicTicket(ticket) {
 export class TicketService {
   // slaCumplido: % de tickets atendidos a tiempo. Lo calculará el backend
   // real; mientras tanto viene de la configuración de la demo (o null).
-  constructor(ticketRepository, { slaCumplido = null, auditLogger = console } = {}) {
+  // analizadorIA: motor de IA opcional (módulo de IA). Debe exponer
+  // `async analizar({ ticketId, categoria, descripcion, ubicacion })`.
+  // Si es null, los tickets Recibidos quedan registrados como pendientes.
+  constructor(ticketRepository, { slaCumplido = null, auditLogger = console, analizadorIA = null } = {}) {
     this.ticketRepository = ticketRepository;
     this.slaCumplido = slaCumplido;
     this.auditLogger = auditLogger;
+    this.analizadorIA = analizadorIA;
   }
 
   async misTickets(userId) {
@@ -91,6 +96,58 @@ export class TicketService {
       category: categoria,
       withPhoto: Boolean(limpia),
     }));
+
+    // Sin await: Groq puede tardar hasta GROQ_TIMEOUT_MS y el trabajador no
+    // debe esperar ni ver un error si la IA falla; su ticket ya está creado.
+    // enrutarTicket nunca lanza, así que no queda una promesa rechazada suelta.
+    this.enrutarTicket({ ...ticket, description: descripcion });
     return publicTicket(ticket);
+  }
+
+  // Decide el flujo del ticket según su estado (ver tickets.flujoIA.js):
+  //  - omitido_ia:   no está en Recibido, no se envía.
+  //  - pendiente_ia: está en Recibido pero no hay motor de IA conectado.
+  //  - enviado_ia:   se envió al motor y respondió.
+  //  - error_ia:     se envió pero el motor falló; el ticket sigue en Recibido.
+  // Solo lee el estado: no lo cambia ni guarda el resultado del análisis.
+  // TODO (guardar análisis): antes de escribir el resultado, volver a revisar
+  // que el ticket siga en Recibido; el trabajador puede cancelarlo (RF-09)
+  // mientras la IA lo analiza.
+  async enrutarTicket(ticket) {
+    try {
+      const decision = evaluarFlujoIA(ticket);
+
+      if (!decision.enviar) {
+        this.#auditarIA(ticket, 'omitido_ia', { motivo: decision.motivo });
+        return { resultado: 'omitido_ia', motivo: decision.motivo };
+      }
+
+      if (!this.analizadorIA) {
+        this.#auditarIA(ticket, 'pendiente_ia');
+        return { resultado: 'pendiente_ia' };
+      }
+
+      const analisis = await this.analizadorIA.analizar(datosParaIA(ticket));
+      this.#auditarIA(ticket, 'enviado_ia');
+      return { resultado: 'enviado_ia', analisis };
+    } catch (error) {
+      const codigo = error?.code ?? 'DESCONOCIDO';
+      this.#auditarIA(ticket, 'error_ia', { codigo });
+      return { resultado: 'error_ia', codigo };
+    }
+  }
+
+  #auditarIA(ticket, action, extra = {}) {
+    try {
+      this.auditLogger.info?.(JSON.stringify({
+        type: 'ticket',
+        action,
+        timestamp: new Date().toISOString(),
+        ticketId: ticket?.id ?? null,
+        ...extra,
+      }));
+    } catch {
+      // Un fallo del logger no debe afectar el flujo del ticket.
+    }
   }
 }
