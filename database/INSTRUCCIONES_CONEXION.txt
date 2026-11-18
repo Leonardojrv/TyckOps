@@ -87,7 +87,7 @@ otra cosa.
        Crea (si no existen):
          - Roles:         colaborador, administrador
          - Departamentos: RRHH, Administracion, Servicios generales
-         - Categorías:    Inmoviliario, Electrica, Baños, Aire acondicionado
+         - Categorías:    Inmobiliario, Electrica, Baños, Aire acondicionado
          - Usuarios:      colaborador@gamaitaly.cl  (rol colaborador, RRHH)
                           admin@gamaitaly.cl        (rol administrador, Administracion)
 

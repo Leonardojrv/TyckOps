@@ -19,7 +19,13 @@ export class MemoryTicketRepository {
     ) ?? null;
   }
 
-  async create({ ownerId, category, location, description }) {
+  // Igual que en PostgreSQL: null si no es suyo o no existe; { imagen: null } si no tiene foto.
+  async findPhotoForOwner(id, ownerId) {
+    const ticket = await this.findByIdForOwner(id, ownerId);
+    return ticket ? { imagen: ticket.imagen ?? null } : null;
+  }
+
+  async create({ ownerId, category, location, description, imagen = null }) {
     const numeros = this.tickets.map((t) => Number(String(t.code).replace(/\D/g, '')) || 0);
     const siguiente = Math.max(0, ...numeros) + 1;
     const ticket = {
@@ -32,13 +38,10 @@ export class MemoryTicketRepository {
       location,
       createdAt: new Date(),
       ownerId: String(ownerId),
+      imagen, // igual que la columna BYTEA de PostgreSQL
     };
     this.tickets.push(ticket);
     return ticket;
-  }
-
-  async delete(id) {
-    this.tickets = this.tickets.filter((ticket) => ticket.id !== String(id));
   }
 }
 

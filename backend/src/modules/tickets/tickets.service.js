@@ -1,5 +1,5 @@
 import { HttpError } from '../../utils/http-error.js';
-import { guardarFoto, quitarMetadatos } from './tickets.fotos.js';
+import { detectarTipoImagen, quitarMetadatos } from './tickets.fotos.js';
 
 // Estados en los que el ticket sigue "en atención" (RF-05).
 const ESTADOS_ACTIVOS = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROCESO']);
@@ -21,11 +21,9 @@ function publicTicket(ticket) {
 export class TicketService {
   // slaCumplido: % de tickets atendidos a tiempo. Lo calculará el backend
   // real; mientras tanto viene de la configuración de la demo (o null).
-  // uploadsDir: carpeta donde se guardan las fotos (fuera de lo que se publica).
-  constructor(ticketRepository, { slaCumplido = null, uploadsDir = null, auditLogger = console } = {}) {
+  constructor(ticketRepository, { slaCumplido = null, auditLogger = console } = {}) {
     this.ticketRepository = ticketRepository;
     this.slaCumplido = slaCumplido;
-    this.uploadsDir = uploadsDir;
     this.auditLogger = auditLogger;
   }
 
@@ -52,12 +50,26 @@ export class TicketService {
     return publicTicket(ticket);
   }
 
-  // RF-04: crea el ticket en estado Recibido y, si viene, guarda su foto en disco.
+  // Foto de un ticket propio (columna imagen). Devuelve los bytes y su tipo.
+  async foto(userId, id) {
+    const resultado = /^[A-Za-z0-9-]{1,40}$/.test(String(id))
+      ? await this.ticketRepository.findPhotoForOwner(id, userId)
+      : null;
+    // Ajeno o inexistente: mismo 404 que el detalle, para no revelar qué IDs existen.
+    if (!resultado) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
+    if (!resultado.imagen) throw new HttpError(404, 'FOTO_NO_ENCONTRADA', 'Esta solicitud no tiene fotografía.');
+
+    // El tipo se vuelve a leer de los bytes guardados (ya validados al recibirlos).
+    const tipo = detectarTipoImagen(resultado.imagen);
+    if (!tipo) throw new HttpError(500, 'FOTO_DANADA', 'No pudimos leer la fotografía guardada.');
+    return { buffer: resultado.imagen, mime: tipo.mime };
+  }
+
+  // RF-04: crea el ticket en estado Recibido. Si viene foto, se guarda sin
+  // metadatos en la columna imagen (BYTEA) del mismo ticket, en una sola
+  // operación: no puede quedar un ticket sin su foto ni una foto sin ticket.
   // La foto es opcional (foto = null).
   async crearReporte(userId, { categoria, ubicacion, descripcion }, foto = null) {
-    if (foto && !this.uploadsDir) {
-      throw new HttpError(503, 'FOTOS_NO_DISPONIBLES', 'El servidor aún no puede recibir fotografías.');
-    }
     const limpia = foto ? quitarMetadatos(foto.buffer, foto.tipo) : null;
     if (foto && !limpia) {
       throw new HttpError(415, 'FOTO_DANADA', 'No pudimos leer la foto. Toma otra e inténtalo de nuevo.');
@@ -68,16 +80,8 @@ export class TicketService {
       category: categoria,
       location: ubicacion,
       description: descripcion,
+      imagen: limpia,
     });
-    if (limpia) {
-      try {
-        await guardarFoto(this.uploadsDir, ticket.id, limpia, foto.tipo);
-      } catch (error) {
-        // Si la foto que mandó no se pudo guardar, se deshace el ticket para no dejarlo a medias.
-        await this.ticketRepository.delete(ticket.id);
-        throw error;
-      }
-    }
     this.auditLogger.info?.(JSON.stringify({
       type: 'ticket',
       action: 'ticket_created',

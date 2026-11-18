@@ -87,5 +87,19 @@ export function crearRutasTickets({ ticketService, authService, jwtSecret }) {
     responder(res, { ticket: await ticketService.detalle(req.usuario.id, req.params.id) });
   });
 
+  // Foto del ticket (columna imagen). Solo la ve su dueño: el dueño sale del token.
+  // Se responde como imagen (no JSON) para que la app la muestre directamente.
+  router.get('/:id/foto', async (req, res) => {
+    const { buffer, mime } = await ticketService.foto(req.usuario.id, req.params.id);
+    res.set({
+      'Content-Type': mime,
+      'Content-Length': String(buffer.length),
+      'Content-Disposition': 'inline',
+      // Es una foto privada: no se guarda en cachés compartidos ni intermedios.
+      'Cache-Control': 'private, no-store',
+    });
+    res.send(buffer);
+  });
+
   return router;
 }

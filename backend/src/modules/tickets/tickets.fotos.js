@@ -1,7 +1,3 @@
-import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
-import path from 'node:path';
-
 // RF-04: una foto por reporte, JPG o PNG, máximo 5 MB.
 export const MAX_FOTO_BYTES = 5 * 1024 * 1024;
 
@@ -69,16 +65,4 @@ function limpiarPng(buffer) {
 /** Devuelve la imagen sin metadatos, o null si el archivo está dañado. */
 export function quitarMetadatos(buffer, tipo) {
   return tipo.ext === 'jpg' ? limpiarJpg(buffer) : limpiarPng(buffer);
-}
-
-/**
- * Guarda la foto en disco con un nombre que decide el servidor (nunca el del
- * cliente), sin sobrescribir nada y con permisos solo para el dueño.
- */
-export async function guardarFoto(directorio, ticketId, buffer, tipo) {
-  if (!/^[A-Za-z0-9-]{1,40}$/.test(String(ticketId))) throw new Error('Id de ticket inválido');
-  await mkdir(directorio, { recursive: true });
-  const nombre = `ticket-${ticketId}-${randomUUID()}.${tipo.ext}`;
-  await writeFile(path.join(directorio, nombre), buffer, { flag: 'wx', mode: 0o600 });
-  return nombre;
 }
