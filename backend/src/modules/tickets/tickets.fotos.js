@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-// RF-04: una foto por reporte, JPG o PNG, máximo 5 MB.
+// RF-04: hasta tres fotos por reporte, JPG o PNG, máximo 5 MB cada una.
 export const MAX_FOTO_BYTES = 5 * 1024 * 1024;
+export const MAX_FOTOS = 3;
 
 const FIRMA_JPG = [0xff, 0xd8, 0xff];
 const FIRMA_PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
@@ -79,6 +80,52 @@ export async function guardarFoto(directorio, ticketId, buffer, tipo) {
   if (!/^[A-Za-z0-9-]{1,40}$/.test(String(ticketId))) throw new Error('Id de ticket inválido');
   await mkdir(directorio, { recursive: true });
   const nombre = `ticket-${ticketId}-${randomUUID()}.${tipo.ext}`;
-  await writeFile(path.join(directorio, nombre), buffer, { flag: 'wx', mode: 0o600 });
+  const destino = path.join(directorio, nombre);
+  try {
+    await writeFile(destino, buffer, { flag: 'wx', mode: 0o600 });
+  } catch (error) {
+    await rm(destino, { force: true }).catch(() => {});
+    throw error;
+  }
   return nombre;
+}
+
+function nombreFotoValido(ticketId, nombre) {
+  if (!/^[A-Za-z0-9-]{1,40}$/.test(String(ticketId))) return false;
+  const idEscapado = String(ticketId).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^ticket-${idEscapado}-[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\\.(?:jpg|png)$`).test(nombre);
+}
+
+/** Borra solo nombres de foto generados para ese ticket. */
+export async function borrarFotos(directorio, ticketId, nombres) {
+  if (!directorio || !Array.isArray(nombres)) return;
+  await Promise.all(nombres
+    .filter((nombre) => nombreFotoValido(ticketId, nombre))
+    .map((nombre) => rm(path.join(directorio, nombre), { force: true })));
+}
+
+/** Lista nombres generados para un ticket sin exponer rutas del sistema. */
+export async function listarFotos(directorio, ticketId) {
+  if (!directorio || !/^[A-Za-z0-9-]{1,40}$/.test(String(ticketId))) return [];
+  try {
+    const nombres = await readdir(directorio);
+    return nombres.filter((nombre) => nombreFotoValido(ticketId, nombre)).sort();
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
+/** Lee solo una foto generada para el ticket; nunca acepta rutas del cliente. */
+export async function leerFoto(directorio, ticketId, nombre) {
+  if (!directorio || !nombreFotoValido(ticketId, nombre)) return null;
+  try {
+    return {
+      buffer: await readFile(path.join(directorio, nombre)),
+      mime: nombre.endsWith('.png') ? 'image/png' : 'image/jpeg',
+    };
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  }
 }

@@ -12,6 +12,10 @@ const envSchema = z.object({
   DEMO_WORKER_PASSWORD: z.string().min(12).default('DemoWorker2026!'),
   DEMO_ADMIN_EMAIL: z.string().email().default('admin@gamaitaly.cl'),
   DEMO_ADMIN_PASSWORD: z.string().min(12).default('DemoAdmin2026!'),
+  GROQ_API_KEY: z.string().trim().optional(),
+  GROQ_MODEL: z.string().trim().min(1).default('openai/gpt-oss-20b'),
+  GROQ_REASONING_EFFORT: z.enum(['low', 'medium', 'high']).default('low'),
+  GROQ_TIMEOUT_MS: z.coerce.number().int().min(500).max(120000).default(20000),
 });
 
 export function loadEnv(source = process.env) {
@@ -36,5 +40,9 @@ export function loadEnv(source = process.env) {
     demoWorkerPassword: result.data.DEMO_WORKER_PASSWORD,
     demoAdminEmail: result.data.DEMO_ADMIN_EMAIL.toLowerCase(),
     demoAdminPassword: result.data.DEMO_ADMIN_PASSWORD,
+    groqApiKey: result.data.GROQ_API_KEY || null,
+    groqModel: result.data.GROQ_MODEL,
+    groqReasoningEffort: result.data.GROQ_REASONING_EFFORT,
+    groqTimeoutMs: result.data.GROQ_TIMEOUT_MS,
   };
 }

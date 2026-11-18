@@ -7,7 +7,7 @@ import jwt from 'jsonwebtoken';
 import { crearApp } from '../src/app.js';
 import { crearRepositorioEnMemoria } from '../src/modules/auth/auth.memory.repository.js';
 import { AuthService } from '../src/modules/auth/auth.service.js';
-import { detectarTipoImagen, quitarMetadatos } from '../src/modules/tickets/tickets.fotos.js';
+import { borrarFotos, detectarTipoImagen, guardarFoto, leerFoto, quitarMetadatos } from '../src/modules/tickets/tickets.fotos.js';
 import { MemoryTicketRepository } from '../src/modules/tickets/tickets.memory.repository.js';
 import { TicketService } from '../src/modules/tickets/tickets.service.js';
 
@@ -66,6 +66,20 @@ test('las fotos se reconocen por su firma y pierden sus metadatos', () => {
   assert.ok(jpg.includes('JFIF'));
   assert.ok(!quitarMetadatos(pngConTexto, { ext: 'png' }).includes('Camila'));
   assert.equal(quitarMetadatos(Buffer.from([0xff, 0xd8, 0x00]), { ext: 'jpg' }), null);
+});
+
+test('guarda fotos con nombre único y solo permite leer o borrar nombres de ese ticket', async () => {
+  const uploadsDir = await mkdtemp(path.join(tmpdir(), 'tyckops-fotos-seguras-'));
+  carpetas.push(uploadsDir);
+
+  const nombre = await guardarFoto(uploadsDir, 't-42', jpgConExif, { ext: 'jpg' });
+  assert.match(nombre, /^ticket-t-42-[0-9a-f-]{36}\.jpg$/);
+  assert.deepEqual((await leerFoto(uploadsDir, 't-42', nombre)).buffer, jpgConExif);
+  assert.equal(await leerFoto(uploadsDir, 't-43', nombre), null);
+  assert.equal(await leerFoto(uploadsDir, 't-42', '../secret.jpg'), null);
+
+  await borrarFotos(uploadsDir, 't-42', [nombre, '../secret.jpg']);
+  assert.deepEqual(await readdir(uploadsDir), []);
 });
 
 test('reportar falla: valida, guarda la foto limpia y crea el ticket Recibido (RF-04)', async () => {

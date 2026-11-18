@@ -15,10 +15,12 @@ export function crearApp({
   userRepository,
   authService,
   ticketService = null,
+  groqClient = null,
   auditLogger,
   databaseStatus,
 } = {}) {
   const app = express();
+  app.locals.groqClient = groqClient;
   const repository = userRepository ?? (prisma ? new PrismaUserRepository(prisma) : null);
   const service = authService ?? (repository
     ? new AuthService(repository, env, auditLogger)

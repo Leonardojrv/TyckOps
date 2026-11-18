@@ -82,6 +82,16 @@ export class PrismaTicketRepository {
     return fila ? aTicket(fila) : null;
   }
 
+  async findById(id) {
+    const ticketId = idNumerico(id);
+    if (ticketId === null) return null;
+    const fila = await this.prisma.ticket.findUnique({
+      where: { ID_Ticket: ticketId },
+      include: incluir,
+    });
+    return fila ? aTicket(fila) : null;
+  }
+
   async create({ ownerId, category, location, description }) {
     const dueno = idNumerico(ownerId);
     if (dueno === null) throw new HttpError(401, 'SESION_INVALIDA', 'La sesión ya no es válida. Inicia sesión nuevamente.');
