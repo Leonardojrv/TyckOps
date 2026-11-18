@@ -43,12 +43,15 @@ Para probar la restauración, inicia sesión y copia `data.token`. En Postman cr
 
 `GET http://localhost:3000/api/admin/ejemplo` requiere un token vigente de administrador. En Postman, inicia sesión con la cuenta deseada, copia `data.token` de la respuesta y configúralo en la solicitud como **Authorization → Bearer Token**. El colaborador debe recibir `403` con `SIN_ROL_ADMIN`; el administrador debe recibir `200`. Sin token o con un token inválido/expirado, la respuesta es `401`.
 
-## Pruebas
+### Reportes con fotos
 
-```sh
-pnpm test
-```
+El móvil usa `POST /api/tickets` (o su alias `POST /api/tickets/reparaciones`) en `multipart/form-data`, con una foto opcional en el campo `foto`. La imagen puede pesar hasta 5 MB y se acepta JPG/PNG según su firma real; antes de guardarla se le quitan los metadatos (EXIF, GPS). Las categorías aceptan `electrica`, `banos`, `aire_acondicionado` y `mobiliario`/`inmobiliario` (también los códigos en mayúsculas que usa el móvil).
 
-## Salud
+La foto se guarda en la columna `imagen` (BYTEA) del propio ticket, en la misma operación que lo crea: no puede quedar un ticket sin su foto ni una foto sin ticket. Los listados y el detalle no incluyen la imagen; para obtenerla usa `GET /api/tickets/:id/foto`, que la devuelve como `image/jpeg` o `image/png`. Requiere Bearer token, rol colaborador y términos aceptados, y solo el dueño del ticket puede verla (404 `TICKET_NO_ENCONTRADO` si no es suyo o no existe; 404 `FOTO_NO_ENCONTRADA` si no tiene foto).
 
-`GET /salud` devuelve HTTP 200 con `success`, el estado del servicio y `database` (`connected`, `disconnected` o `not_configured`).
+
+## Cliente Groq
+
+El backend crea una sola instancia de `ClienteGroq` al iniciar y la expone a los módulos mediante `app.locals.groqClient`. No llama al proveedor durante el arranque. Configura `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_REASONING_EFFORT` y `GROQ_TIMEOUT_MS` en `backend/.env`; nunca pongas la clave real en `.env.example` ni la subas a Git. Para `openai/gpt-oss-20b`, `GROQ_REASONING_EFFORT=low` envía `reasoning_effort: "low"`. `ClienteGroq.completar({ messages, reasoningEffort, temperature, maxTokens, responseFormat })` usa Chat Completions; devuelve el texto o lanza un `GroqApiError`. Los 429 se mapean a `GROQ_RATE_LIMITED` con `retryAfterMs` cuando Groq envía `Retry-After`; el cliente no reintenta automáticamente.
+
+Las pruebas del cliente usan `fetch` simulado, no consumen cuota de Groq y corren con `pnpm test`.
