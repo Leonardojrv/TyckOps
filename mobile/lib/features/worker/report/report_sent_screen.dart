@@ -1,3 +1,13 @@
+// ¿PARA QUÉ SIRVE?
+//   Es la pantalla "¡Reporte registrado con éxito!" (T6).
+//
+// ¿QUÉ HACE?
+//   Muestra el código del ticket nuevo, su categoría, ubicación y estado, y ofrece
+//   ver el ticket o volver al inicio.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si quieres mostrar otro dato del ticket recién creado, agrégalo en _TicketCard.
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';

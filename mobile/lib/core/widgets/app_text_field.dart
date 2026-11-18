@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Es el campo de texto estándar de la app (por ejemplo, el del login).
+//
+// ¿QUÉ HACE?
+//   Muestra la etiqueta, el ícono, el texto de ayuda, el error y el ojo para ver la
+//   contraseña.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si cambia el diseño de los campos, cámbialo aquí y se actualiza en todos los
+//   formularios que lo usan.
+
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';

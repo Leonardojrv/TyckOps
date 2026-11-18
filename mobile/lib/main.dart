@@ -1,3 +1,16 @@
+// ¿PARA QUÉ SIRVE?
+//   Es el punto de partida: lo primero que corre cuando abres TyckOps.
+//
+// ¿QUÉ HACE?
+//   Crea una sola vez las piezas que toda la app comparte (la sesión, el cliente
+//   que habla con el servidor y los repositorios), intenta recuperar la sesión
+//   guardada y recién ahí dibuja la app.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si agregas un repositorio nuevo (por ejemplo, notificaciones en la T10), créalo
+//   aquí y pásalo hacia abajo. Para probar sin servidor se usa
+//   --dart-define=FAKE_AUTH=true, que elige las versiones de prueba.
+
 import 'package:flutter/material.dart';
 
 import 'app.dart';

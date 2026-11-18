@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Revisa que el formulario de "Reportar falla" venga bien antes de guardarlo.
+//
+// ¿QUÉ HACE?
+//   Acepta solo las 4 categorías, limpia caracteres raros y exige largos mínimos y
+//   máximos para la ubicación y la descripción.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si cambias un límite (por ejemplo, descripción de 300 caracteres), cámbialo
+//   también en la app (fault_category.dart) para que coincidan.
+
 import { z } from 'zod';
 
 // Códigos que manda la app (RF-04). El nombre en la BD lo resuelve el repositorio.

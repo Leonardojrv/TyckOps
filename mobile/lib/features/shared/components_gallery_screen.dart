@@ -1,3 +1,13 @@
+// ¿PARA QUÉ SIRVE?
+//   Es una vitrina de componentes, solo para desarrollo.
+//
+// ¿QUÉ HACE?
+//   Muestra botones, chips y campos juntos para revisarlos. No aparece en la app
+//   final (solo en modo debug).
+//
+// ¿CÓMO LO CAMBIO?
+//   Agrega aquí un componente nuevo si quieres verlo antes de usarlo.
+
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';

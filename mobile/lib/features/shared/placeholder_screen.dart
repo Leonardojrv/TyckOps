@@ -1,3 +1,13 @@
+// ¿PARA QUÉ SIRVE?
+//   Es una pantalla temporal para las secciones que aún no construimos.
+//
+// ¿QUÉ HACE?
+//   Muestra el título y en qué tarea se hará (por ejemplo, "Se desarrolla en la T11").
+//
+// ¿CÓMO LO CAMBIO?
+//   Cuando termines una tarea, reemplaza su uso en app_router.dart por la pantalla
+//   real. Cuando ya no quede ninguna, se puede borrar.
+
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';

@@ -1,3 +1,12 @@
+// ¿PARA QUÉ SIRVE?
+//   Es la tarjeta blanca base de la app.
+//
+// ¿QUÉ HACE?
+//   Da el fondo, el borde redondeado y la sombra suave de los mockups.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si cambia el estilo general de las tarjetas, cámbialo aquí.
+
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';

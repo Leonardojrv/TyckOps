@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Dice a qué servidor se conecta la app.
+//
+// ¿QUÉ HACE?
+//   Lee la dirección del servidor al compilar (no va escrita fija en el código) y
+//   si se usa el modo de prueba sin servidor.
+//
+// ¿CÓMO LO CAMBIO?
+//   Para apuntar a otro servidor no edites este archivo: usa
+//   --dart-define=API_BASE_URL=... al ejecutar o compilar.
+
 /// Configuración de la API.
 ///
 /// La URL NO se escribe fija en el código: se pasa al compilar con

@@ -1,3 +1,13 @@
+// ¿PARA QUÉ SIRVE?
+//   Es el chip de estado base (con los colores del administrador).
+//
+// ¿QUÉ HACE?
+//   Muestra el estado de un ticket como una píldora con punto de color.
+//
+// ¿CÓMO LO CAMBIO?
+//   El colaborador usa su propio chip (worker/tickets/ticket_status_chip.dart). Si
+//   cambias este, afecta a las pantallas del administrador.
+
 import 'package:flutter/material.dart';
 
 import '../../data/models/ticket_status.dart';

@@ -1,10 +1,21 @@
+// ¿PARA QUÉ SIRVE?
+//   Es el "estilo general" de la app.
+//
+// ¿QUÉ HACE?
+//   Le dice a Flutter qué colores, letras y formas usar por defecto en botones,
+//   campos de texto y fondos.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si quieres que TODOS los botones o campos cambien de aspecto, hazlo aquí en vez
+//   de pantalla por pantalla.
+
 import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
 import 'app_typography.dart';
 
-/// Tema global de la app. Se aplica una sola vez en app.dart y todos los
-/// widgets de Material (botones, inputs, tarjetas) lo heredan.
+/// Estilo general de la app. Se aplica una sola vez en app.dart y todas las
+/// piezas (botones, campos, tarjetas) lo toman solas.
 abstract final class AppTheme {
   static const radiusControl = 12.0; // botones e inputs (decisión 05-11-2026)
   static const radiusCard = 16.0; // tarjetas

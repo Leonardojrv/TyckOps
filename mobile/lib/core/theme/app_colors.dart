@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Es la paleta oficial de colores de GA.MA.
+//
+// ¿QUÉ HACE?
+//   Reúne en un solo lugar el rojo de la marca, los grises, los textos y los
+//   colores de aviso que usa la app.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si cambia un color de la marca, cámbialo aquí y se actualiza en toda la app.
+//   Ninguna pantalla debería escribir un color "a mano".
+
 import 'package:flutter/material.dart';
 
 /// Paleta GA.MA, tomada de los DESIGN.md de Stitch (docs/mockups).

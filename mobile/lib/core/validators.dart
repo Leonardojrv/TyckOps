@@ -1,3 +1,15 @@
+// ¿PARA QUÉ SIRVE?
+//   Revisa lo que escribes en los formularios antes de enviarlo.
+//
+// ¿QUÉ HACE?
+//   Avisa si falta un campo, si el correo no es @gamaitaly.cl o si la contraseña
+//   nueva es débil, y calcula el medidor de seguridad de la contraseña.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si cambia una regla (por ejemplo, contraseñas de 10 caracteres), cámbiala aquí
+//   Y TAMBIÉN en el servidor, porque la app se puede saltar. Luego corre
+//   test/validators_test.dart.
+
 /// Validaciones de formularios. Cada función devuelve:
 /// - null  → el valor es válido
 /// - texto → el mensaje de error que se muestra bajo el campo

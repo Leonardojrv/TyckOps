@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Es la pantalla "Primer Acceso y Seguridad del Colaborador" (T3 y T4).
+//
+// ¿QUÉ HACE?
+//   Deja cambiar la contraseña temporal (opcional), muestra los Términos y
+//   Condiciones y no deja guardar hasta marcar la casilla. Rechazar cierra sesión.
+//
+// ¿CÓMO LO CAMBIO?
+//   El texto de los términos está en terms_content.dart. Los colores y medidas
+//   copian el mockup y están al final, en _C y _T.
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -634,7 +645,7 @@ class _PasswordFieldState extends State<_PasswordField> {
       autocorrect: false,
       style: _T.bodyMd(),
       decoration: InputDecoration(
-        // "hint" como widget para que se dibuje completo, sin "…" (igual al mockup).
+        // El texto de ayuda se dibuja completo, sin cortarse con "…" (igual al mockup).
         hint: Text(
           widget.hint,
           style: _T.bodyMd(_C.secondary),
@@ -995,7 +1006,7 @@ class _PrimaryButton extends StatelessWidget {
   }
 }
 
-// ===================== Tokens del mockup =====================
+// ===================== Colores y letras del mockup =====================
 
 const _shadowSm = [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))];
 

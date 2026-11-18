@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Es el "marco" de cada rol: la pantalla actual más su barra de abajo.
+//
+// ¿QUÉ HACE?
+//   El colaborador ve Inicio · Reportar falla · Mis solicitudes, y el
+//   administrador ve Inicio · Tickets · Dashboard.
+//
+// ¿CÓMO LO CAMBIO?
+//   Para cambiar las pestañas del colaborador edita worker_bottom_nav.dart; las del
+//   administrador se editan aquí mismo.
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 

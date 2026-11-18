@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Guarda tickets "de mentira" en memoria, para probar sin base de datos.
+//
+// ¿QUÉ HACE?
+//   Imita lo que hace PostgreSQL (siempre filtrando por dueño) y trae datos de
+//   demostración con un rechazo y comentarios.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si agregas una consulta en el repositorio de PostgreSQL, agrégala también aquí
+//   para que las pruebas y el modo demo sigan funcionando.
+
 // Tickets en memoria mientras no exista la tabla en PostgreSQL (T6/T7).
 // Las consultas SIEMPRE filtran por dueño: no existe "traer todos".
 export class MemoryTicketRepository {
@@ -17,6 +28,19 @@ export class MemoryTicketRepository {
     return this.tickets.find(
       (ticket) => ticket.id === String(id) && ticket.ownerId === String(ownerId),
     ) ?? null;
+  }
+
+  // Versión en memoria del detalle (misma forma que en PostgreSQL). Sirve para
+  // probar la app sin base de datos y para las pruebas automáticas.
+  async findDetailForOwner(id, ownerId) {
+    const ticket = await this.findByIdForOwner(id, ownerId);
+    if (!ticket) return null;
+    return {
+      ...ticket,
+      description: ticket.description ?? ticket.title,
+      hasPhoto: Boolean(ticket.imagen),
+      comments: [...(ticket.comments ?? [])].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)),
+    };
   }
 
   // Igual que en PostgreSQL: null si no es suyo o no existe; { imagen: null } si no tiene foto.
@@ -73,5 +97,21 @@ export function ticketsDeDemostracion(ownerId) {
     ['t-0075', 'REP-0075', 'Baños', 'Llave de lavamanos gotea', 'CERRADO', 'MEDIA', 'Baño piso 2', haceDias(30, 14, 10)],
   ].map(([id, code, category, title, status, priority, location, createdAt]) => ({
     id, code, category, title, status, priority, location, createdAt, ownerId,
+    ...EXTRAS_DEMO[id],
   }));
 }
+
+// Detalles extra de la demo para ver en el detalle: un rechazo con su motivo
+// y comentarios del administrador (el último aparecerá como "NUEVO").
+const EXTRAS_DEMO = {
+  't-0142': {
+    comments: [
+      { id: 1, author: 'Servicios Generales', createdAt: haceDias(0, 11, 5), text: 'Revisamos el enchufe: hay daño por sobrecarga. Ya coordinamos el cambio de placa.' },
+      { id: 2, author: 'Servicios Generales', createdAt: haceDias(0, 12, 10), text: 'El técnico va en camino con los repuestos. Por favor no uses ese enchufe mientras tanto.' },
+    ],
+  },
+  't-0098': {
+    rejectionReason: 'La luminaria es responsabilidad de la administración del edificio. Ya les avisamos para que la cambien.',
+    closedAt: haceDias(17, 9, 20),
+  },
+};

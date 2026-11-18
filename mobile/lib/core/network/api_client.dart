@@ -1,3 +1,16 @@
+// ¿PARA QUÉ SIRVE?
+//   Es el único "cartero" de la app: todo lo que se pide al servidor pasa por aquí.
+//
+// ¿QUÉ HACE?
+//   En cada petición agrega tu sesión (el token), si el servidor dice que la sesión
+//   venció te devuelve al login, y convierte cualquier error en un mensaje claro.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si necesitas un tipo de petición nueva (por ejemplo, DELETE), agrégala aquí para
+//   que también lleve el token y el manejo de errores.
+
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 
 import 'api_config.dart';
@@ -8,10 +21,10 @@ import 'token_storage.dart';
 /// dashboard...) lo usan para hablar con el backend.
 ///
 /// Hace tres cosas automáticamente en cada petición:
-/// 1. Agrega el token: `Authorization: Bearer <token>`.
-/// 2. Si el servidor responde 401 (token vencido o inválido), borra el token
-///    y avisa con [onUnauthorized] para volver al login.
-/// 3. Convierte cualquier error en un [ApiException] con un mensaje claro.
+/// 1. Agrega tu sesión (el token) a cada pedido.
+/// 2. Si el servidor responde que la sesión venció o no es válida (error 401),
+///    borra el token y te devuelve al login.
+/// 3. Convierte cualquier error en un mensaje claro para la persona.
 class ApiClient {
   ApiClient({
     required TokenStorage tokenStorage,
@@ -49,6 +62,27 @@ class ApiClient {
 
   Future<T> get<T>(String path, {Map<String, dynamic>? query}) =>
       _send(() => _dio.get<T>(path, queryParameters: query));
+
+  /// Descarga un archivo (por ejemplo, la foto de un ticket) como bytes.
+  /// Se usa para fotos privadas: viajan con el token igual que el resto y
+  /// quedan solo en memoria, nunca en el disco del teléfono.
+  /// [expectedTypePrefix] evita mostrar algo que no sea lo esperado
+  /// (si el servidor no responde una imagen, se rechaza).
+  Future<Uint8List> getBytes(String path, {String expectedTypePrefix = 'image/'}) async {
+    try {
+      final response = await _dio.get<List<int>>(
+        path,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final type = response.headers.value(Headers.contentTypeHeader) ?? '';
+      if (!type.startsWith(expectedTypePrefix) || response.data == null) {
+        throw const ApiException('El archivo recibido no es válido.');
+      }
+      return Uint8List.fromList(response.data!);
+    } on DioException catch (e) {
+      throw ApiException.fromDio(e);
+    }
+  }
 
   Future<T> post<T>(String path, {Object? body}) =>
       _send(() => _dio.post<T>(path, data: body));

@@ -1,3 +1,13 @@
+// ¿PARA QUÉ SIRVE?
+//   Es el encabezado de las pantallas del colaborador.
+//
+// ¿QUÉ HACE?
+//   Muestra "SERVICIOS GENERALES", el título, la campana y el chip "Colaborador"
+//   (que al tocarlo permite cerrar sesión).
+//
+// ¿CÓMO LO CAMBIO?
+//   Cuando lleguen las notificaciones (T10), la campana se conecta aquí.
+
 import 'package:flutter/material.dart';
 import 'package:material_symbols_icons/symbols.dart';
 

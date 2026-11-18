@@ -1,3 +1,13 @@
+// ¿PARA QUÉ SIRVE?
+//   Son los colores y letras exactos de los mockups del colaborador.
+//
+// ¿QUÉ HACE?
+//   Copian los valores de Stitch para que las pantallas queden idénticas al diseño.
+//
+// ¿CÓMO LO CAMBIO?
+//   Si el diseño cambia un color o tamaño, cámbialo aquí y se actualiza en todas las
+//   pantallas del colaborador.
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -21,6 +31,10 @@ abstract final class WorkerColors {
   static const primaryFixed = Color(0xFFFFDAD7); // rosado suave
   static const onPrimaryFixed = Color(0xFF410004);
   static const error = Color(0xFFBA1A1A);
+  static const errorContainer = Color(0xFFFFDAD6); // fondo del chip "Rechazado"
+  static const onErrorContainer = Color(0xFF410002);
+  static const tertiaryContainer = Color(0xFF707070); // chip gris de "En proceso"
+  static const onSurfaceVariant = Color(0xFF5C403D); // textos de apoyo cálidos
   static const inverseSurface = Color(0xFF2F3131);
   static const inverseOnSurface = Color(0xFFF1F1F1);
 }

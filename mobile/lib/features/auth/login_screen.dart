@@ -1,3 +1,14 @@
+// ¿PARA QUÉ SIRVE?
+//   Es la pantalla de inicio de sesión (T2 y T3).
+//
+// ¿QUÉ HACE?
+//   Pide el correo corporativo y la contraseña, los valida y entra. Si vienes de
+//   rechazar los términos, muestra el aviso.
+//
+// ¿CÓMO LO CAMBIO?
+//   El logo está en core/widgets/gama_logo.dart. Las reglas del correo están en
+//   core/validators.dart.
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +20,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/validators.dart';
 import '../../core/widgets/app_text_field.dart';
+import '../../core/widgets/gama_logo.dart';
 import '../../data/repositories/auth_repository.dart';
 import 'auth_session.dart';
 
@@ -66,8 +78,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _passwordController.clear(); // seguridad: no dejar la clave escrita
       _showMessage(e.message);
     } finally {
-      // "mounted" = la pantalla sigue existiendo. Si ya navegamos a otra,
-      // no se puede llamar a setState.
+      // Si ya cambiamos de pantalla, no hay nada que actualizar aquí.
       if (mounted) setState(() => _loading = false);
     }
   }
@@ -181,7 +192,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// Colores específicos del mockup de login (tokens de Stitch).
+// Colores propios del mockup del login (copiados de Stitch).
 const _secondary = Color(0xFF5F5E5E); // "secondary"
 const _brandRed = Color(0xFFB3011A); // "primary": botón y punto del logo
 const _cardBorder = Color(0xFFE9E8E8); // "surface-container-high"
@@ -193,44 +204,22 @@ class _GamaLogo extends StatelessWidget {
 
   final VoidCallback? onLongPress;
 
+  // Tarjeta blanca del login con el logo oficial adentro (imagen en
+  // assets/images/gama_logo.png). Si cambia el logo, no hay que tocar esto.
   @override
   Widget build(BuildContext context) {
-    final letters = AppTypography.headlineLarge.copyWith(
-      fontSize: 26,
-      fontWeight: FontWeight.w900,
-      letterSpacing: -1,
-      height: 1,
-    );
     return GestureDetector(
       onLongPress: onLongPress,
       child: Container(
         constraints: const BoxConstraints(minWidth: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         decoration: BoxDecoration(
           color: AppColors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: _cardBorder),
           boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 2, offset: Offset(0, 1))],
         ),
-        child: Semantics(
-          label: 'GA.MA Italy Professional',
-          excludeSemantics: true,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text.rich(TextSpan(children: [
-                TextSpan(text: 'GA', style: letters),
-                TextSpan(text: '.', style: letters.copyWith(color: _brandRed, fontSize: 28)),
-                TextSpan(text: 'MA', style: letters),
-              ])),
-              const SizedBox(height: 4),
-              Text(
-                'ITALY PROFESSIONAL',
-                style: AppTypography.labelSmall.copyWith(fontSize: 8, letterSpacing: 2, color: _secondary),
-              ),
-            ],
-          ),
-        ),
+        child: const GamaLogo(height: 84),
       ),
     );
   }
