@@ -3,7 +3,7 @@
 
 export const ROLES = ['colaborador', 'administrador', 'invitado'];
 export const DEPARTAMENTOS = ['RRHH', 'Administracion', 'Servicios generales'];
-export const CATEGORIAS = ['Inmoviliario', 'Electrica', 'Baños', 'Aire acondicionado'];
+export const CATEGORIAS = ['Inmobiliario', 'Electrica', 'Baños', 'Aire acondicionado'];
 
 export const USUARIOS = {
   // Primer ingreso: aún no acepta Términos ni decide su contraseña.

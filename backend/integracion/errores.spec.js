@@ -31,7 +31,7 @@ describe('404 - Ruta no encontrada', () => {
   test.each([
     ['GET', '/api/no-existe'],
     ['GET', '/api/auth'],
-    ['POST', '/api/tickets'],
+    ['POST', '/api/no-existe/reportes'],
     ['DELETE', '/api/auth/login'],
     ['GET', '/'],
   ])('%s %s responde 404 RUTA_NO_ENCONTRADA', async (metodo, ruta) => {

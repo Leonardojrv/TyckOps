@@ -45,6 +45,15 @@ void main() {
 
   tearDown(backend.detener);
 
+  /// Deja avanzar la red y las animaciones un tiempo fijo. Se usa en vez de
+  /// pumpAndSettle porque algunas pantallas (primer acceso, inicio del
+  /// colaborador mientras carga sus tickets) se animan sin parar.
+  Future<void> asentar(WidgetTester tester) async {
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 400)));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 500));
+  }
+
   /// Arma la app igual que main.dart, pero apuntando al backend de prueba.
   Future<AuthSession> abrirApp(WidgetTester tester) async {
     HttpOverrides.global = null; // flutter_test bloquea HTTP real por defecto
@@ -65,7 +74,7 @@ void main() {
       ticketsStore: ticketsStore,
       reportRepository: ApiReportRepository(api),
     ));
-    await tester.pumpAndSettle();
+    await asentar(tester);
     return session;
   }
 
@@ -307,7 +316,7 @@ void main() {
 
       for (final ruta in [Routes.adminHome, Routes.adminTickets, Routes.adminDashboard]) {
         router(tester).go(ruta);
-        await tester.pumpAndSettle();
+        await asentar(tester);
         verPantallaColaborador();
         expect(find.text('Bandeja de tickets'), findsNothing);
         expect(find.text('Dashboard operativo'), findsNothing);
@@ -321,7 +330,7 @@ void main() {
 
       for (final ruta in [Routes.workerHome, Routes.workerReport, Routes.workerTickets]) {
         router(tester).go(ruta);
-        await tester.pumpAndSettle();
+        await asentar(tester);
         verPantallaAdmin();
         expect(find.text('Reportar una falla'), findsNothing);
       }
@@ -332,11 +341,13 @@ void main() {
       await iniciarSesion(tester, Cuentas.colaboradorActivo);
       await esperar(tester, menuColaborador.first);
 
+      // Se espera a que cada pantalla aparezca (la del colaborador carga datos
+      // del backend, así que su tiempo varía).
       await tocar(tester, find.text('Reportar falla'));
-      await tester.pumpAndSettle();
-      expect(find.text('Reportar una falla'), findsOneWidget);
+      await esperar(tester, find.text('Reportar Falla')); // pantalla real de la T6
+      expect(find.text('Reportar Falla'), findsOneWidget);
       await tocar(tester, find.text('Mis solicitudes'));
-      await tester.pumpAndSettle();
+      await esperar(tester, find.text('Mis Solicitudes'));
       expect(find.text('Mis Solicitudes'), findsOneWidget);
     });
 
@@ -346,10 +357,10 @@ void main() {
       await esperar(tester, menuAdmin.first);
 
       await tocar(tester, find.text('Tickets'));
-      await tester.pumpAndSettle();
+      await asentar(tester);
       expect(find.text('Bandeja de tickets'), findsOneWidget);
       await tocar(tester, find.text('Dashboard'));
-      await tester.pumpAndSettle();
+      await asentar(tester);
       expect(find.text('Dashboard operativo'), findsOneWidget);
     });
 
@@ -359,12 +370,12 @@ void main() {
       await esperar(tester, menuAdmin.first);
 
       await tocar(tester, find.text('Cerrar sesión'));
-      await tester.pumpAndSettle();
+      await asentar(tester);
       expect(find.text('Portal Corporativo'), findsOneWidget);
       expect(session.isLoggedIn, isFalse);
 
       router(tester).go(Routes.adminDashboard);
-      await tester.pumpAndSettle();
+      await asentar(tester);
       expect(find.text('Portal Corporativo'), findsOneWidget);
     });
   });

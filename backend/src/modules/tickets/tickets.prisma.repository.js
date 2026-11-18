@@ -1,7 +1,8 @@
 import { HttpError } from '../../utils/http-error.js';
 
 // Nombres aceptados en la tabla CategoriaReparacion para cada código de la app.
-// (El seed guarda "Electrica" sin tilde e "Inmoviliario" con v: se aceptan ambos.)
+// (La BD guarda "Electrica" sin tilde. "Inmoviliario" era un error de tipeo ya corregido
+// por migración; se sigue aceptando por si alguna base aún no la aplica.)
 const NOMBRES_BD = {
   ELECTRICA: ['Electrica', 'Eléctrica'],
   BANOS: ['Baños', 'Banos'],
@@ -52,6 +53,9 @@ function aTicket(fila) {
 }
 
 const incluir = { categoriaReparacion: true };
+// La foto (columna imagen, BYTEA) puede pesar varios MB: no se lee al listar
+// ni al ver un ticket, solo cuando alguien pida la imagen explícitamente.
+const sinImagen = { imagen: true };
 
 /** Tickets en PostgreSQL. Igual que el de memoria: todo se filtra por dueño. */
 export class PrismaTicketRepository {
@@ -66,6 +70,7 @@ export class PrismaTicketRepository {
     const filas = await this.prisma.ticket.findMany({
       where: { ID_user: dueno },
       include: incluir,
+      omit: sinImagen,
       orderBy: { FechaCreacion: 'desc' },
     });
     return filas.map(aTicket);
@@ -78,21 +83,12 @@ export class PrismaTicketRepository {
     const fila = await this.prisma.ticket.findFirst({
       where: { ID_Ticket: ticketId, ID_user: dueno },
       include: incluir,
+      omit: sinImagen,
     });
     return fila ? aTicket(fila) : null;
   }
 
-  async findById(id) {
-    const ticketId = idNumerico(id);
-    if (ticketId === null) return null;
-    const fila = await this.prisma.ticket.findUnique({
-      where: { ID_Ticket: ticketId },
-      include: incluir,
-    });
-    return fila ? aTicket(fila) : null;
-  }
-
-  async create({ ownerId, category, location, description }) {
+  async create({ ownerId, category, location, description, imagen = null }) {
     const dueno = idNumerico(ownerId);
     if (dueno === null) throw new HttpError(401, 'SESION_INVALIDA', 'La sesión ya no es válida. Inicia sesión nuevamente.');
 
@@ -110,15 +106,28 @@ export class PrismaTicketRepository {
         Estado: 'recibido', // RF-04: todo reporte nuevo parte en Recibido
         ID_user: dueno,
         ID_CateRepa: categoria.ID_CateRepa,
+        imagen, // foto ya validada y sin metadatos (BYTEA), o null si no se adjuntó
       },
       include: incluir,
+      omit: sinImagen,
     });
     return aTicket(fila);
   }
 
-  // Solo se usa para deshacer un reporte si la foto no se pudo guardar.
-  async delete(id) {
+  /**
+   * Foto de un ticket del dueño. Solo lee la columna imagen (BYTEA).
+   * Devuelve null si el ticket no existe o es de otra persona, y
+   * { imagen: null } si el ticket existe pero no tiene foto.
+   */
+  async findPhotoForOwner(id, ownerId) {
     const ticketId = idNumerico(id);
-    if (ticketId !== null) await this.prisma.ticket.delete({ where: { ID_Ticket: ticketId } });
+    const dueno = idNumerico(ownerId);
+    if (ticketId === null || dueno === null) return null;
+    const fila = await this.prisma.ticket.findFirst({
+      where: { ID_Ticket: ticketId, ID_user: dueno },
+      select: { imagen: true },
+    });
+    if (!fila) return null;
+    return { imagen: fila.imagen ? Buffer.from(fila.imagen) : null };
   }
 }

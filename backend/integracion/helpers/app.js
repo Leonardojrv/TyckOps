@@ -4,6 +4,8 @@
 
 import jwt from 'jsonwebtoken';
 import { crearApp } from '../../src/app.js';
+import { PrismaTicketRepository } from '../../src/modules/tickets/tickets.prisma.repository.js';
+import { TicketService } from '../../src/modules/tickets/tickets.service.js';
 
 export const ENV_PRUEBAS = {
   jwtSecret: 'secreto-solo-para-pruebas-de-integracion-tyckops-2026',
@@ -19,6 +21,10 @@ export function crearAppPruebas(prisma) {
     prisma,
     databaseStatus: 'connected',
     auditLogger: { log: (evento) => auditoria.push(evento) },
+    // Tickets con el repositorio real de PostgreSQL, igual que en server.js.
+    ticketService: new TicketService(new PrismaTicketRepository(prisma), {
+      auditLogger: { info: (evento) => auditoria.push(JSON.parse(evento)) },
+    }),
   });
   return { app, auditoria };
 }

@@ -45,19 +45,10 @@ Para probar la restauración, inicia sesión y copia `data.token`. En Postman cr
 
 ### Reportes con fotos
 
-El móvil mantiene `POST /api/tickets` con un archivo `foto`. Postman también puede usar `POST /api/tickets/reparaciones` y adjuntar hasta tres archivos repitiendo el campo `fotos`. Cada imagen puede pesar hasta 5 MB y se acepta JPG/PNG según su firma real; las categorías aceptan `electrica`, `banos`, `aire_acondicionado` y `mobiliario` (también los códigos en mayúsculas que usa el móvil). Las fotos se guardan en `uploads/tickets` con nombres generados por el servidor y se eliminan si falla la creación.
+El móvil usa `POST /api/tickets` (o su alias `POST /api/tickets/reparaciones`) en `multipart/form-data`, con una foto opcional en el campo `foto`. La imagen puede pesar hasta 5 MB y se acepta JPG/PNG según su firma real; antes de guardarla se le quitan los metadatos (EXIF, GPS). Las categorías aceptan `electrica`, `banos`, `aire_acondicionado` y `mobiliario`/`inmobiliario` (también los códigos en mayúsculas que usa el móvil).
 
-La respuesta del ticket incluye `fotos` con nombre y URL. Para listarlas de nuevo usa `GET /api/tickets/:id/fotos`; para obtener una imagen usa `GET /api/tickets/:id/fotos/:nombre`. Ambas rutas requieren Bearer token y términos aceptados, y solo permiten al dueño del ticket o a un administrador acceder. No se publica la carpeta de archivos como estática.
+La foto se guarda en la columna `imagen` (BYTEA) del propio ticket, en la misma operación que lo crea: no puede quedar un ticket sin su foto ni una foto sin ticket. Los listados y el detalle no incluyen la imagen; para obtenerla usa `GET /api/tickets/:id/foto`, que la devuelve como `image/jpeg` o `image/png`. Requiere Bearer token, rol colaborador y términos aceptados, y solo el dueño del ticket puede verla (404 `TICKET_NO_ENCONTRADO` si no es suyo o no existe; 404 `FOTO_NO_ENCONTRADA` si no tiene foto).
 
-## Pruebas
-
-```sh
-pnpm test
-```
-
-## Salud
-
-`GET /salud` devuelve HTTP 200 con `success`, el estado del servicio y `database` (`connected`, `disconnected` o `not_configured`).
 
 ## Cliente Groq
 

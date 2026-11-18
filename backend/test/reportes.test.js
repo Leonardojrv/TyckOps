@@ -1,24 +1,19 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 import { after, test } from 'node:test';
 import jwt from 'jsonwebtoken';
 import { crearApp } from '../src/app.js';
 import { crearRepositorioEnMemoria } from '../src/modules/auth/auth.memory.repository.js';
 import { AuthService } from '../src/modules/auth/auth.service.js';
-import { borrarFotos, detectarTipoImagen, guardarFoto, leerFoto, quitarMetadatos } from '../src/modules/tickets/tickets.fotos.js';
+import { detectarTipoImagen, quitarMetadatos } from '../src/modules/tickets/tickets.fotos.js';
 import { MemoryTicketRepository } from '../src/modules/tickets/tickets.memory.repository.js';
 import { TicketService } from '../src/modules/tickets/tickets.service.js';
 
 const jwtSecret = 'test-secret-with-more-than-thirty-two-characters';
 const env = { jwtSecret, jwtExpiresIn: '1h', corsOrigin: '*' };
 const servers = [];
-const carpetas = [];
 
 after(async () => {
   await Promise.all(servers.map((server) => new Promise((resolve) => server.close(resolve))));
-  await Promise.all(carpetas.map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
 async function start(app) {
@@ -68,30 +63,14 @@ test('las fotos se reconocen por su firma y pierden sus metadatos', () => {
   assert.equal(quitarMetadatos(Buffer.from([0xff, 0xd8, 0x00]), { ext: 'jpg' }), null);
 });
 
-test('guarda fotos con nombre único y solo permite leer o borrar nombres de ese ticket', async () => {
-  const uploadsDir = await mkdtemp(path.join(tmpdir(), 'tyckops-fotos-seguras-'));
-  carpetas.push(uploadsDir);
-
-  const nombre = await guardarFoto(uploadsDir, 't-42', jpgConExif, { ext: 'jpg' });
-  assert.match(nombre, /^ticket-t-42-[0-9a-f-]{36}\.jpg$/);
-  assert.deepEqual((await leerFoto(uploadsDir, 't-42', nombre)).buffer, jpgConExif);
-  assert.equal(await leerFoto(uploadsDir, 't-43', nombre), null);
-  assert.equal(await leerFoto(uploadsDir, 't-42', '../secret.jpg'), null);
-
-  await borrarFotos(uploadsDir, 't-42', [nombre, '../secret.jpg']);
-  assert.deepEqual(await readdir(uploadsDir), []);
-});
-
 test('reportar falla: valida, guarda la foto limpia y crea el ticket Recibido (RF-04)', async () => {
-  const uploadsDir = await mkdtemp(path.join(tmpdir(), 'tyckops-fotos-'));
-  carpetas.push(uploadsDir);
   const users = await crearRepositorioEnMemoria([
     { id: 'w-1', name: 'Ana', email: 'ana@gamaitaly.cl', password: 'Temporal2026!', role: 'COLABORADOR', termsAccepted: true },
     { id: 'a-1', name: 'Admin', email: 'admin@gamaitaly.cl', password: 'Temporal2026!', role: 'ADMINISTRADOR', termsAccepted: true },
   ]);
   const authService = new AuthService(users, env, { log: () => {} });
   const tickets = new MemoryTicketRepository([]);
-  const ticketService = new TicketService(tickets, { uploadsDir, auditLogger: { info: () => {} } });
+  const ticketService = new TicketService(tickets, { auditLogger: { info: () => {} } });
   const baseUrl = await start(crearApp({ env, authService, ticketService }));
   const token = (sub, role = 'COLABORADOR') => `Bearer ${jwt.sign({ role }, jwtSecret, { subject: sub })}`;
 
@@ -118,7 +97,7 @@ test('reportar falla: valida, guarda la foto limpia y crea el ticket Recibido (R
   const grande = Buffer.concat([jpgConExif, Buffer.alloc(5 * 1024 * 1024)]);
   assert.equal((await enviar({ foto: grande })).status, 413);
 
-  assert.equal((await readdir(uploadsDir)).length, 0, 'nada se guarda si el reporte es inválido');
+  assert.equal(tickets.tickets.length, 0, 'nada se guarda si el reporte es inválido');
 
   // Reporte válido.
   const ok = await enviar({ nombre: '../../etc/passwd.jpg' });
@@ -129,17 +108,20 @@ test('reportar falla: valida, guarda la foto limpia y crea el ticket Recibido (R
   assert.equal(ticket.location, 'Piso 2, Sala B');
   assert.equal(ticket.priority, null);
 
-  // La foto queda con un nombre del servidor (no el del cliente) y sin EXIF.
-  const archivos = await readdir(uploadsDir);
-  assert.equal(archivos.length, 1);
-  assert.match(archivos[0], new RegExp(`^ticket-${ticket.id}-[0-9a-f-]{36}\\.jpg$`));
-  assert.ok(!(await readFile(path.join(uploadsDir, archivos[0]))).includes('GPS'));
+  // La foto queda guardada en el propio ticket (columna imagen), sin EXIF,
+  // y nunca se devuelve en la respuesta.
+  const guardado = tickets.tickets.find((t) => t.id === ticket.id);
+  assert.ok(Buffer.isBuffer(guardado.imagen));
+  assert.ok(guardado.imagen.includes('JFIF'));
+  assert.ok(!guardado.imagen.includes('GPS'));
+  assert.equal('imagen' in ticket, false);
 
   // La foto es opcional: un reporte sin foto también se crea y no guarda archivos.
   const sinFoto = await enviar({ foto: null, campos: { categoria: 'BANOS', descripcion: 'La llave del lavamanos gotea' } });
   assert.equal(sinFoto.status, 201);
-  assert.equal((await sinFoto.json()).data.ticket.category, 'Baños');
-  assert.equal((await readdir(uploadsDir)).length, 1);
+  const { ticket: ticketSinFoto } = (await sinFoto.json()).data;
+  assert.equal(ticketSinFoto.category, 'Baños');
+  assert.equal(tickets.tickets.find((t) => t.id === ticketSinFoto.id).imagen, null);
 
   // Y ambos aparecen en "mis tickets" de su dueño.
   const mios = await (await fetch(`${baseUrl}/api/tickets/mis-tickets`, { headers: { authorization: token('w-1') } })).json();

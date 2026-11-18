@@ -11,7 +11,7 @@ const prisma = new PrismaClient();
 
 const ROLES = ["colaborador", "administrador"];
 const DEPARTAMENTOS = ["RRHH", "Administracion", "Servicios generales"];
-const CATEGORIAS = ["Inmoviliario", "Electrica", "Baños", "Aire acondicionado"];
+const CATEGORIAS = ["Inmobiliario", "Electrica", "Baños", "Aire acondicionado"];
 
 function requerirEnv(nombre) {
   const valor = process.env[nombre];

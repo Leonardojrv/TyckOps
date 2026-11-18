@@ -1,5 +1,5 @@
 import { HttpError } from '../../utils/http-error.js';
-import { borrarFotos, guardarFoto, leerFoto, listarFotos, quitarMetadatos } from './tickets.fotos.js';
+import { detectarTipoImagen, quitarMetadatos } from './tickets.fotos.js';
 
 // Estados en los que el ticket sigue "en atención" (RF-05).
 const ESTADOS_ACTIVOS = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROCESO']);
@@ -21,23 +21,10 @@ function publicTicket(ticket) {
 export class TicketService {
   // slaCumplido: % de tickets atendidos a tiempo. Lo calculará el backend
   // real; mientras tanto viene de la configuración de la demo (o null).
-  // uploadsDir: carpeta donde se guardan las fotos (fuera de lo que se publica).
-  constructor(ticketRepository, {
-    slaCumplido = null,
-    uploadsDir = null,
-    auditLogger = console,
-    photoStorage = {},
-  } = {}) {
+  constructor(ticketRepository, { slaCumplido = null, auditLogger = console } = {}) {
     this.ticketRepository = ticketRepository;
     this.slaCumplido = slaCumplido;
-    this.uploadsDir = uploadsDir;
     this.auditLogger = auditLogger;
-    this.photoStorage = {
-      save: photoStorage.save ?? guardarFoto,
-      remove: photoStorage.remove ?? borrarFotos,
-      read: photoStorage.read ?? leerFoto,
-      list: photoStorage.list ?? listarFotos,
-    };
   }
 
   async misTickets(userId) {
@@ -63,46 +50,38 @@ export class TicketService {
     return publicTicket(ticket);
   }
 
-  // RF-04: crea el ticket en estado Recibido y guarda sus fotos localmente.
-  async crearReporte(userId, { categoria, ubicacion, descripcion }, fotos = []) {
-    const archivos = Array.isArray(fotos) ? fotos : (fotos ? [fotos] : []);
-    if (archivos.length > 0 && !this.uploadsDir) {
-      throw new HttpError(503, 'FOTOS_NO_DISPONIBLES', 'El servidor aún no puede recibir fotografías.');
+  // Foto de un ticket propio (columna imagen). Devuelve los bytes y su tipo.
+  async foto(userId, id) {
+    const resultado = /^[A-Za-z0-9-]{1,40}$/.test(String(id))
+      ? await this.ticketRepository.findPhotoForOwner(id, userId)
+      : null;
+    // Ajeno o inexistente: mismo 404 que el detalle, para no revelar qué IDs existen.
+    if (!resultado) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
+    if (!resultado.imagen) throw new HttpError(404, 'FOTO_NO_ENCONTRADA', 'Esta solicitud no tiene fotografía.');
+
+    // El tipo se vuelve a leer de los bytes guardados (ya validados al recibirlos).
+    const tipo = detectarTipoImagen(resultado.imagen);
+    if (!tipo) throw new HttpError(500, 'FOTO_DANADA', 'No pudimos leer la fotografía guardada.');
+    return { buffer: resultado.imagen, mime: tipo.mime };
+  }
+
+  // RF-04: crea el ticket en estado Recibido. Si viene foto, se guarda sin
+  // metadatos en la columna imagen (BYTEA) del mismo ticket, en una sola
+  // operación: no puede quedar un ticket sin su foto ni una foto sin ticket.
+  // La foto es opcional (foto = null).
+  async crearReporte(userId, { categoria, ubicacion, descripcion }, foto = null) {
+    const limpia = foto ? quitarMetadatos(foto.buffer, foto.tipo) : null;
+    if (foto && !limpia) {
+      throw new HttpError(415, 'FOTO_DANADA', 'No pudimos leer la foto. Toma otra e inténtalo de nuevo.');
     }
-    const fotosLimpias = archivos.map((foto) => {
-      const buffer = quitarMetadatos(foto.buffer, foto.tipo);
-      if (!buffer) throw new HttpError(415, 'FOTO_DANADA', 'No pudimos leer una foto. Toma otra e inténtalo de nuevo.');
-      return { buffer, tipo: foto.tipo };
-    });
 
     const ticket = await this.ticketRepository.create({
       ownerId: userId,
       category: categoria,
       location: ubicacion,
       description: descripcion,
+      imagen: limpia,
     });
-
-    const nombresFotos = [];
-    try {
-      for (const foto of fotosLimpias) {
-        nombresFotos.push(await this.photoStorage.save(this.uploadsDir, ticket.id, foto.buffer, foto.tipo));
-      }
-    } catch (error) {
-      const [fotosEliminadas, ticketEliminado] = await Promise.allSettled([
-        this.photoStorage.remove(this.uploadsDir, ticket.id, nombresFotos),
-        this.ticketRepository.delete(ticket.id),
-      ]);
-      if (fotosEliminadas.status === 'rejected' || ticketEliminado.status === 'rejected') {
-        this.auditLogger.error?.(JSON.stringify({
-          type: 'ticket',
-          action: 'ticket_photo_rollback_failed',
-          timestamp: new Date().toISOString(),
-          ticketId: String(ticket.id),
-        }));
-      }
-      throw error;
-    }
-
     this.auditLogger.info?.(JSON.stringify({
       type: 'ticket',
       action: 'ticket_created',
@@ -110,41 +89,8 @@ export class TicketService {
       ticketId: ticket.id,
       userId: String(userId),
       category: categoria,
-      photoCount: nombresFotos.length,
+      withPhoto: Boolean(limpia),
     }));
-    return {
-      ...publicTicket(ticket),
-      fotos: nombresFotos.map((nombre, index) => ({
-        nombre,
-        mime: fotosLimpias[index].tipo.mime,
-        url: `/api/tickets/${encodeURIComponent(ticket.id)}/fotos/${encodeURIComponent(nombre)}`,
-      })),
-    };
-  }
-
-  async _ticketConAccesoFotos(ticketId, usuario) {
-    const ticket = await this.ticketRepository.findById(ticketId);
-    const esAdmin = usuario.role === 'ADMINISTRADOR';
-    if (!ticket || (!esAdmin && String(ticket.ownerId) !== String(usuario.id))) {
-      throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
-    }
-    return ticket;
-  }
-
-  async fotosDeTicket(ticketId, usuario) {
-    const ticket = await this._ticketConAccesoFotos(ticketId, usuario);
-    const nombres = await this.photoStorage.list(this.uploadsDir, ticket.id);
-    return nombres.map((nombre) => ({
-      nombre,
-      url: `/api/tickets/${encodeURIComponent(ticket.id)}/fotos/${encodeURIComponent(nombre)}`,
-      mime: nombre.endsWith('.png') ? 'image/png' : 'image/jpeg',
-    }));
-  }
-
-  async fotoDeTicket(ticketId, usuario, nombre) {
-    const ticket = await this._ticketConAccesoFotos(ticketId, usuario);
-    const foto = await this.photoStorage.read(this.uploadsDir, ticket.id, nombre);
-    if (!foto) throw new HttpError(404, 'FOTO_NO_ENCONTRADA', 'No encontramos esa fotografía.');
-    return foto;
+    return publicTicket(ticket);
   }
 }
