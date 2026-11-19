@@ -1,5 +1,6 @@
 import { crearApp } from './app.js';
 import { loadEnv } from './config/env.js';
+import { logger } from './config/logger.js';
 import { connectPrisma } from './config/prisma.js';
 import { ClienteGroq } from './ia/clienteGroq.js';
 import { crearRepositorioEnMemoria } from './modules/auth/auth.memory.repository.js';
@@ -22,7 +23,7 @@ if (env.databaseUrl) {
     prisma = await connectPrisma(env.databaseUrl);
     databaseStatus = 'connected';
   } catch (error) {
-    console.error('No fue posible conectar con PostgreSQL:', error.message);
+    logger.error('db_conexion_fallida', { error: error.message });
   }
 }
 
@@ -72,15 +73,21 @@ const ticketService = new TicketService(
 
 const app = crearApp({ env, prisma, userRepository, ticketService, groqClient, databaseStatus });
 const server = app.listen(env.port, () => {
+  // Aviso para quien levanta el servidor (y las pruebas de integración lo esperan en stdout).
   console.log(`TyckOps API escuchando en http://localhost:${env.port}`);
+  logger.info('servidor_iniciado',{ puerto: env.port, entorno: env.nodeEnv, baseDatos: databaseStatus });
 });
 
-async function shutdown() {
+async function shutdown(senal) {
+  logger.info('servidor_detenido', { senal });
   server.close(async () => {
     await prisma?.$disconnect();
+    await logger.cerrar(); // escribe lo pendiente antes de salir
     process.exit(0);
   });
 }
 
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+// Lo que se escape de todo manejo queda registrado antes de caer.
+process.on('unhandledRejection', (error) => logger.error('promesa_no_manejada', { error }));

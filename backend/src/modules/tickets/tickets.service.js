@@ -10,9 +10,21 @@
 //   cámbiala aquí y corre `pnpm test`. Lo que se guarda o se lee de la base va en
 //   los repositorios.
 
+import { logger } from '../../config/logger.js';
 import { HttpError } from '../../utils/http-error.js';
 import { detectarTipoImagen, quitarMetadatos } from './tickets.fotos.js';
 import { datosParaIA, evaluarFlujoIA } from './tickets.flujoIA.js';
+
+// Logger por defecto: recibe la misma línea JSON que antes iba a console.info
+// y la escribe en logs/ con winston. Las pruebas pueden pasar el suyo.
+const auditoriaTickets = {
+  info(linea) {
+    // timestamp y type se descartan: winston pone su propia hora y el tipo va en `tipo`.
+    const { action, timestamp: _t, type: _tipo, ...datos } = typeof linea === 'string' ? JSON.parse(linea) : linea;
+    const nivel = action === 'error_ia' ? 'warn' : 'info';
+    logger[nivel](action, { tipo: 'ticket', ...datos });
+  },
+};
 
 // Estados en los que el ticket sigue "en atención" (RF-05).
 const ESTADOS_ACTIVOS = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROCESO']);
@@ -37,7 +49,7 @@ export class TicketService {
   // analizadorIA: motor de IA opcional (módulo de IA). Debe exponer
   // `async analizar({ ticketId, categoria, descripcion, ubicacion })`.
   // Si es null, los tickets Recibidos quedan registrados como pendientes.
-  constructor(ticketRepository, { slaCumplido = null, auditLogger = console, analizadorIA = null } = {}) {
+  constructor(ticketRepository, { slaCumplido = null, auditLogger = auditoriaTickets, analizadorIA = null } = {}) {
     this.ticketRepository = ticketRepository;
     this.slaCumplido = slaCumplido;
     this.auditLogger = auditLogger;

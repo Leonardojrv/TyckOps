@@ -2,6 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import { manejarErrores, rutaNoEncontrada } from './middlewares/manejarErrores.js';
+import { registrarSolicitud } from './middlewares/registrarSolicitud.js';
 import { crearRutasAdmin } from './modules/admin/admin.routes.js';
 import { PrismaUserRepository } from './modules/auth/auth.repository.js';
 import { crearRutasAuth } from './modules/auth/auth.routes.js';
@@ -31,6 +32,7 @@ export function crearApp({
     : env.corsOrigin.split(',').map((origin) => origin.trim());
 
   app.disable('x-powered-by');
+  app.use(registrarSolicitud);
   app.use(helmet());
   app.use(cors({ origin: allowedOrigins }));
   app.use(express.json({ limit: '1mb' }));
