@@ -62,7 +62,7 @@ class _FirstAccessScreenState extends State<FirstAccessScreen> {
 
     setState(() => _loading = true);
     try {
-      final user = await widget.authRepository.completeFirstAccess(
+      await widget.authRepository.completeFirstAccess(
         currentPassword: changePassword ? _currentPassword.text : null,
         newPassword: changePassword ? _newPassword.text : null,
         termsVersion: termsDocCode,
@@ -71,8 +71,13 @@ class _FirstAccessScreenState extends State<FirstAccessScreen> {
       _currentPassword.clear();
       _newPassword.clear();
       _confirmPassword.clear();
-      // Con isFirstLogin = false, el router lleva solo al home del rol.
-      widget.session.updateUser(user);
+      // Orden del acceso (T8): después del primer acceso se vuelve al login y,
+      // al entrar de nuevo, se pide la verificación en dos pasos.
+      await widget.session.signOut(
+        notice: changePassword
+            ? 'Listo, tu cuenta quedó configurada. Inicia sesión con tu nueva contraseña.'
+            : 'Listo, tu cuenta quedó configurada. Inicia sesión de nuevo para continuar.',
+      );
     } on ApiException catch (e) {
       _currentPassword.clear();
       _showMessage(e.message);

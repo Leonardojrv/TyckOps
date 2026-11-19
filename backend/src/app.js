@@ -16,6 +16,7 @@ export function crearApp({
   prisma = null,
   userRepository,
   authService,
+  mfaService = null, // T8: si viene, el login exige verificación en dos pasos
   ticketService = null,
   groqClient = null,
   auditLogger,
@@ -25,7 +26,7 @@ export function crearApp({
   app.locals.groqClient = groqClient;
   const repository = userRepository ?? (prisma ? new PrismaUserRepository(prisma) : null);
   const service = authService ?? (repository
-    ? new AuthService(repository, env, auditLogger)
+    ? new AuthService(repository, env, auditLogger, { mfaService })
     : null);
   const dbStatus = databaseStatus ?? (prisma ? 'connected' : 'not_configured');
   const allowedOrigins = env.corsOrigin === '*'

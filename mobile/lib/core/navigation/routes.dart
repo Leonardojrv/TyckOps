@@ -16,6 +16,7 @@ import '../../data/models/user_role.dart';
 abstract final class Routes {
   static const login = '/login';
   static const firstAccess = '/primer-acceso';
+  static const mfaVerification = '/verificacion'; // verificación en dos pasos (T8)
   static const devComponents = '/dev/componentes';
 
   // Colaborador
@@ -47,10 +48,19 @@ String? redirectFor({
   required UserRole? role,
   required String location,
   bool needsFirstAccess = false,
+  bool mfaPending = false,
   bool allowDevRoutes = false,
 }) {
   final isPublic = location == Routes.login ||
       (allowDevRoutes && location.startsWith('/dev'));
+
+  // T8: mientras haya una verificación en dos pasos pendiente, la persona solo
+  // puede estar en esa pantalla. Ninguna ruta interna se abre sin el código.
+  if (mfaPending) return location == Routes.mfaVerification ? null : Routes.mfaVerification;
+  // Sin verificación pendiente, esa pantalla no tiene sentido: al login o al inicio.
+  if (location == Routes.mfaVerification) {
+    return loggedIn && role != null ? Routes.homeFor(role) : Routes.login;
+  }
 
   if (!loggedIn || role == null) return isPublic ? null : Routes.login;
 
