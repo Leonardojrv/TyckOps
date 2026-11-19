@@ -40,6 +40,8 @@ npm-debug.log*
 yarn-error.log*
 dist/
 uploads/
+# Logs de transacciones de winston (traen IPs e IDs de usuarios: nunca al repo)
+backend/logs/
 
 # ===== Base de datos / Docker =====
 pgdata/

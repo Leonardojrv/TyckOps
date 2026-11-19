@@ -1,4 +1,5 @@
 import { ZodError } from 'zod';
+import { logger } from '../config/logger.js';
 import { traducirErrorBaseDatos } from '../utils/erroresBaseDatos.js';
 import { HttpError } from '../utils/http-error.js';
 import { responderError } from '../utils/respuestas.js';
@@ -7,7 +8,7 @@ export function rutaNoEncontrada(_req, _res, next) {
   next(new HttpError(404, 'RUTA_NO_ENCONTRADA', 'La ruta solicitada no existe.'));
 }
 
-export function manejarErrores(error, _req, res, _next) {
+export function manejarErrores(error, req, res, _next) {
   if (error?.type === 'entity.parse.failed') {
     return responderError(
       res,
@@ -31,17 +32,18 @@ export function manejarErrores(error, _req, res, _next) {
     const { httpError, registro } = deBaseDatos;
     // En el log va solo un resumen (tipo, código, tabla, restricción): nunca la
     // fila con datos de usuarios que trae el mensaje original de PostgreSQL.
-    const linea = JSON.stringify({ type: 'db_error', status: httpError.status, ...registro });
+    const datos = { tipo: 'db_error', requestId: req.requestId, status: httpError.status, ...registro };
     if (httpError.status >= 500) {
-      console.error(linea);
+      logger.error('db_error', datos);
       res.set('Retry-After', '30'); // la app puede reintentar en 30 segundos
     } else {
-      console.warn(linea);
+      logger.warn('db_error', datos);
     }
     return responderError(res, httpError);
   }
 
-  console.error(error);
+  // Error no previsto: se guarda nombre, mensaje y stack (no el cuerpo de la solicitud).
+  logger.error('error_interno', { requestId: req.requestId, ruta: req.originalUrl?.split('?')[0], error });
   return responderError(
     res,
     new HttpError(500, 'ERROR_INTERNO', 'Ocurrió un error interno.'),
