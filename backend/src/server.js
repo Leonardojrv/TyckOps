@@ -3,6 +3,7 @@ import { loadEnv } from './config/env.js';
 import { logger } from './config/logger.js';
 import { connectPrisma } from './config/prisma.js';
 import { ClienteGroq } from './ia/clienteGroq.js';
+import { crearMfaService } from './modules/auth/auth.mfa.js';
 import { crearRepositorioEnMemoria } from './modules/auth/auth.memory.repository.js';
 import { MemoryTicketRepository, ticketsDeDemostracion } from './modules/tickets/tickets.memory.repository.js';
 import { PrismaTicketRepository } from './modules/tickets/tickets.prisma.repository.js';
@@ -79,7 +80,12 @@ const ticketService = new TicketService(
   },
 );
 
-const app = crearApp({ env, prisma, userRepository, ticketService, groqClient, databaseStatus });
+// T8 · Verificación en dos pasos (MFA). En desarrollo usa un código fijo
+// (MFA_CODIGO_DESARROLLO o 123456) y lo anota en la consola; en producción
+// exige un envío real por correo (cuando exista, se pasa como enviarCodigo).
+const mfaService = crearMfaService({ env });
+
+const app = crearApp({ env, prisma, userRepository, mfaService, ticketService, groqClient, databaseStatus });
 const server = app.listen(env.port, () => {
   // Aviso para quien levanta el servidor (y las pruebas de integración lo esperan en stdout).
   console.log(`TyckOps API escuchando en http://localhost:${env.port}`);

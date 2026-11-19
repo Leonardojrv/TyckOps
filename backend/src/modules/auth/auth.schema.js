@@ -29,3 +29,9 @@ export const primerAccesoSchema = z
     path: ['currentPassword'],
     message: 'Ingresa tu contraseña temporal actual para cambiarla.',
   });
+// T8: el código de la verificación en dos pasos son exactamente 6 números.
+export const mfaSchema = z
+  .object({
+    codigo: z.string().trim().regex(/^\d{6}$/, 'El código tiene 6 números.'),
+  })
+  .strict();

@@ -16,6 +16,9 @@ const envSchema = z.object({
   GROQ_MODEL: z.string().trim().min(1).default('openai/gpt-oss-20b'),
   GROQ_REASONING_EFFORT: z.enum(['low', 'medium', 'high']).default('low'),
   GROQ_TIMEOUT_MS: z.coerce.number().int().min(500).max(120000).default(20000),
+  // T8: código fijo de la verificación en dos pasos, SOLO para desarrollo (6 números).
+  // En producción se ignora: ahí el código siempre es aleatorio y va por correo.
+  MFA_CODIGO_DESARROLLO: z.string().regex(/^\d{6}$/).optional(),
 });
 
 // Cifrado backend → PostgreSQL. La base de datos (Docker local y producción) solo
@@ -64,5 +67,6 @@ export function loadEnv(source = process.env) {
     groqModel: result.data.GROQ_MODEL,
     groqReasoningEffort: result.data.GROQ_REASONING_EFFORT,
     groqTimeoutMs: result.data.GROQ_TIMEOUT_MS,
+    mfaCodigoDesarrollo: result.data.MFA_CODIGO_DESARROLLO ?? null,
   };
 }

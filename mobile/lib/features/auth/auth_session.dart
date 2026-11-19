@@ -53,10 +53,42 @@ class AuthSession extends ChangeNotifier {
     }
   }
 
-  /// Se llama después de un login exitoso.
+  // ===== Verificación en dos pasos (T8) =====
+
+  /// La verificación pendiente, si la hay. Vive SOLO en memoria: si cierras la
+  /// app a mitad de camino, tendrás que iniciar sesión de nuevo (más seguro).
+  MfaChallenge? _mfa;
+
+  MfaChallenge? get mfaChallenge => _mfa;
+
+  /// true mientras falta escribir el código: el router solo deja ver esa pantalla.
+  bool get mfaPending => _mfa != null && _user == null;
+
+  /// El login pidió el código: se guarda la verificación y la app va a esa pantalla.
+  void startMfa(MfaChallenge challenge) {
+    _mfa = challenge;
+    notifyListeners();
+  }
+
+  /// Se pidió un código nuevo: se actualizan los tiempos.
+  void updateMfa(MfaChallenge challenge) {
+    if (_mfa == null) return;
+    _mfa = challenge;
+    notifyListeners();
+  }
+
+  /// "Cancelar y volver al inicio de sesión" (o si el servidor bloqueó la verificación).
+  void cancelMfa({String? notice}) {
+    _mfa = null;
+    _notice = notice;
+    notifyListeners();
+  }
+
+  /// Se llama después de un login exitoso (o de verificar el código).
   Future<void> signIn(AppUser user, String token) async {
     await _tokenStorage.saveToken(token);
     _user = user;
+    _mfa = null; // la verificación ya terminó
     notifyListeners();
   }
 
@@ -78,6 +110,7 @@ class AuthSession extends ChangeNotifier {
   Future<void> signOut({String? notice}) async {
     await _tokenStorage.clear();
     _user = null;
+    _mfa = null;
     _notice = notice;
     notifyListeners();
   }

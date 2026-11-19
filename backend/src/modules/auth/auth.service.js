@@ -26,11 +26,21 @@ function publicUser(user, role) {
 }
 
 export class AuthService {
-  constructor(userRepository, { jwtSecret, jwtExpiresIn = '1h' }, auditLogger = new AuthAuditLogger()) {
+  // mfaService (opcional): si viene, el login exige la verificación en dos pasos
+  // (T8). Sin él, el login funciona como antes (así siguen sirviendo las pruebas).
+  constructor(userRepository, { jwtSecret, jwtExpiresIn = '1h' }, auditLogger = new AuthAuditLogger(), { mfaService = null } = {}) {
     this.userRepository = userRepository;
     this.jwtSecret = jwtSecret;
     this.jwtExpiresIn = jwtExpiresIn;
     this.auditLogger = auditLogger;
+    this.mfa = mfaService;
+  }
+
+  // Crea la "llave" de la sesión. `typ` dice qué abre:
+  // - 'acceso': la sesión completa (después de verificar el código).
+  // - 'primer_acceso': solo deja hacer el primer acceso (contraseña y términos).
+  #token(user, role, typ, expiresIn = this.jwtExpiresIn) {
+    return jwt.sign({ role, typ }, this.jwtSecret, { subject: String(user.id), expiresIn });
   }
 
   async login({ email, password }, requestInfo = {}) {
@@ -56,11 +66,6 @@ export class AuthService {
       throw new HttpError(403, 'ROL_INVALIDO', 'La cuenta no tiene un rol habilitado.');
     }
 
-    const token = jwt.sign({ role }, this.jwtSecret, {
-      subject: String(user.id),
-      expiresIn: this.jwtExpiresIn,
-    });
-
     this.auditLogger.log({
       action: 'login_succeeded',
       userId: String(user.id),
@@ -69,10 +74,46 @@ export class AuthService {
       ...requestInfo,
     });
 
+    // Sin MFA activo: sesión completa de inmediato (comportamiento anterior).
+    if (!this.mfa) {
+      return { token: this.#token(user, role, 'acceso'), user: publicUser(user, role) };
+    }
+
+    // Orden pedido para el acceso (T8): la PRIMERA vez va primero el primer
+    // acceso (contraseña y términos) con una llave limitada; después la persona
+    // vuelve a iniciar sesión y recién ahí se le pide el código.
+    if (user.isFirstLogin || !user.termsAccepted) {
+      return {
+        step: 'PRIMER_ACCESO',
+        token: this.#token(user, role, 'primer_acceso', '15m'),
+        user: publicUser(user, role),
+      };
+    }
+
+    // Las demás veces: se envía el código y NO se entrega la sesión todavía.
+    const desafio = await this.mfa.iniciar({ userId: user.id, role, email: user.email });
     return {
-      token,
-      user: publicUser(user, role),
+      step: 'MFA',
+      mfaToken: desafio.mfaToken,
+      email: user.email, // solo para mostrar a dónde se envió el código
+      role, // para mostrar "Sesión de Colaborador en curso"
+      expiraEn: desafio.expiraEn,
+      reenviarDesde: desafio.reenviarDesde,
     };
+  }
+
+  // T8: el código fue correcto (lo revisó MfaService). Ahora sí se entrega la
+  // sesión completa. Se vuelve a leer al usuario por si cambió algo entremedio.
+  async completeMfa(desafioId, codigo, requestInfo = {}) {
+    if (!this.mfa) throw new HttpError(404, 'RUTA_NO_ENCONTRADA', 'La ruta solicitada no existe.');
+    const { userId } = await this.mfa.verificar(desafioId, codigo);
+    const user = await this.userRepository.findById(userId);
+    const role = user ? roleMap.get(String(user.role).toUpperCase()) : null;
+    if (!user || !role) {
+      throw new HttpError(401, 'SESION_INVALIDA', 'La sesión ya no es válida. Inicia sesión nuevamente.');
+    }
+    this.auditLogger.log({ action: 'mfa_login_completado', userId: String(user.id), role, ...requestInfo });
+    return { token: this.#token(user, role, 'acceso'), user: publicUser(user, role) };
   }
 
   // RF-02: el usuario cambia su contraseña temporal o decide mantenerla.

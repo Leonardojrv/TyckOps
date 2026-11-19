@@ -42,8 +42,12 @@ class ApiClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          final token = await tokenStorage.readToken();
-          if (token != null) options.headers['Authorization'] = 'Bearer $token';
+          // Si el pedido ya trae su propia llave (por ejemplo, el pase de la
+          // verificación en dos pasos), se respeta; si no, va la de la sesión.
+          if (!options.headers.containsKey('Authorization')) {
+            final token = await tokenStorage.readToken();
+            if (token != null) options.headers['Authorization'] = 'Bearer $token';
+          }
           handler.next(options);
         },
         onError: (error, handler) async {
@@ -84,8 +88,13 @@ class ApiClient {
     }
   }
 
-  Future<T> post<T>(String path, {Object? body}) =>
-      _send(() => _dio.post<T>(path, data: body));
+  /// [bearer]: llave especial solo para este pedido (la usa la verificación en
+  /// dos pasos, que todavía no tiene sesión). Nunca se guarda en el teléfono.
+  Future<T> post<T>(String path, {Object? body, String? bearer}) => _send(() => _dio.post<T>(
+        path,
+        data: body,
+        options: bearer == null ? null : Options(headers: {'Authorization': 'Bearer $bearer'}),
+      ));
 
   Future<T> patch<T>(String path, {Object? body}) =>
       _send(() => _dio.patch<T>(path, data: body));

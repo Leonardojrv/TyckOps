@@ -18,6 +18,7 @@ import '../../data/repositories/report_repository.dart';
 import '../../features/auth/auth_session.dart';
 import '../../features/auth/first_access_screen.dart';
 import '../../features/auth/login_screen.dart';
+import '../../features/auth/mfa/mfa_screen.dart';
 import '../../features/shared/components_gallery_screen.dart';
 import '../../features/shared/placeholder_screen.dart';
 import '../../features/worker/home/worker_home_screen.dart';
@@ -47,6 +48,7 @@ GoRouter createRouter(
       role: session.role,
       location: state.matchedLocation,
       needsFirstAccess: session.needsFirstAccess,
+      mfaPending: session.mfaPending,
       allowDevRoutes: kDebugMode,
     ),
     routes: [
@@ -59,6 +61,11 @@ GoRouter createRouter(
         path: Routes.firstAccess,
         builder: (context, state) =>
             FirstAccessScreen(session: session, authRepository: authRepository),
+      ),
+      // T8 · Verificación en dos pasos (colaborador y, en la T12, administrador).
+      GoRoute(
+        path: Routes.mfaVerification,
+        builder: (context, state) => MfaScreen(session: session, authRepository: authRepository),
       ),
       if (kDebugMode)
         GoRoute(

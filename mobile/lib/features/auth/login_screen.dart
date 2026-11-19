@@ -72,8 +72,14 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _emailController.text,
         password: _passwordController.text,
       );
-      // Al iniciar sesión, el router redirige solo al home del rol.
-      await widget.session.signIn(result.user, result.token);
+      if (result.needsMfa) {
+        // T8: falta el código de 6 dígitos. La app va sola a esa pantalla.
+        _passwordController.clear(); // la contraseña ya no se necesita
+        widget.session.startMfa(result.mfa!);
+      } else {
+        // Primera vez (primer acceso) o servidor sin MFA: el router decide a dónde ir.
+        await widget.session.signIn(result.user, result.token);
+      }
     } on ApiException catch (e) {
       _passwordController.clear(); // seguridad: no dejar la clave escrita
       _showMessage(e.message);
