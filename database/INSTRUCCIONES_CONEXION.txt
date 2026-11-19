@@ -51,6 +51,12 @@ otra cosa.
          docker ps
        Debe aparecer "postgres_db" con estado "Up".
 
+  NOTA: la base solo acepta conexiones CIFRADAS (SSL). Docker genera el
+  certificado solo la primera vez; no tienes que hacer nada más. Si ya tenías
+  la base levantada antes de este cambio, basta con volver a ejecutar
+  "docker compose up -d" (no se pierden datos). Detalles y problemas
+  frecuentes en database/CIFRADO.md.
+
 
 -------------------------------------------------------------------------------
  2. CREAR LAS TABLAS (Prisma, carpeta database/BaseDatos)
@@ -237,5 +243,10 @@ otra cosa.
 
   * Error "El cliente Prisma no tiene el modelo User esperado"
       -> Falta el paso 3.3 (pnpm prisma:generate).
+
+  * El backend dice "La base de datos no aceptó la conexión cifrada"
+      -> Tu contenedor no tiene SSL todavía. En database/:
+             docker compose up -d
+         Más casos en database/CIFRADO.md.
 
   * NUNCA subas a git ningún archivo .env (ya están en .gitignore).

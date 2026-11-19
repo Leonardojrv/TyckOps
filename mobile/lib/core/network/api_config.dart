@@ -9,6 +9,8 @@
 //   Para apuntar a otro servidor no edites este archivo: usa
 //   --dart-define=API_BASE_URL=... al ejecutar o compilar.
 
+import 'package:flutter/foundation.dart';
+
 /// Configuración de la API.
 ///
 /// La URL NO se escribe fija en el código: se pasa al compilar con
@@ -29,6 +31,18 @@ abstract final class ApiConfig {
 
   /// Para trabajar sin backend: flutter run --dart-define=FAKE_AUTH=true
   static const useFakeAuth = bool.fromEnvironment('FAKE_AUTH');
+
+  /// Cifrado app → backend: una versión release (la que se instala en los
+  /// teléfonos) solo puede hablar con el servidor por https. Si alguien compila
+  /// con una URL http, la app se detiene al abrir en vez de enviar contraseñas
+  /// y fotos sin cifrar. En depuración (flutter run) se permite http local.
+  static void validarCifrado({bool esRelease = kReleaseMode}) {
+    if (esRelease && !useFakeAuth && !baseUrl.startsWith('https://')) {
+      throw StateError(
+        'API_BASE_URL debe usar https:// en una versión release (recibido: $baseUrl).',
+      );
+    }
+  }
 
   static const connectTimeout = Duration(seconds: 10);
   static const receiveTimeout = Duration(seconds: 20);

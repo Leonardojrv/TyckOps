@@ -18,6 +18,26 @@ const envSchema = z.object({
   GROQ_TIMEOUT_MS: z.coerce.number().int().min(500).max(120000).default(20000),
 });
 
+// Cifrado backend → PostgreSQL. La base de datos (Docker local y producción) solo
+// acepta conexiones cifradas, así que la URL siempre debe llevar sslmode=require:
+//  - si no trae sslmode, se agrega aquí (los .env de cada uno no están en git);
+//  - si trae otro valor (disable, prefer...), es un error: Prisma podría
+//    conectarse sin cifrar sin avisar.
+// Ver database/CIFRADO.md.
+export function conSslObligatorio(databaseUrl) {
+  if (!databaseUrl) return databaseUrl;
+  const url = new URL(databaseUrl);
+  const sslmode = url.searchParams.get('sslmode');
+  if (sslmode === null) url.searchParams.set('sslmode', 'require');
+  else if (sslmode !== 'require') {
+    throw new Error(
+      `Configuración de entorno inválida: DATABASE_URL usa sslmode=${sslmode}. `
+      + 'La conexión a PostgreSQL debe ir cifrada: usa sslmode=require o quita el parámetro.',
+    );
+  }
+  return url.toString();
+}
+
 export function loadEnv(source = process.env) {
   dotenv.config();
   const result = envSchema.safeParse(source);
@@ -32,7 +52,7 @@ export function loadEnv(source = process.env) {
   return {
     nodeEnv: result.data.NODE_ENV,
     port: result.data.PORT,
-    databaseUrl: result.data.DATABASE_URL,
+    databaseUrl: conSslObligatorio(result.data.DATABASE_URL),
     jwtSecret: result.data.JWT_SECRET,
     jwtExpiresIn: result.data.JWT_EXPIRES_IN,
     corsOrigin: result.data.CORS_ORIGIN,
