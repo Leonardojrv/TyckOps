@@ -11,6 +11,7 @@ import path from 'node:path';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
+import { conSslObligatorio } from '../../src/config/env.js';
 import { USUARIOS, ROLES, DEPARTAMENTOS, CATEGORIAS } from './usuarios.js';
 
 const aqui = path.dirname(fileURLToPath(import.meta.url));
@@ -26,7 +27,8 @@ function urlConBase(nombreBase) {
   if (!original) throw new Error('Falta DATABASE_URL en backend/.env');
   const url = new URL(original);
   url.pathname = `/${nombreBase}`;
-  return url.toString();
+  // Igual que el backend: la base solo acepta conexiones cifradas.
+  return conSslObligatorio(url.toString());
 }
 
 // Se guarda la URL real una sola vez, antes de que algo la reemplace.
@@ -35,7 +37,7 @@ if (!process.env.DATABASE_URL_REAL && process.env.DATABASE_URL) {
 }
 
 export const urlPruebas = () => urlConBase(NOMBRE_BASE_PRUEBAS);
-export const urlReal = () => process.env.DATABASE_URL_REAL;
+export const urlReal = () => conSslObligatorio(process.env.DATABASE_URL_REAL);
 export const nombreBaseReal = () => new URL(urlReal()).pathname.slice(1);
 
 export async function prepararBase() {

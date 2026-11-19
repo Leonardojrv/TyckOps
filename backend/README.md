@@ -24,7 +24,7 @@ El adaptador de login espera provisionalmente el modelo `User`, con `id`, `name`
 
 `POST /api/auth/primer-acceso` (RF-02) requiere `Authorization: Bearer <token>`. Con `{ "currentPassword": "...", "newPassword": "..." }` cambia la contraseña temporal (mínimo 8 caracteres con letras y números); con `{}` mantiene la actual. En ambos casos responde `{ "success": true, "data": { "user": { ..., "isFirstLogin": false } } }`. Errores: `400 CONTRASENA_ACTUAL_INCORRECTA`, `400 CONTRASENA_REPETIDA`, `409 PRIMER_ACCESO_COMPLETADO` y `429 DEMASIADOS_INTENTOS` (5 intentos cada 15 minutos). En desarrollo, la cuenta demo del colaborador parte con `isFirstLogin: true`.
 
-Las cuentas de demostración se configuran con `DEMO_WORKER_EMAIL`, `DEMO_WORKER_PASSWORD`, `DEMO_ADMIN_EMAIL` y `DEMO_ADMIN_PASSWORD` en `.env`. Se almacenan solo en memoria, las contraseñas se hashean con bcrypt al iniciar, y no se habilitan como fallback en producción. La auditoría escribe eventos JSON de éxito y rechazo a la salida del servidor; no registra contraseñas.
+Las cuentas de demostración se configuran con `DEMO_WORKER_EMAIL`, `DEMO_WORKER_PASSWORD`, `DEMO_ADMIN_EMAIL` y `DEMO_ADMIN_PASSWORD` en `.env`. Se almacenan solo en memoria, las contraseñas se hashean con bcrypt al iniciar, y no se habilitan como fallback en producción. La auditoría escribe eventos JSON de éxito y rechazo en los logs (ver «Logs de transacciones»); no registra contraseñas.
 
 Ejemplo Postman en desarrollo:
 
@@ -55,3 +55,23 @@ La foto se guarda en la columna `imagen` (BYTEA) del propio ticket, en la misma 
 El backend crea una sola instancia de `ClienteGroq` al iniciar y la expone a los módulos mediante `app.locals.groqClient`. No llama al proveedor durante el arranque. Configura `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_REASONING_EFFORT` y `GROQ_TIMEOUT_MS` en `backend/.env`; nunca pongas la clave real en `.env.example` ni la subas a Git. Para `openai/gpt-oss-20b`, `GROQ_REASONING_EFFORT=low` envía `reasoning_effort: "low"`. `ClienteGroq.completar({ messages, reasoningEffort, temperature, maxTokens, responseFormat })` usa Chat Completions; devuelve el texto o lanza un `GroqApiError`. Los 429 se mapean a `GROQ_RATE_LIMITED` con `retryAfterMs` cuando Groq envía `Retry-After`; el cliente no reintenta automáticamente.
 
 Las pruebas del cliente usan `fetch` simulado, no consumen cuota de Groq y corren con `pnpm test`.
+
+## Logs de transacciones
+
+El backend usa winston (`src/config/logger.js`) y escribe un JSON por línea en `backend/logs/`:
+
+- `transacciones-AAAA-MM-DD.log`: cada solicitud HTTP, accesos (login, primer acceso, Términos), tickets y su paso por la IA.
+- `errores-AAAA-MM-DD.log`: solo errores.
+
+Los archivos se borran solos después de `LOG_RETENCION_DIAS` (30 por defecto). Contraseñas, tokens y llaves salen como `[OCULTO]`, las fotos como `[OMITIDO]` y los correos enmascarados (`ca***@gamaitaly.cl`). La carpeta está en `.gitignore`. Durante las pruebas no se escribe nada.
+
+Para registrar una acción nueva, una línea donde ocurre, con IDs y resultado (nunca el contenido):
+
+```js
+logger.info('ticket_aprobado', { tipo: 'ticket', ticketId, adminId, estadoAnterior, estadoNuevo });
+```
+
+## Cifrado
+
+La conexión a PostgreSQL siempre va cifrada: el backend agrega `sslmode=require` a la `DATABASE_URL` si falta y rechaza `disable` o `prefer`. En producción además exige HTTPS (detrás del proxy del hosting). Detalles, instrucciones para el equipo y despliegue en [`../database/CIFRADO.md`](../database/CIFRADO.md).
+

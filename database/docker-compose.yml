@@ -1,9 +1,55 @@
 # Las credenciales se leen de database/.env (copia .env.example). Nunca las escribas aquí.
+#
+# Cifrado (SSL/TLS): PostgreSQL SOLO acepta conexiones cifradas desde fuera del
+# contenedor. El servicio "certificados" genera un certificado autofirmado la
+# primera vez y lo guarda en el volumen pgcerts; nadie tiene que instalar nada.
+# Ver database/CIFRADO.md.
 services:
+  certificados:
+    image: postgres:15-alpine
+    container_name: postgres_certificados
+    restart: "no"
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        set -e
+        if [ ! -f /certs/server.key ]; then
+          echo "Generando certificado SSL autofirmado para PostgreSQL..."
+          apk add --no-cache openssl > /dev/null
+          openssl req -new -x509 -days 3650 -nodes -subj "/CN=localhost" \
+            -addext "subjectAltName=DNS:localhost,IP:127.0.0.1" \
+            -keyout /certs/server.key -out /certs/server.crt 2> /dev/null
+        fi
+        # PostgreSQL exige que la llave sea del usuario postgres y nadie más la lea.
+        chown postgres:postgres /certs/server.key /certs/server.crt
+        chmod 600 /certs/server.key
+        # Reglas de acceso: dentro del contenedor (socket) igual que antes;
+        # por red, solo con SSL. Una conexión sin cifrar se rechaza.
+        printf '%s\n' \
+          'local     all  all              trust' \
+          'hostssl   all  all  all         scram-sha-256' \
+          'hostnossl all  all  all         reject' > /certs/pg_hba.conf
+        echo "Certificado y reglas SSL listos."
+    volumes:
+      - pgcerts:/certs
+
   postgres:
     image: postgres:15-alpine
     container_name: postgres_db
     restart: always
+    depends_on:
+      certificados:
+        condition: service_completed_successfully
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/certs/server.crt
+      - -c
+      - ssl_key_file=/certs/server.key
+      - -c
+      - hba_file=/certs/pg_hba.conf
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?Falta POSTGRES_USER en database/.env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en database/.env}
@@ -12,6 +58,8 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - pgcerts:/certs:ro
 
 volumes:
   pgdata:
+  pgcerts:

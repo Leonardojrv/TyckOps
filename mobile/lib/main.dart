@@ -27,6 +27,7 @@ import 'features/worker/my_tickets_store.dart';
 /// se pasan hacia abajo (esto se llama "inyección de dependencias").
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  ApiConfig.validarCifrado(); // release solo con https
 
   final tokenStorage = TokenStorage();
   final session = AuthSession(tokenStorage);

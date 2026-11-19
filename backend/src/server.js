@@ -23,7 +23,15 @@ if (env.databaseUrl) {
     prisma = await connectPrisma(env.databaseUrl);
     databaseStatus = 'connected';
   } catch (error) {
-    logger.error('db_conexion_fallida', { error: error.message });
+    // Pista para el caso típico tras activar el cifrado: el contenedor sigue
+    // con la configuración antigua (sin SSL).
+    const esTls = /tls|ssl|encrypt/i.test(error.message);
+    logger.error('db_conexion_fallida', {
+      error: error.message,
+      ...(esTls && {
+        pista: 'La base de datos no aceptó la conexión cifrada. Ejecuta `docker compose up -d` en database/ (ver database/CIFRADO.md).',
+      }),
+    });
   }
 }
 

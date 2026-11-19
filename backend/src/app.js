@@ -1,6 +1,7 @@
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
+import { exigirHttps } from './middlewares/exigirHttps.js';
 import { manejarErrores, rutaNoEncontrada } from './middlewares/manejarErrores.js';
 import { registrarSolicitud } from './middlewares/registrarSolicitud.js';
 import { crearRutasAdmin } from './modules/admin/admin.routes.js';
@@ -33,6 +34,12 @@ export function crearApp({
 
   app.disable('x-powered-by');
   app.use(registrarSolicitud);
+  if (env.nodeEnv === 'production') {
+    // Confía en UN proxy delante (el del hosting) para saber si la conexión
+    // original fue https y cuál es la IP real del cliente.
+    app.set('trust proxy', 1);
+    app.use(exigirHttps);
+  }
   app.use(helmet());
   app.use(cors({ origin: allowedOrigins }));
   app.use(express.json({ limit: '1mb' }));
