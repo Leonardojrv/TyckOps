@@ -30,10 +30,14 @@ export class MemoryTicketRepository {
     ) ?? null;
   }
 
-  // Versión en memoria del detalle (misma forma que en PostgreSQL). Sirve para
-  // probar la app sin base de datos y para las pruebas automáticas.
-  async findDetailForOwner(id, ownerId) {
-    const ticket = await this.findByIdForOwner(id, ownerId);
+  // Detalle de un ticket. Si se indica ownerId filtra por dueño; si no (ej. administrador),
+  // devuelve el ticket sin importar quién lo creó.
+  async findDetail(id, { ownerId = null } = {}) {
+    const ticket = this.tickets.find((t) => {
+      if (t.id !== String(id)) return false;
+      if (ownerId !== null && t.ownerId !== String(ownerId)) return false;
+      return true;
+    });
     if (!ticket) return null;
     return {
       ...ticket,
@@ -43,10 +47,24 @@ export class MemoryTicketRepository {
     };
   }
 
+  // Versión en memoria del detalle (misma forma que en PostgreSQL). Sirve para
+  // probar la app sin base de datos y para las pruebas automáticas.
+  async findDetailForOwner(id, ownerId) {
+    return this.findDetail(id, { ownerId });
+  }
+
+  async findPhoto(id, { ownerId = null } = {}) {
+    const ticket = this.tickets.find((t) => {
+      if (t.id !== String(id)) return false;
+      if (ownerId !== null && t.ownerId !== String(ownerId)) return false;
+      return true;
+    });
+    return ticket ? { imagen: ticket.imagen ?? null } : null;
+  }
+
   // Igual que en PostgreSQL: null si no es suyo o no existe; { imagen: null } si no tiene foto.
   async findPhotoForOwner(id, ownerId) {
-    const ticket = await this.findByIdForOwner(id, ownerId);
-    return ticket ? { imagen: ticket.imagen ?? null } : null;
+    return this.findPhoto(id, { ownerId });
   }
 
   async create({ ownerId, category, location, description, imagen = null }) {

@@ -8,6 +8,9 @@ import { crearRutasAdmin } from './modules/admin/admin.routes.js';
 import { PrismaUserRepository } from './modules/auth/auth.repository.js';
 import { crearRutasAuth } from './modules/auth/auth.routes.js';
 import { AuthService } from './modules/auth/auth.service.js';
+import { MemoryGuiasRepository } from './modules/guias/guias.memory.repository.js';
+import { crearRutasGuias } from './modules/guias/guias.routes.js';
+import { GuiasService } from './modules/guias/guias.service.js';
 import { crearRutasTickets } from './modules/tickets/tickets.routes.js';
 import { responder } from './utils/respuestas.js';
 
@@ -18,6 +21,7 @@ export function crearApp({
   authService,
   mfaService = null, // T8: si viene, el login exige verificación en dos pasos
   ticketService = null,
+  guiasService = null,
   groqClient = null,
   auditLogger,
   databaseStatus,
@@ -49,8 +53,18 @@ export function crearApp({
     responder(res, { status: 'ok', database: dbStatus });
   });
   app.use('/api/auth', crearRutasAuth({ authService: service, jwtSecret: env.jwtSecret }));
-  app.use('/api/tickets', crearRutasTickets({ ticketService, authService: service, jwtSecret: env.jwtSecret }));
+
+  const rutasTickets = crearRutasTickets({ ticketService, authService: service, jwtSecret: env.jwtSecret });
+  app.use('/tickets', rutasTickets);
+  app.use('/api/tickets', rutasTickets);
+
   app.use('/api/admin', crearRutasAdmin({ jwtSecret: env.jwtSecret, authService: service }));
+
+  const serviceGuias = guiasService ?? new GuiasService(new MemoryGuiasRepository());
+  const rutasGuias = crearRutasGuias({ guiasService: serviceGuias, authService: service, jwtSecret: env.jwtSecret });
+  app.use('/guias', rutasGuias);
+  app.use('/api/guias', rutasGuias);
+
   app.use(rutaNoEncontrada);
   app.use(manejarErrores);
 

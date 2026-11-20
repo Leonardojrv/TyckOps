@@ -8,6 +8,8 @@ import { crearRepositorioEnMemoria } from './modules/auth/auth.memory.repository
 import { MemoryTicketRepository, ticketsDeDemostracion } from './modules/tickets/tickets.memory.repository.js';
 import { PrismaTicketRepository } from './modules/tickets/tickets.prisma.repository.js';
 import { TicketService } from './modules/tickets/tickets.service.js';
+import { MemoryGuiasRepository } from './modules/guias/guias.memory.repository.js';
+import { GuiasService } from './modules/guias/guias.service.js';
 
 const env = loadEnv();
 const groqClient = new ClienteGroq({
@@ -85,7 +87,10 @@ const ticketService = new TicketService(
 // exige un envío real por correo (cuando exista, se pasa como enviarCodigo).
 const mfaService = crearMfaService({ env });
 
-const app = crearApp({ env, prisma, userRepository, mfaService, ticketService, groqClient, databaseStatus });
+// Guías de autoayuda para administradores (gestión de plantillas y versiones)
+const guiasService = new GuiasService(new MemoryGuiasRepository());
+
+const app = crearApp({ env, prisma, userRepository, mfaService, ticketService, guiasService, groqClient, databaseStatus });
 const server = app.listen(env.port, () => {
   // Aviso para quien levanta el servidor (y las pruebas de integración lo esperan en stdout).
   console.log(`TyckOps API escuchando en http://localhost:${env.port}`);

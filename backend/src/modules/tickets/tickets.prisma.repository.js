@@ -126,32 +126,30 @@ export class PrismaTicketRepository {
   }
 
   /**
-   * Todo lo que necesita la pantalla de detalle (T7) de un ticket del dueño:
-   * los datos de siempre, la descripción completa, el motivo de rechazo, la
-   * fecha de cierre, si tiene foto y los comentarios del administrador.
-   *
-   * Ojo con dos cosas si la modificas:
-   * - El filtro por dueño (ID_user) va en la MISMA consulta: así es imposible
-   *   que alguien vea el detalle o los comentarios de un ticket ajeno.
-   * - La foto no se trae aquí (puede pesar MB); solo preguntamos si existe.
+   * Detalle de un ticket (T7). Si se pasa ownerId filtra por dueño (colaborador);
+   * si ownerId es null, permite al administrador consultar cualquier ticket.
    */
-  async findDetailForOwner(id, ownerId) {
+  async findDetail(id, { ownerId = null } = {}) {
     const ticketId = idNumerico(id);
-    const dueno = idNumerico(ownerId);
-    if (ticketId === null || dueno === null) return null;
+    if (ticketId === null) return null;
+    const dueno = ownerId !== null ? idNumerico(ownerId) : null;
+    if (ownerId !== null && dueno === null) return null;
+
+    const where = { ID_Ticket: ticketId };
+    if (dueno !== null) {
+      where.ID_user = dueno;
+    }
 
     const fila = await this.prisma.ticket.findFirst({
-      where: { ID_Ticket: ticketId, ID_user: dueno },
+      where,
       include: {
         ...incluir,
-        // Solo los comentarios de este ticket, del más antiguo al más nuevo.
         comentarios: {
           orderBy: { FechaCreacion: 'asc' },
           select: {
             ID_Comentario: true,
             Texto: true,
             FechaCreacion: true,
-            // Del autor solo sale el nombre: nada de correo ni datos internos.
             autor: { select: { name: true, appat: true } },
           },
         },
@@ -160,7 +158,6 @@ export class PrismaTicketRepository {
     });
     if (!fila) return null;
 
-    // ¿Tiene foto? Lo preguntamos sin descargar los bytes de la imagen.
     const conFoto = await this.prisma.ticket.count({
       where: { ID_Ticket: ticketId, imagen: { not: null } },
     });
@@ -180,20 +177,33 @@ export class PrismaTicketRepository {
     };
   }
 
+  async findDetailForOwner(id, ownerId) {
+    return this.findDetail(id, { ownerId });
+  }
+
   /**
-   * Foto de un ticket del dueño. Solo lee la columna imagen (BYTEA).
-   * Devuelve null si el ticket no existe o es de otra persona, y
-   * { imagen: null } si el ticket existe pero no tiene foto.
+   * Foto de un ticket. Con ownerId para el colaborador, o sin él para el administrador.
    */
-  async findPhotoForOwner(id, ownerId) {
+  async findPhoto(id, { ownerId = null } = {}) {
     const ticketId = idNumerico(id);
-    const dueno = idNumerico(ownerId);
-    if (ticketId === null || dueno === null) return null;
+    if (ticketId === null) return null;
+    const dueno = ownerId !== null ? idNumerico(ownerId) : null;
+    if (ownerId !== null && dueno === null) return null;
+
+    const where = { ID_Ticket: ticketId };
+    if (dueno !== null) {
+      where.ID_user = dueno;
+    }
+
     const fila = await this.prisma.ticket.findFirst({
-      where: { ID_Ticket: ticketId, ID_user: dueno },
+      where,
       select: { imagen: true },
     });
     if (!fila) return null;
     return { imagen: fila.imagen ? Buffer.from(fila.imagen) : null };
+  }
+
+  async findPhotoForOwner(id, ownerId) {
+    return this.findPhoto(id, { ownerId });
   }
 }
