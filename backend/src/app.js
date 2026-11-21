@@ -8,6 +8,7 @@ import { crearRutasAdmin } from './modules/admin/admin.routes.js';
 import { PrismaUserRepository } from './modules/auth/auth.repository.js';
 import { crearRutasAuth } from './modules/auth/auth.routes.js';
 import { AuthService } from './modules/auth/auth.service.js';
+import { crearRutasReglas } from './modules/reglas/reglas.routes.js';
 import { crearRutasTickets } from './modules/tickets/tickets.routes.js';
 import { responder } from './utils/respuestas.js';
 
@@ -18,6 +19,7 @@ export function crearApp({
   authService,
   mfaService = null, // T8: si viene, el login exige verificación en dos pasos
   ticketService = null,
+  reglasService = null, // MM2: reglas de prioridad del administrador
   groqClient = null,
   auditLogger,
   databaseStatus,
@@ -50,7 +52,8 @@ export function crearApp({
   });
   app.use('/api/auth', crearRutasAuth({ authService: service, jwtSecret: env.jwtSecret }));
   app.use('/api/tickets', crearRutasTickets({ ticketService, authService: service, jwtSecret: env.jwtSecret }));
-  app.use('/api/admin', crearRutasAdmin({ jwtSecret: env.jwtSecret, authService: service }));
+  app.use('/api/admin', crearRutasAdmin({ jwtSecret: env.jwtSecret, authService: service, ticketService }));
+  app.use('/api/reglas', crearRutasReglas({ reglasService, authService: service, jwtSecret: env.jwtSecret }));
   app.use(rutaNoEncontrada);
   app.use(manejarErrores);
 

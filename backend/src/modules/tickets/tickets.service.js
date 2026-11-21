@@ -29,6 +29,9 @@ const auditoriaTickets = {
 // Estados en los que el ticket sigue "en atención" (RF-05).
 const ESTADOS_ACTIVOS = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROCESO']);
 
+// MM2: en estos estados el ticket ya terminó y su prioridad no se cambia.
+const ESTADOS_SIN_CAMBIO_PRIORIDAD = new Set(['RESUELTO', 'CERRADO', 'RECHAZADO', 'CANCELADO']);
+
 // Solo lo que la app necesita mostrar: nunca el ownerId ni datos internos.
 function publicTicket(ticket) {
   return {
@@ -150,12 +153,12 @@ export class TicketService {
   // Decide el flujo del ticket según su estado (ver tickets.flujoIA.js):
   //  - omitido_ia:   no está en Recibido, no se envía.
   //  - pendiente_ia: está en Recibido pero no hay motor de IA conectado.
-  //  - enviado_ia:   se envió al motor y respondió.
+  //  - enviado_ia:   se envió al motor y respondió; se guarda la prioridad
+  //                  inicial (MM2) si el ticket sigue en Recibido.
   //  - error_ia:     se envió pero el motor falló; el ticket sigue en Recibido.
-  // Solo lee el estado: no lo cambia ni guarda el resultado del análisis.
-  // TODO (guardar análisis): antes de escribir el resultado, volver a revisar
-  // que el ticket siga en Recibido; el trabajador puede cancelarlo (RF-09)
-  // mientras la IA lo analiza.
+  // No cambia el estado. La prioridad se guarda con una condición en la misma
+  // escritura (sigue en Recibido y sin prioridad), porque el trabajador puede
+  // cancelarlo (RF-09) mientras la IA lo analiza.
   async enrutarTicket(ticket) {
     try {
       const decision = evaluarFlujoIA(ticket);
@@ -172,12 +175,48 @@ export class TicketService {
 
       const analisis = await this.analizadorIA.analizar(datosParaIA(ticket));
       this.#auditarIA(ticket, 'enviado_ia');
-      return { resultado: 'enviado_ia', analisis };
+
+      const guardada = analisis?.prioridad && this.ticketRepository.guardarPrioridadInicial
+        ? await this.ticketRepository.guardarPrioridadInicial(ticket.id, analisis)
+        : false;
+      // Sin descripción en el log: solo el resultado y de dónde salió.
+      this.#auditarIA(ticket, guardada ? 'prioridad_asignada' : 'prioridad_descartada', {
+        prioridad: analisis?.prioridad ?? null,
+        origen: analisis?.origen ?? null,
+        reglaId: analisis?.reglaId ?? null,
+        versionReglas: analisis?.versionReglas ?? null,
+        ...(analisis?.guiaId && { guiaId: analisis.guiaId }),
+        ...(analisis?.riesgo && { riesgo: analisis.riesgo }),
+        ...(analisis?.errorIA && { errorIA: analisis.errorIA }),
+        ...(!guardada && { motivo: 'ticket_ya_no_recibido_o_con_prioridad' }),
+      });
+      return { resultado: 'enviado_ia', analisis, prioridadGuardada: guardada };
     } catch (error) {
       const codigo = error?.code ?? 'DESCONOCIDO';
       this.#auditarIA(ticket, 'error_ia', { codigo });
       return { resultado: 'error_ia', codigo };
     }
+  }
+
+  // MM2 · El administrador cambia la prioridad (por ejemplo, escala una baja).
+  // Queda registrado quién y cuándo, para medir cuántas veces corrige a la IA.
+  async cambiarPrioridad(adminId, id, prioridad) {
+    const resultado = /^[A-Za-z0-9-]{1,40}$/.test(String(id))
+      ? await this.ticketRepository.cambiarPrioridad(id, { prioridad, adminId, estadosBloqueados: ESTADOS_SIN_CAMBIO_PRIORIDAD })
+      : null;
+    if (!resultado) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
+    if (resultado.bloqueado) {
+      throw new HttpError(409, 'PRIORIDAD_NO_MODIFICABLE', 'Este ticket ya terminó: su prioridad no se puede cambiar.');
+    }
+    if (resultado.cambiado) {
+      this.#auditarIA(resultado.ticket, 'prioridad_cambiada', {
+        adminId: String(adminId),
+        prioridad,
+        prioridadInicial: resultado.ticket.initialPriority,
+        origen: resultado.ticket.priorityOrigin,
+      });
+    }
+    return { ...resultado.ticket, changed: resultado.cambiado };
   }
 
   #auditarIA(ticket, action, extra = {}) {
