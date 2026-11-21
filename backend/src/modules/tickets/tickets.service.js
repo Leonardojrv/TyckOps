@@ -29,6 +29,9 @@ const auditoriaTickets = {
 // Estados en los que el ticket sigue "en atención" (RF-05).
 const ESTADOS_ACTIVOS = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROCESO']);
 
+// MM2: en estos estados el ticket ya terminó y su prioridad no se cambia.
+const ESTADOS_SIN_CAMBIO_PRIORIDAD = new Set(['RESUELTO', 'CERRADO', 'RECHAZADO', 'CANCELADO']);
+
 // Solo lo que la app necesita mostrar: nunca el ownerId ni datos internos.
 function publicTicket(ticket) {
   return {
@@ -56,6 +59,17 @@ export class TicketService {
     this.analizadorIA = analizadorIA;
   }
 
+  async resumen(userId) {
+    const tickets = await this.ticketRepository.findByOwner(userId);
+    const activos = tickets.filter((ticket) => ESTADOS_ACTIVOS.has(ticket.status));
+    return {
+      total: tickets.length,
+      activos: activos.length,
+      enAtencion: activos.length,
+      slaCumplido: this.slaCumplido,
+    };
+  }
+
   async misTickets(userId) {
     const tickets = (await this.ticketRepository.findByOwner(userId))
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -69,15 +83,24 @@ export class TicketService {
     };
   }
 
-  // Detalle de un ticket para su dueño (pantalla "Detalle del ticket", T7).
+  // Detalle de un ticket (solo para el dueño o un administrador).
   // Junta lo que la pantalla necesita: los datos básicos, la descripción, si
   // tiene foto, el motivo de rechazo y los comentarios del administrador.
-  // Si quieres mostrar un dato nuevo en el detalle, súmalo aquí y en el repositorio.
-  async detalle(userId, id) {
+  async detalle(usuarioOId, id) {
+    const esAdmin = typeof usuarioOId === 'object' && usuarioOId?.role === 'ADMINISTRADOR';
+    const userId = typeof usuarioOId === 'object' ? usuarioOId?.id : usuarioOId;
+
     // IDs con formato raro ni siquiera se buscan.
-    const ticket = /^[A-Za-z0-9-]{1,40}$/.test(String(id))
-      ? await this.ticketRepository.findDetailForOwner(id, userId)
-      : null;
+    if (!/^[A-Za-z0-9-]{1,40}$/.test(String(id))) {
+      throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
+    }
+
+    const ticket = esAdmin
+      ? (this.ticketRepository.findDetail
+          ? await this.ticketRepository.findDetail(id)
+          : await this.ticketRepository.findDetailForOwner(id, userId))
+      : await this.ticketRepository.findDetailForOwner(id, userId);
+
     // Ajeno o inexistente responden igual (404): así nadie puede adivinar qué tickets existen.
     if (!ticket) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
 
@@ -98,11 +121,21 @@ export class TicketService {
     };
   }
 
-  // Foto de un ticket propio (columna imagen). Devuelve los bytes y su tipo.
-  async foto(userId, id) {
-    const resultado = /^[A-Za-z0-9-]{1,40}$/.test(String(id))
-      ? await this.ticketRepository.findPhotoForOwner(id, userId)
-      : null;
+  // Foto de un ticket (columna imagen). Solo el dueño o un administrador pueden verla.
+  async foto(usuarioOId, id) {
+    const esAdmin = typeof usuarioOId === 'object' && usuarioOId?.role === 'ADMINISTRADOR';
+    const userId = typeof usuarioOId === 'object' ? usuarioOId?.id : usuarioOId;
+
+    if (!/^[A-Za-z0-9-]{1,40}$/.test(String(id))) {
+      throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
+    }
+
+    const resultado = esAdmin
+      ? (this.ticketRepository.findPhoto
+          ? await this.ticketRepository.findPhoto(id)
+          : await this.ticketRepository.findPhotoForOwner(id, userId))
+      : await this.ticketRepository.findPhotoForOwner(id, userId);
+
     // Ajeno o inexistente: mismo 404 que el detalle, para no revelar qué IDs existen.
     if (!resultado) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
     if (!resultado.imagen) throw new HttpError(404, 'FOTO_NO_ENCONTRADA', 'Esta solicitud no tiene fotografía.');
@@ -150,12 +183,12 @@ export class TicketService {
   // Decide el flujo del ticket según su estado (ver tickets.flujoIA.js):
   //  - omitido_ia:   no está en Recibido, no se envía.
   //  - pendiente_ia: está en Recibido pero no hay motor de IA conectado.
-  //  - enviado_ia:   se envió al motor y respondió.
+  //  - enviado_ia:   se envió al motor y respondió; se guarda la prioridad
+  //                  inicial (MM2) si el ticket sigue en Recibido.
   //  - error_ia:     se envió pero el motor falló; el ticket sigue en Recibido.
-  // Solo lee el estado: no lo cambia ni guarda el resultado del análisis.
-  // TODO (guardar análisis): antes de escribir el resultado, volver a revisar
-  // que el ticket siga en Recibido; el trabajador puede cancelarlo (RF-09)
-  // mientras la IA lo analiza.
+  // No cambia el estado. La prioridad se guarda con una condición en la misma
+  // escritura (sigue en Recibido y sin prioridad), porque el trabajador puede
+  // cancelarlo (RF-09) mientras la IA lo analiza.
   async enrutarTicket(ticket) {
     try {
       const decision = evaluarFlujoIA(ticket);
@@ -172,12 +205,48 @@ export class TicketService {
 
       const analisis = await this.analizadorIA.analizar(datosParaIA(ticket));
       this.#auditarIA(ticket, 'enviado_ia');
-      return { resultado: 'enviado_ia', analisis };
+
+      const guardada = analisis?.prioridad && this.ticketRepository.guardarPrioridadInicial
+        ? await this.ticketRepository.guardarPrioridadInicial(ticket.id, analisis)
+        : false;
+      // Sin descripción en el log: solo el resultado y de dónde salió.
+      this.#auditarIA(ticket, guardada ? 'prioridad_asignada' : 'prioridad_descartada', {
+        prioridad: analisis?.prioridad ?? null,
+        origen: analisis?.origen ?? null,
+        reglaId: analisis?.reglaId ?? null,
+        versionReglas: analisis?.versionReglas ?? null,
+        ...(analisis?.guiaId && { guiaId: analisis.guiaId }),
+        ...(analisis?.riesgo && { riesgo: analisis.riesgo }),
+        ...(analisis?.errorIA && { errorIA: analisis.errorIA }),
+        ...(!guardada && { motivo: 'ticket_ya_no_recibido_o_con_prioridad' }),
+      });
+      return { resultado: 'enviado_ia', analisis, prioridadGuardada: guardada };
     } catch (error) {
       const codigo = error?.code ?? 'DESCONOCIDO';
       this.#auditarIA(ticket, 'error_ia', { codigo });
       return { resultado: 'error_ia', codigo };
     }
+  }
+
+  // MM2 · El administrador cambia la prioridad (por ejemplo, escala una baja).
+  // Queda registrado quién y cuándo, para medir cuántas veces corrige a la IA.
+  async cambiarPrioridad(adminId, id, prioridad) {
+    const resultado = /^[A-Za-z0-9-]{1,40}$/.test(String(id))
+      ? await this.ticketRepository.cambiarPrioridad(id, { prioridad, adminId, estadosBloqueados: ESTADOS_SIN_CAMBIO_PRIORIDAD })
+      : null;
+    if (!resultado) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
+    if (resultado.bloqueado) {
+      throw new HttpError(409, 'PRIORIDAD_NO_MODIFICABLE', 'Este ticket ya terminó: su prioridad no se puede cambiar.');
+    }
+    if (resultado.cambiado) {
+      this.#auditarIA(resultado.ticket, 'prioridad_cambiada', {
+        adminId: String(adminId),
+        prioridad,
+        prioridadInicial: resultado.ticket.initialPriority,
+        origen: resultado.ticket.priorityOrigin,
+      });
+    }
+    return { ...resultado.ticket, changed: resultado.cambiado };
   }
 
   #auditarIA(ticket, action, extra = {}) {

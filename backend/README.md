@@ -43,12 +43,17 @@ Para probar la restauración, inicia sesión y copia `data.token`. En Postman cr
 
 `GET http://localhost:3000/api/admin/ejemplo` requiere un token vigente de administrador. En Postman, inicia sesión con la cuenta deseada, copia `data.token` de la respuesta y configúralo en la solicitud como **Authorization → Bearer Token**. El colaborador debe recibir `403` con `SIN_ROL_ADMIN`; el administrador debe recibir `200`. Sin token o con un token inválido/expirado, la respuesta es `401`.
 
+### Consultas y resumen de tickets
+
+- `GET /tickets/mios` (y `/api/tickets/mios`): Devuelve la lista ordenada de tickets del usuario autenticado junto con su estado y detalles.
+- `GET /tickets/resumen` (y `/api/tickets/resumen`): Entrega el conteo de tickets activos (`activos` / `enAtencion`), `total` y porcentaje de SLA para que el home de la app los pinte con datos reales.
+- `GET /tickets/:id` (y `/api/tickets/:id`): Devuelve el detalle completo del ticket. Solo es accesible para el colaborador dueño del ticket o para cualquier usuario con rol `ADMINISTRADOR`. Para cualquier otro colaborador ajeno o id inexistente, responde 404 `TICKET_NO_ENCONTRADO` protegiendo la privacidad.
+
 ### Reportes con fotos
 
 El móvil usa `POST /api/tickets` (o su alias `POST /api/tickets/reparaciones`) en `multipart/form-data`, con una foto opcional en el campo `foto`. La imagen puede pesar hasta 5 MB y se acepta JPG/PNG según su firma real; antes de guardarla se le quitan los metadatos (EXIF, GPS). Las categorías aceptan `electrica`, `banos`, `aire_acondicionado` y `mobiliario`/`inmobiliario` (también los códigos en mayúsculas que usa el móvil).
 
 La foto se guarda en la columna `imagen` (BYTEA) del propio ticket, en la misma operación que lo crea: no puede quedar un ticket sin su foto ni una foto sin ticket. Los listados y el detalle no incluyen la imagen; para obtenerla usa `GET /api/tickets/:id/foto`, que la devuelve como `image/jpeg` o `image/png`. Requiere Bearer token, rol colaborador y términos aceptados, y solo el dueño del ticket puede verla (404 `TICKET_NO_ENCONTRADO` si no es suyo o no existe; 404 `FOTO_NO_ENCONTRADA` si no tiene foto).
-
 
 ## Cliente Groq
 
@@ -74,4 +79,13 @@ logger.info('ticket_aprobado', { tipo: 'ticket', ticketId, adminId, estadoAnteri
 ## Cifrado
 
 La conexión a PostgreSQL siempre va cifrada: el backend agrega `sslmode=require` a la `DATABASE_URL` si falta y rechaza `disable` o `prefer`. En producción además exige HTTPS (detrás del proxy del hosting). Detalles, instrucciones para el equipo y despliegue en [`../database/CIFRADO.md`](../database/CIFRADO.md).
+
+## Guías de Autoayuda (Servicios Generales)
+
+Módulo para que el personal de Servicios Generales (rol `ADMINISTRADOR`) descargue plantillas, valide y cargue archivos `.xlsx`, gestione versiones y publique las guías vigentes utilizadas por la asistencia de IA (RF-10 / RF-14). Requiere token Bearer con rol administrador.
+
+- `GET /guias/plantilla` (y `/api/guias/plantilla`): Descarga la plantilla oficial en Excel (`.xlsx`) con las 5 columnas requeridas (`id`, `categoría`, `problema`, `pasos`, `autogestionable`) y filas de ejemplo instructivas.
+- `POST /guias/archivo` (y `/api/guias/archivo`): Recibe un archivo Excel en `multipart/form-data` (campo `archivo`, máx. 2 MB). Valida extensión `.xlsx`, presencia de columnas obligatorias y valida fila por fila (categorías válidas, problema, pasos, y booleano para autogestionable). Quita cualquier contenido HTML de los textos y responde con errores por fila si los hay (`400 ERRORES_VALIDACION`). Si es válido, genera y devuelve una nueva versión en borrador (`v1`, `v2`, etc.).
+- `POST /guias/:version/activar` (y `/api/guias/:version/activar`): Publica la versión indicada como vigente (`activa: true`) y archiva la versión previa.
+- `GET /guias` (y `/api/guias`): Lista las guías de la versión actualmente activa.
 

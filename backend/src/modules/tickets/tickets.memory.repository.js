@@ -18,10 +18,70 @@ export class MemoryTicketRepository {
       id: String(ticket.id),
       ownerId: String(ticket.ownerId),
     }));
+    this.cambiosPrioridad = []; // igual que la tabla CambioPrioridad
+  }
+
+  // MM2 · Igual que en PostgreSQL: solo si sigue en Recibido y sin prioridad.
+  async guardarPrioridadInicial(id, { prioridad, origen, reglaId = null, versionReglas = null, nivelIncidencia = null }) {
+    const ticket = this.tickets.find((t) => t.id === String(id));
+    if (!ticket || ticket.status !== 'RECIBIDO' || ticket.priority) return false;
+    Object.assign(ticket, {
+      priority: prioridad,
+      initialPriority: prioridad,
+      priorityOrigin: origen,
+      ruleId: reglaId,
+      rulesVersion: versionReglas,
+      nivelIncidencia,
+    });
+    return true;
+  }
+
+  // MM2 · Cambio de prioridad del administrador + registro (quién y cuándo).
+  async cambiarPrioridad(id, { prioridad, adminId, estadosBloqueados }) {
+    const ticket = this.tickets.find((t) => t.id === String(id));
+    if (!ticket) return null;
+    const vista = () => ({
+      id: ticket.id,
+      status: ticket.status,
+      priority: ticket.priority ?? null,
+      initialPriority: ticket.initialPriority ?? null,
+      priorityOrigin: ticket.priorityOrigin ?? null,
+      ruleId: ticket.ruleId ?? null,
+    });
+    if (estadosBloqueados.has(ticket.status)) return { ticket: vista(), cambiado: false, bloqueado: true };
+    if (ticket.priority === prioridad) return { ticket: vista(), cambiado: false, bloqueado: false };
+
+    this.cambiosPrioridad.push({
+      ticketId: ticket.id,
+      adminId: String(adminId),
+      anterior: ticket.priority ?? null,
+      nueva: prioridad,
+      fecha: new Date(),
+    });
+    ticket.priority = prioridad;
+    return { ticket: vista(), cambiado: true, bloqueado: false };
   }
 
   async findByOwner(ownerId) {
     return this.tickets.filter((ticket) => ticket.ownerId === String(ownerId));
+  }
+
+  async findActiveCandidates({ category = null, location = null, excludeId = null } = {}) {
+    const estadosActivos = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROCESO']);
+    const locNorm = location?.toLowerCase().trim();
+    const catNorm = category?.toLowerCase().trim();
+
+    return this.tickets.filter((t) => {
+      if (excludeId !== null && String(t.id) === String(excludeId)) return false;
+      if (!estadosActivos.has(String(t.status).toUpperCase())) return false;
+
+      const c = String(t.category ?? '').toLowerCase().trim();
+      const l = String(t.location ?? '').toLowerCase().trim();
+
+      const coincideUbic = locNorm && (l.includes(locNorm) || locNorm.includes(l));
+      const coincideCat = catNorm && c === catNorm;
+      return coincideUbic || coincideCat;
+    });
   }
 
   async findByIdForOwner(id, ownerId) {
