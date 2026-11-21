@@ -1,0 +1,52 @@
+# ============================================================================
+#  TyckOps - Reglas de prioridad (EJEMPLO)
+# ============================================================================
+#  Este archivo lo sube el administrador en POST /api/reglas/archivo.
+#  La IA lee la DESCRIPCIÓN de cada regla y elige la que calza con el ticket;
+#  la prioridad la pone el sistema según la regla elegida.
+#
+#  CÓMO SE ESCRIBE:
+#    - Una regla por línea, 4 campos separados por "|":
+#          id | categoria | prioridad | descripcion
+#    - id:          único en el archivo. Letras, números, "-" o "_" (máx. 30).
+#    - categoria:   Electrica, Banos, Aire acondicionado o Inmobiliario
+#                   (con o sin tildes, mayúsculas o minúsculas).
+#    - prioridad:   solo "alta" o "media".
+#                   (La "baja" no va aquí: la da una guía de autoayuda.)
+#    - descripcion: qué situación cubre la regla (máx. 300 caracteres).
+#                   Escríbela clara: es lo ÚNICO que lee la IA para elegir.
+#    - Las líneas que empiezan con "#" son comentarios y se ignoran.
+#    - Las líneas vacías también se ignoran.
+#
+#  Si algo está mal, el sistema rechaza el archivo completo y dice en qué
+#  línea está cada error. Nada se guarda hasta que el archivo esté correcto.
+#
+#  Si un ticket no calza con ninguna regla, queda en prioridad MEDIA.
+# ============================================================================
+
+id | categoria | prioridad | descripcion
+
+# --- Eléctrica ---------------------------------------------------------------
+ELE-01 | Electrica | alta | Enchufe, interruptor o tablero que saca chispas, humo u olor a quemado
+ELE-02 | Electrica | alta | Corte de luz en un piso completo o en un área de trabajo entera
+ELE-03 | Electrica | alta | Cables expuestos, pelados o colgando al alcance de las personas
+ELE-04 | Electrica | media | Enchufe o interruptor que no funciona en un puesto de trabajo
+ELE-05 | Electrica | media | Luminaria apagada o parpadeando en un pasillo, sala u oficina
+
+# --- Baños -------------------------------------------------------------------
+BAN-01 | Banos | alta | Fuga de agua que no se puede cortar o que está inundando el piso
+BAN-02 | Banos | alta | Todos los baños de un piso fuera de servicio
+BAN-03 | Banos | media | WC o urinario tapado o que no descarga
+BAN-04 | Banos | media | Llave de lavamanos que gotea o no corta bien el agua
+
+# --- Aire acondicionado ------------------------------------------------------
+AIR-01 | Aire acondicionado | alta | Equipo que bota agua sobre equipos eléctricos o computadores
+AIR-02 | Aire acondicionado | alta | Sala de servidores o de equipos críticos sin climatización
+AIR-03 | Aire acondicionado | media | Equipo que no enfría o no calefacciona en una oficina o sala
+AIR-04 | Aire acondicionado | media | Equipo que hace ruidos fuertes o vibra
+
+# --- Inmobiliario ------------------------------------------------------------
+INM-01 | Inmobiliario | alta | Mueble, repisa o estante a punto de caerse o desprendido de la pared
+INM-02 | Inmobiliario | alta | Puerta de salida o de emergencia que no abre o no cierra
+INM-03 | Inmobiliario | media | Silla o escritorio roto que impide trabajar en ese puesto
+INM-04 | Inmobiliario | media | Cerradura de oficina o cajonera que no funciona
