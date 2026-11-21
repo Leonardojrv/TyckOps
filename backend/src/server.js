@@ -2,9 +2,12 @@ import { crearApp } from './app.js';
 import { loadEnv } from './config/env.js';
 import { logger } from './config/logger.js';
 import { connectPrisma } from './config/prisma.js';
+import { AnalizadorPrioridad } from './ia/analizadorPrioridad.js';
 import { ClienteGroq } from './ia/clienteGroq.js';
 import { crearMfaService } from './modules/auth/auth.mfa.js';
 import { crearRepositorioEnMemoria } from './modules/auth/auth.memory.repository.js';
+import { MemoryReglasRepository, PrismaReglasRepository } from './modules/reglas/reglas.repositories.js';
+import { ReglasService } from './modules/reglas/reglas.service.js';
 import { MemoryTicketRepository, ticketsDeDemostracion } from './modules/tickets/tickets.memory.repository.js';
 import { PrismaTicketRepository } from './modules/tickets/tickets.prisma.repository.js';
 import { TicketService } from './modules/tickets/tickets.service.js';
@@ -67,25 +70,35 @@ const userRepository = prisma ? null : await crearRepositorioEnMemoria([
 
 // Tickets: en PostgreSQL si hay base de datos; si no, datos de demostración en memoria.
 // La foto de cada reporte se guarda en la columna imagen (BYTEA) del propio ticket.
-const ticketService = new TicketService(
-  prisma
-    ? new PrismaTicketRepository(prisma)
-    : new MemoryTicketRepository(ticketsDeDemostracion('demo-worker')),
-  {
-    slaCumplido: prisma ? null : 98.4,
-    // Motor de IA (módulo de Moisés): cuando exista su analizador con
-    // `analizar({ ticketId, categoria, descripcion, ubicacion })`, se conecta
-    // aquí. Mientras sea null, los tickets Recibidos quedan como pendiente_ia.
-    analizadorIA: null,
-  },
-);
+const ticketRepository = prisma
+  ? new PrismaTicketRepository(prisma)
+  : new MemoryTicketRepository(ticketsDeDemostracion('demo-worker'));
+
+// MM2 · Reglas de prioridad que sube el administrador (.txt, con versiones).
+const reglasService = new ReglasService(prisma ? new PrismaReglasRepository(prisma) : new MemoryReglasRepository());
+
+// MM2 · Prioridad inicial: guía -> regla elegida por la IA -> media por defecto.
+// Sin GROQ_API_KEY los tickets sin guía quedan en media (origen "falla_ia").
+const analizadorPrioridad = new AnalizadorPrioridad({
+  groqClient: env.groqApiKey ? groqClient : null,
+  obtenerReglas: () => reglasService.vigentes(),
+  // Módulo de guías (rama feature/MM2-moduloGuias-consultaTickets, aún sin
+  // integrar): cuando exponga `buscar({ categoria, descripcion, ubicacion })`
+  // -> `{ id } | null`, se conecta aquí. Mientras sea null no hay prioridad "guia".
+  buscadorGuias: null,
+});
+
+const ticketService = new TicketService(ticketRepository, {
+  slaCumplido: prisma ? null : 98.4,
+  analizadorIA: analizadorPrioridad,
+});
 
 // T8 · Verificación en dos pasos (MFA). En desarrollo usa un código fijo
 // (MFA_CODIGO_DESARROLLO o 123456) y lo anota en la consola; en producción
 // exige un envío real por correo (cuando exista, se pasa como enviarCodigo).
 const mfaService = crearMfaService({ env });
 
-const app = crearApp({ env, prisma, userRepository, mfaService, ticketService, groqClient, databaseStatus });
+const app = crearApp({ env, prisma, userRepository, mfaService, ticketService, reglasService, groqClient, databaseStatus });
 const server = app.listen(env.port, () => {
   // Aviso para quien levanta el servidor (y las pruebas de integración lo esperan en stdout).
   console.log(`TyckOps API escuchando en http://localhost:${env.port}`);

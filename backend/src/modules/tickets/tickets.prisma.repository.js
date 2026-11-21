@@ -63,6 +63,18 @@ function aTicket(fila) {
   };
 }
 
+// Datos de prioridad de un ticket (MM2), en formato de la API.
+function aPrioridad(fila) {
+  return {
+    id: String(fila.ID_Ticket),
+    status: codigoApi(fila.Estado),
+    priority: codigoApi(fila.Prioridad),
+    initialPriority: codigoApi(fila.PrioridadInicial),
+    priorityOrigin: fila.OrigenPrioridad ?? null,
+    ruleId: fila.ID_ReglaAplicada ?? null,
+  };
+}
+
 const incluir = { categoriaReparacion: true };
 // La foto (columna imagen, BYTEA) puede pesar varios MB: no se lee al listar
 // ni al ver un ticket, solo cuando alguien pida la imagen explícitamente.
@@ -178,6 +190,69 @@ export class PrismaTicketRepository {
         text: c.Texto,
       })),
     };
+  }
+
+  /**
+   * MM2 · Guarda la prioridad inicial que calculó la IA/reglas.
+   * Solo escribe si el ticket SIGUE en Recibido y aún no tiene prioridad: así
+   * no pisa un ticket que el colaborador canceló mientras la IA lo analizaba
+   * (RF-09) ni una prioridad que el administrador ya cambió a mano.
+   * @returns {Promise<boolean>} true si se guardó.
+   */
+  async guardarPrioridadInicial(id, { prioridad, origen, reglaId = null, versionReglas = null, nivelIncidencia = null }) {
+    const ticketId = idNumerico(id);
+    if (ticketId === null) return false;
+    const valor = prioridad.toLowerCase(); // "alta" en la BD, igual que Estado
+    const { count } = await this.prisma.ticket.updateMany({
+      where: {
+        ID_Ticket: ticketId,
+        Estado: { equals: 'recibido', mode: 'insensitive' },
+        Prioridad: null,
+      },
+      data: {
+        Prioridad: valor,
+        PrioridadInicial: valor,
+        OrigenPrioridad: origen,
+        ID_ReglaAplicada: reglaId,
+        ID_VersionReglas: versionReglas,
+        NivelIncidencia: nivelIncidencia,
+      },
+    });
+    return count > 0;
+  }
+
+  /**
+   * MM2 · El administrador cambia la prioridad. En UNA transacción: lee el
+   * ticket, lo actualiza y deja el registro en CambioPrioridad (quién y cuándo).
+   * @returns {Promise<null | { ticket, cambiado: boolean, bloqueado: boolean }>}
+   */
+  async cambiarPrioridad(id, { prioridad, adminId, estadosBloqueados }) {
+    const ticketId = idNumerico(id);
+    const admin = idNumerico(adminId);
+    if (ticketId === null || admin === null) return null;
+
+    return this.prisma.$transaction(async (tx) => {
+      const fila = await tx.ticket.findUnique({
+        where: { ID_Ticket: ticketId },
+        select: { ID_Ticket: true, Estado: true, Prioridad: true, PrioridadInicial: true, OrigenPrioridad: true, ID_ReglaAplicada: true },
+      });
+      if (!fila) return null;
+
+      const ticket = aPrioridad(fila);
+      if (estadosBloqueados.has(ticket.status)) return { ticket, cambiado: false, bloqueado: true };
+      if (ticket.priority === prioridad) return { ticket, cambiado: false, bloqueado: false };
+
+      await tx.ticket.update({ where: { ID_Ticket: ticketId }, data: { Prioridad: prioridad.toLowerCase() } });
+      await tx.cambioPrioridad.create({
+        data: {
+          ID_Ticket: ticketId,
+          ID_admin: admin,
+          PrioridadAnterior: fila.Prioridad,
+          PrioridadNueva: prioridad.toLowerCase(),
+        },
+      });
+      return { ticket: { ...ticket, priority: prioridad }, cambiado: true, bloqueado: false };
+    });
   }
 
   /**

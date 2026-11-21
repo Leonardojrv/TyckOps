@@ -56,6 +56,7 @@ model User {
   ticketsCreados   Ticket[]           @relation("crea")
   ticketsAprobados Ticket[]           @relation("aprueba")
   comentarios      ComentarioTicket[] @relation("comenta")
+  cambiosPrioridad CambioPrioridad[]  @relation("cambiaPrioridad")
   informes         Informe[]
   reglasPrioridad  ReglasPrioridad[]
   guiasAutoayuda   GuiaAutoayuda[]
@@ -84,6 +85,17 @@ model Ticket {
   FechaCierre     DateTime? @db.Timestamp(6)
   MotivoRechazo   String?   @db.VarChar(255)
 
+  // Prioridad inicial (MM2). "Prioridad" es la actual (el administrador la puede
+  // cambiar); estas columnas guardan lo que decidió el sistema al crear el ticket,
+  // para medir cuántas veces el administrador corrige a la IA.
+  PrioridadInicial String? @db.VarChar(20) // baja | media | alta
+  OrigenPrioridad  String? @db.VarChar(20) // guia | regla | defecto | falla_ia
+  ID_ReglaAplicada String? @db.VarChar(30) // id de la regla del .txt (si origen = regla)
+
+  // versión del archivo de reglas que se usó (N:0..1 ReglasPrioridad)
+  ID_VersionReglas Int?
+  versionReglas    ReglasPrioridad? @relation(fields: [ID_VersionReglas], references: [ID_Regla], onDelete: SetNull, map: "Ticket_ReglasPrioridad_FK")
+
   // duplica (autorrelación: N duplicados -> 1 original)
   ID_TicketOriginal Int?
   ticketOriginal    Ticket?  @relation("duplica", fields: [ID_TicketOriginal], references: [ID_Ticket], onDelete: SetNull, map: "Ticket_Ticket_FK")
@@ -103,6 +115,29 @@ model Ticket {
 
   // tiene (1:N ComentarioTicket)
   comentarios ComentarioTicket[]
+
+  // historial de cambios de prioridad hechos por el administrador (MM2)
+  cambiosPrioridad CambioPrioridad[]
+}
+
+// Cada vez que un administrador cambia la prioridad de un ticket (MM2): quién,
+// cuándo, de cuál a cuál. Junto con Ticket.PrioridadInicial permite medir
+// cuántas veces se corrige la prioridad que asignó la IA.
+model CambioPrioridad {
+  ID_Cambio         Int      @id(map: "CambioPrioridad_PK") @default(autoincrement())
+  PrioridadAnterior String?  @db.VarChar(20)
+  PrioridadNueva    String   @db.VarChar(20)
+  Fecha             DateTime @default(now()) @db.Timestamp(6)
+
+  // pertenece a (N:1 Ticket)
+  ID_Ticket Int
+  ticket    Ticket @relation(fields: [ID_Ticket], references: [ID_Ticket], onDelete: Cascade, map: "CambioPrioridad_Ticket_FK")
+
+  // lo hace (N:1 Usuario administrador)
+  ID_admin Int
+  admin    User @relation("cambiaPrioridad", fields: [ID_admin], references: [id], map: "CambioPrioridad_Usuario_FK")
+
+  @@index([ID_Ticket], map: "CambioPrioridad_Ticket_IDX")
 }
 
 // Comentarios que el administrador deja en un ticket (T7 los muestra al
@@ -134,10 +169,16 @@ model Informe {
   usuario User @relation(fields: [ID_user], references: [id], map: "Informe_Usuario_FK")
 }
 
+// Cada fila es UNA VERSIÓN del .txt de reglas (no una regla suelta). Se sube
+// inactiva y el administrador la activa; solo una queda activa a la vez.
 model ReglasPrioridad {
-  ID_Regla       Int      @id(map: "ReglasPrioridad_PK") @default(autoincrement())
-  archivo        String   @db.Text
-  FechaInsercion DateTime @default(now()) @db.Timestamp(6)
+  ID_Regla        Int       @id(map: "ReglasPrioridad_PK") @default(autoincrement())
+  archivo         String    @db.Text
+  FechaInsercion  DateTime  @default(now()) @db.Timestamp(6)
+  Activa          Boolean   @default(false)
+  FechaActivacion DateTime? @db.Timestamp(6)
+
+  tickets Ticket[]
 
   // carga (N:1 Usuario)
   ID_user Int

@@ -18,6 +18,48 @@ export class MemoryTicketRepository {
       id: String(ticket.id),
       ownerId: String(ticket.ownerId),
     }));
+    this.cambiosPrioridad = []; // igual que la tabla CambioPrioridad
+  }
+
+  // MM2 · Igual que en PostgreSQL: solo si sigue en Recibido y sin prioridad.
+  async guardarPrioridadInicial(id, { prioridad, origen, reglaId = null, versionReglas = null, nivelIncidencia = null }) {
+    const ticket = this.tickets.find((t) => t.id === String(id));
+    if (!ticket || ticket.status !== 'RECIBIDO' || ticket.priority) return false;
+    Object.assign(ticket, {
+      priority: prioridad,
+      initialPriority: prioridad,
+      priorityOrigin: origen,
+      ruleId: reglaId,
+      rulesVersion: versionReglas,
+      nivelIncidencia,
+    });
+    return true;
+  }
+
+  // MM2 · Cambio de prioridad del administrador + registro (quién y cuándo).
+  async cambiarPrioridad(id, { prioridad, adminId, estadosBloqueados }) {
+    const ticket = this.tickets.find((t) => t.id === String(id));
+    if (!ticket) return null;
+    const vista = () => ({
+      id: ticket.id,
+      status: ticket.status,
+      priority: ticket.priority ?? null,
+      initialPriority: ticket.initialPriority ?? null,
+      priorityOrigin: ticket.priorityOrigin ?? null,
+      ruleId: ticket.ruleId ?? null,
+    });
+    if (estadosBloqueados.has(ticket.status)) return { ticket: vista(), cambiado: false, bloqueado: true };
+    if (ticket.priority === prioridad) return { ticket: vista(), cambiado: false, bloqueado: false };
+
+    this.cambiosPrioridad.push({
+      ticketId: ticket.id,
+      adminId: String(adminId),
+      anterior: ticket.priority ?? null,
+      nueva: prioridad,
+      fecha: new Date(),
+    });
+    ticket.priority = prioridad;
+    return { ticket: vista(), cambiado: true, bloqueado: false };
   }
 
   async findByOwner(ownerId) {
