@@ -99,6 +99,33 @@ export class PrismaTicketRepository {
     return filas.map(aTicket);
   }
 
+  async findActiveCandidates({ category = null, location = null, excludeId = null } = {}) {
+    const estadosActivos = ['recibido', 'en_revision', 'en revision', 'aprobado', 'en_proceso', 'en proceso'];
+    const idExcluir = idNumerico(excludeId);
+    const where = {
+      Estado: { in: estadosActivos, mode: 'insensitive' },
+      ...(idExcluir && { ID_Ticket: { not: idExcluir } }),
+    };
+
+    const OR = [];
+    if (location) {
+      OR.push({ Ubicacion: { contains: location.trim(), mode: 'insensitive' } });
+    }
+    if (category) {
+      OR.push({ categoriaReparacion: { nombre: { contains: category.trim(), mode: 'insensitive' } } });
+    }
+    if (OR.length > 0) where.OR = OR;
+
+    const filas = await this.prisma.ticket.findMany({
+      where,
+      include: incluir,
+      omit: sinImagen,
+      take: 10,
+      orderBy: { FechaCreacion: 'desc' },
+    });
+    return filas.map(aTicket);
+  }
+
   async findByIdForOwner(id, ownerId) {
     const ticketId = idNumerico(id);
     const dueno = idNumerico(ownerId);

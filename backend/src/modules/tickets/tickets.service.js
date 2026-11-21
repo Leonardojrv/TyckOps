@@ -59,6 +59,17 @@ export class TicketService {
     this.analizadorIA = analizadorIA;
   }
 
+  async resumen(userId) {
+    const tickets = await this.ticketRepository.findByOwner(userId);
+    const activos = tickets.filter((ticket) => ESTADOS_ACTIVOS.has(ticket.status));
+    return {
+      total: tickets.length,
+      activos: activos.length,
+      enAtencion: activos.length,
+      slaCumplido: this.slaCumplido,
+    };
+  }
+
   async misTickets(userId) {
     const tickets = (await this.ticketRepository.findByOwner(userId))
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -72,15 +83,24 @@ export class TicketService {
     };
   }
 
-  // Detalle de un ticket para su dueño (pantalla "Detalle del ticket", T7).
+  // Detalle de un ticket (solo para el dueño o un administrador).
   // Junta lo que la pantalla necesita: los datos básicos, la descripción, si
   // tiene foto, el motivo de rechazo y los comentarios del administrador.
-  // Si quieres mostrar un dato nuevo en el detalle, súmalo aquí y en el repositorio.
-  async detalle(userId, id) {
+  async detalle(usuarioOId, id) {
+    const esAdmin = typeof usuarioOId === 'object' && usuarioOId?.role === 'ADMINISTRADOR';
+    const userId = typeof usuarioOId === 'object' ? usuarioOId?.id : usuarioOId;
+
     // IDs con formato raro ni siquiera se buscan.
-    const ticket = /^[A-Za-z0-9-]{1,40}$/.test(String(id))
-      ? await this.ticketRepository.findDetailForOwner(id, userId)
-      : null;
+    if (!/^[A-Za-z0-9-]{1,40}$/.test(String(id))) {
+      throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
+    }
+
+    const ticket = esAdmin
+      ? (this.ticketRepository.findDetail
+          ? await this.ticketRepository.findDetail(id)
+          : await this.ticketRepository.findDetailForOwner(id, userId))
+      : await this.ticketRepository.findDetailForOwner(id, userId);
+
     // Ajeno o inexistente responden igual (404): así nadie puede adivinar qué tickets existen.
     if (!ticket) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
 
@@ -101,11 +121,21 @@ export class TicketService {
     };
   }
 
-  // Foto de un ticket propio (columna imagen). Devuelve los bytes y su tipo.
-  async foto(userId, id) {
-    const resultado = /^[A-Za-z0-9-]{1,40}$/.test(String(id))
-      ? await this.ticketRepository.findPhotoForOwner(id, userId)
-      : null;
+  // Foto de un ticket (columna imagen). Solo el dueño o un administrador pueden verla.
+  async foto(usuarioOId, id) {
+    const esAdmin = typeof usuarioOId === 'object' && usuarioOId?.role === 'ADMINISTRADOR';
+    const userId = typeof usuarioOId === 'object' ? usuarioOId?.id : usuarioOId;
+
+    if (!/^[A-Za-z0-9-]{1,40}$/.test(String(id))) {
+      throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
+    }
+
+    const resultado = esAdmin
+      ? (this.ticketRepository.findPhoto
+          ? await this.ticketRepository.findPhoto(id)
+          : await this.ticketRepository.findPhotoForOwner(id, userId))
+      : await this.ticketRepository.findPhotoForOwner(id, userId);
+
     // Ajeno o inexistente: mismo 404 que el detalle, para no revelar qué IDs existen.
     if (!resultado) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
     if (!resultado.imagen) throw new HttpError(404, 'FOTO_NO_ENCONTRADA', 'Esta solicitud no tiene fotografía.');

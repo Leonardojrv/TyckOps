@@ -11,6 +11,7 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test",
+    "kpi7": "node scripts/prueba-duplicados-kpi7.mjs",
     "prisma:generate": "node -e \"require('fs').cpSync('../database/BaseDatos/prisma/schema.prisma', 'prisma/schema.prisma')\" && prisma generate",
     "test:integracion": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
   },
@@ -19,6 +20,7 @@
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
+    "exceljs": "^4.4.0",
     "express": "^5.1.0",
     "express-rate-limit": "^8.1.0",
     "helmet": "^8.1.0",
