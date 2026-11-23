@@ -60,8 +60,36 @@ model User {
   informes         Informe[]
   reglasPrioridad  ReglasPrioridad[]
   guiasAutoayuda   GuiaAutoayuda[]
+  codigosMfa       CodigoMFA[]
 
   @@map("Usuario")
+}
+
+// Verificación en dos pasos (MFA, T8): código de 6 dígitos enviado al correo.
+// Cada fila es UN desafío: se crea tras una contraseña correcta, dura 3 minutos
+// y se borra al usarse (un solo uso), al agotar intentos o al vencer.
+//  - El código NUNCA se guarda tal cual: CodigoHash es Argon2id (formato PHC),
+//    igual que las contraseñas (backend/src/modules/auth/mfa.repository.js).
+//  - ID_CodigoMFA es el id del desafío que va dentro del pase MFA (jwtid).
+//  - Las fechas son TIMESTAMPTZ para que comparar el vencimiento no dependa de
+//    la zona horaria del servidor.
+//  - Las restricciones CHECK (ck_codigomfa_*) viven en el SQL de la migración;
+//    una de ellas impide guardar un código con más de 3 minutos de vigencia.
+model CodigoMFA {
+  ID_CodigoMFA    String   @id(map: "CodigoMFA_PK") @default(uuid()) @db.Uuid
+  CodigoHash      String   @db.VarChar(255)
+  FechaCreacion   DateTime @default(now()) @db.Timestamptz(6)
+  UltimoEnvio     DateTime @default(now()) @db.Timestamptz(6)
+  FechaExpiracion DateTime @db.Timestamptz(6)
+  Intentos        Int      @default(0) @db.SmallInt
+  Reenvios        Int      @default(0) @db.SmallInt
+
+  // pertenece a (N:1 Usuario). Si se borra el usuario, sus códigos se van con él.
+  ID_user Int
+  usuario User @relation(fields: [ID_user], references: [id], onDelete: Cascade, map: "CodigoMFA_Usuario_FK")
+
+  @@index([ID_user], map: "CodigoMFA_Usuario_IDX")
+  @@index([FechaExpiracion], map: "CodigoMFA_Expiracion_IDX")
 }
 
 model CategoriaReparacion {
@@ -76,7 +104,6 @@ model Ticket {
   Descripcion     String    @db.VarChar(500)
   Estado          String    @default("recibido") @db.VarChar(50)
   Ubicacion       String    @db.VarChar(150)
-  Piso            String?   @db.VarChar(50)
   Prioridad       String?   @db.VarChar(150)
   imagen          Bytes?
   NivelIncidencia String?   @db.VarChar(150)

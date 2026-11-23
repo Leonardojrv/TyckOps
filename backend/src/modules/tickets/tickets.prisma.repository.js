@@ -57,7 +57,7 @@ function aTicket(fila) {
     title: fila.Descripcion,
     status: codigoApi(fila.Estado),
     priority: codigoApi(fila.Prioridad),
-    location: [fila.Ubicacion, fila.Piso].filter(Boolean).join(' · '),
+    location: fila.Ubicacion,
     createdAt: fila.FechaCreacion,
     ownerId: String(fila.ID_user),
   };

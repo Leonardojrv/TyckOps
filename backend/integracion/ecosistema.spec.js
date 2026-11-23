@@ -82,14 +82,14 @@ describe('Docker y PostgreSQL', () => {
     expect(diff).toMatch(/No difference detected|empty migration/i);
   });
 
-  test('la base real tiene las 9 tablas del modelo relacional', async () => {
+  test('la base real tiene las 11 tablas del modelo relacional', async () => {
     const prisma = new PrismaClient({ datasources: { db: { url: urlReal() } } });
     try {
       const filas = await prisma.$queryRaw`
         SELECT table_name FROM information_schema.tables
         WHERE table_schema = 'public' AND table_name <> '_prisma_migrations'`;
       expect(filas.map((f) => f.table_name).sort()).toEqual([
-        'CategoriaReparacion', 'ComentarioTicket', 'Departamento', 'GuiaAutoayuda', 'Informe',
+        'CambioPrioridad', 'CategoriaReparacion', 'CodigoMFA', 'ComentarioTicket', 'Departamento', 'GuiaAutoayuda', 'Informe',
         'ReglasPrioridad', 'Roles', 'Ticket', 'Usuario',
       ]);
     } finally {
