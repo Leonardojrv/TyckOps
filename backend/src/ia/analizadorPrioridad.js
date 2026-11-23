@@ -86,6 +86,9 @@ export class AnalizadorPrioridad {
     const base = { reglaId: null, versionReglas: null, guiaId: null, riesgo };
 
     // 1. ¿Calza con una guía de autoayuda? (nunca con riesgo)
+    if (!riesgo && datos.guiaId) {
+      return { ...base, prioridad: 'BAJA', origen: ORIGEN.GUIA, nivelIncidencia: NIVEL_MENOR, guiaId: String(datos.guiaId) };
+    }
     if (!riesgo && this.buscadorGuias) {
       try {
         const guia = await this.buscadorGuias.buscar(datos);

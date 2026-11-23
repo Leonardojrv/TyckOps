@@ -11,6 +11,10 @@ import { ReglasService } from './modules/reglas/reglas.service.js';
 import { MemoryTicketRepository, ticketsDeDemostracion } from './modules/tickets/tickets.memory.repository.js';
 import { PrismaTicketRepository } from './modules/tickets/tickets.prisma.repository.js';
 import { TicketService } from './modules/tickets/tickets.service.js';
+import { MemoryGuiasRepository } from './modules/guias/guias.memory.repository.js';
+import { GuiasService } from './modules/guias/guias.service.js';
+import { AnalizadorTicket } from './ia/analizadorTicket.js';
+import { AnalizadorIntegrado } from './ia/analizadorIntegrado.js';
 
 const env = loadEnv();
 const groqClient = new ClienteGroq({
@@ -74,6 +78,18 @@ const ticketRepository = prisma
   ? new PrismaTicketRepository(prisma)
   : new MemoryTicketRepository(ticketsDeDemostracion('demo-worker'));
 
+// Guías de autoayuda para administradores (gestión de plantillas y versiones)
+const guiasRepository = new MemoryGuiasRepository();
+const guiasService = new GuiasService(guiasRepository);
+
+// Motor de IA (Moisés): Analizador unificado con cliente Groq único,
+// detección de duplicados y asignación de guías con filtro de riesgo
+const analizadorIA = new AnalizadorTicket({
+  groqClient,
+  ticketRepository,
+  guiasRepository,
+});
+
 // MM2 · Reglas de prioridad que sube el administrador (.txt, con versiones).
 const reglasService = new ReglasService(prisma ? new PrismaReglasRepository(prisma) : new MemoryReglasRepository());
 
@@ -82,15 +98,17 @@ const reglasService = new ReglasService(prisma ? new PrismaReglasRepository(pris
 const analizadorPrioridad = new AnalizadorPrioridad({
   groqClient: env.groqApiKey ? groqClient : null,
   obtenerReglas: () => reglasService.vigentes(),
-  // Módulo de guías (rama feature/MM2-moduloGuias-consultaTickets, aún sin
-  // integrar): cuando exponga `buscar({ categoria, descripcion, ubicacion })`
-  // -> `{ id } | null`, se conecta aquí. Mientras sea null no hay prioridad "guia".
   buscadorGuias: null,
+});
+
+const analizadorIntegrado = new AnalizadorIntegrado({
+  analizadorDuplicadosGuias: analizadorIA,
+  analizadorPrioridad,
 });
 
 const ticketService = new TicketService(ticketRepository, {
   slaCumplido: prisma ? null : 98.4,
-  analizadorIA: analizadorPrioridad,
+  analizadorIA: analizadorIntegrado,
 });
 
 // T8 · Verificación en dos pasos (MFA). En desarrollo usa un código fijo
@@ -98,7 +116,17 @@ const ticketService = new TicketService(ticketRepository, {
 // exige un envío real por correo (cuando exista, se pasa como enviarCodigo).
 const mfaService = crearMfaService({ env });
 
-const app = crearApp({ env, prisma, userRepository, mfaService, ticketService, reglasService, groqClient, databaseStatus });
+const app = crearApp({
+  env,
+  prisma,
+  userRepository,
+  mfaService,
+  ticketService,
+  guiasService,
+  reglasService,
+  groqClient,
+  databaseStatus,
+});
 const server = app.listen(env.port, () => {
   // Aviso para quien levanta el servidor (y las pruebas de integración lo esperan en stdout).
   console.log(`TyckOps API escuchando en http://localhost:${env.port}`);

@@ -55,8 +55,8 @@ function datosInvalidos(zodError) {
 export function crearRutasTickets({ ticketService, authService, jwtSecret }) {
   const router = Router();
 
-  // Toda la ruta exige: sesión válida + rol colaborador + términos aceptados.
-  router.use(autenticar(jwtSecret), requerirRol('COLABORADOR'), exigirTerminos(authService));
+  // Autenticación y Términos aceptados para todas las rutas de tickets.
+  router.use(autenticar(jwtSecret), exigirTerminos(authService));
   router.use((_req, _res, next) => next(ticketService
     ? undefined
     : new HttpError(503, 'TICKETS_NO_DISPONIBLES', 'Los tickets aún no están disponibles.')));
@@ -92,22 +92,33 @@ export function crearRutasTickets({ ticketService, authService, jwtSecret }) {
     responder(res, { ticket }, 201);
   };
 
-  router.post('/', limiterReportes, subirFoto(recibirFoto), crearReporte);
-  router.post('/reparaciones', limiterReportes, subirFoto(recibirFoto), crearReporte);
+  router.post('/', requerirRol('COLABORADOR'), limiterReportes, subirFoto(recibirFoto), crearReporte);
+  router.post('/reparaciones', requerirRol('COLABORADOR'), limiterReportes, subirFoto(recibirFoto), crearReporte);
 
-  // El dueño sale del token firmado (req.usuario.id), NUNCA de la URL o del body.
-  router.get('/mis-tickets', async (req, res) => {
+  // Lista de tickets del colaborador (compatibilidad con la app móvil y T5).
+  router.get('/mis-tickets', requerirRol('COLABORADOR'), async (req, res) => {
     responder(res, await ticketService.misTickets(req.usuario.id));
   });
 
-  router.get('/:id', async (req, res) => {
-    responder(res, { ticket: await ticketService.detalle(req.usuario.id, req.params.id) });
+  // GET /tickets/mios con la lista del usuario y su estado.
+  router.get('/mios', requerirRol('COLABORADOR', 'ADMINISTRADOR'), async (req, res) => {
+    responder(res, await ticketService.misTickets(req.usuario.id));
   });
 
-  // Foto del ticket (columna imagen). Solo la ve su dueño: el dueño sale del token.
+  // GET /tickets/resumen con el conteo de tickets activos para el home.
+  router.get('/resumen', requerirRol('COLABORADOR', 'ADMINISTRADOR'), async (req, res) => {
+    responder(res, await ticketService.resumen(req.usuario.id));
+  });
+
+  // GET /tickets/:id con el detalle (solo para el dueño o un administrador).
+  router.get('/:id', requerirRol('COLABORADOR', 'ADMINISTRADOR'), async (req, res) => {
+    responder(res, { ticket: await ticketService.detalle(req.usuario, req.params.id) });
+  });
+
+  // Foto del ticket (columna imagen). Solo el dueño o un administrador pueden verla.
   // Se responde como imagen (no JSON) para que la app la muestre directamente.
-  router.get('/:id/foto', async (req, res) => {
-    const { buffer, mime } = await ticketService.foto(req.usuario.id, req.params.id);
+  router.get('/:id/foto', requerirRol('COLABORADOR', 'ADMINISTRADOR'), async (req, res) => {
+    const { buffer, mime } = await ticketService.foto(req.usuario, req.params.id);
     res.set({
       'Content-Type': mime,
       'Content-Length': String(buffer.length),

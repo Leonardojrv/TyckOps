@@ -66,6 +66,24 @@ export class MemoryTicketRepository {
     return this.tickets.filter((ticket) => ticket.ownerId === String(ownerId));
   }
 
+  async findActiveCandidates({ category = null, location = null, excludeId = null } = {}) {
+    const estadosActivos = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROCESO']);
+    const locNorm = location?.toLowerCase().trim();
+    const catNorm = category?.toLowerCase().trim();
+
+    return this.tickets.filter((t) => {
+      if (excludeId !== null && String(t.id) === String(excludeId)) return false;
+      if (!estadosActivos.has(String(t.status).toUpperCase())) return false;
+
+      const c = String(t.category ?? '').toLowerCase().trim();
+      const l = String(t.location ?? '').toLowerCase().trim();
+
+      const coincideUbic = locNorm && (l.includes(locNorm) || locNorm.includes(l));
+      const coincideCat = catNorm && c === catNorm;
+      return coincideUbic || coincideCat;
+    });
+  }
+
   async findByIdForOwner(id, ownerId) {
     return this.tickets.find(
       (ticket) => ticket.id === String(id) && ticket.ownerId === String(ownerId),
