@@ -73,13 +73,14 @@ describe('Login correcto', () => {
     const res = await login(app, u.email, u.password);
     const texto = JSON.stringify(res.body);
     expect(texto).not.toMatch(/password/i);
+    expect(texto).not.toContain('$argon2id$');
     expect(texto).not.toContain('$2b$');
   });
 
-  test('las contraseñas en la BD están cifradas con bcrypt', async () => {
+  test('las contraseñas en la BD están cifradas con Argon2id (parámetros OWASP)', async () => {
     const usuarios = await prisma.user.findMany();
     for (const usuario of usuarios) {
-      expect(usuario.passwordHash).toMatch(/^\$2[aby]\$\d{2}\$.{53}$/);
+      expect(usuario.passwordHash).toMatch(/^\$argon2id\$v=19\$m=19456,t=2,p=1\$/);
     }
   });
 });

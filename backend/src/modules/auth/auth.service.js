@@ -1,4 +1,4 @@
-import bcrypt from 'bcryptjs';
+import { cifrarContrasena, necesitaRecifrar, verificarContrasena } from './passwords.js';
 import jwt from 'jsonwebtoken';
 import { HttpError } from '../../utils/http-error.js';
 import { AuthAuditLogger } from './auth.audit.js';
@@ -46,7 +46,7 @@ export class AuthService {
   async login({ email, password }, requestInfo = {}) {
     const user = await this.userRepository.findByEmail(email);
     const passwordMatches = user?.passwordHash
-      ? await bcrypt.compare(password, user.passwordHash)
+      ? await verificarContrasena(password, user.passwordHash)
       : false;
 
     if (!user || !passwordMatches) {
@@ -65,6 +65,10 @@ export class AuthService {
       });
       throw new HttpError(403, 'ROL_INVALIDO', 'La cuenta no tiene un rol habilitado.');
     }
+
+    // Contraseña guardada con un cifrado antiguo (bcrypt) o con parámetros viejos:
+    // ahora que se conoce la clave correcta, se vuelve a cifrar con Argon2id.
+    if (necesitaRecifrar(user.passwordHash)) await this.#recifrar(user, password, requestInfo);
 
     this.auditLogger.log({
       action: 'login_succeeded',
@@ -100,6 +104,18 @@ export class AuthService {
       expiraEn: desafio.expiraEn,
       reenviarDesde: desafio.reenviarDesde,
     };
+  }
+
+  // Recifrado "en el siguiente login" (recomendación OWASP para migrar hashes).
+  // Si falla, el login sigue igual: solo se reintentará la próxima vez.
+  // La clave llega solo como parámetro: nunca se guarda en el objeto.
+  async #recifrar(user, password, requestInfo) {
+    try {
+      await this.userRepository.update(user.id, { passwordHash: await cifrarContrasena(password) });
+      this.auditLogger.log({ action: 'password_rehashed', userId: String(user.id), algorithm: 'argon2id', ...requestInfo });
+    } catch {
+      this.auditLogger.log({ action: 'password_rehash_failed', userId: String(user.id), ...requestInfo });
+    }
   }
 
   // T8: el código fue correcto (lo revisó MfaService). Ahora sí se entrega la
@@ -143,17 +159,17 @@ export class AuthService {
     if (newPassword) {
       // Seguridad: para cambiar la clave hay que demostrar que se conoce la actual.
       const matches = user.passwordHash
-        ? await bcrypt.compare(currentPassword, user.passwordHash)
+        ? await verificarContrasena(currentPassword, user.passwordHash)
         : false;
       if (!matches) {
         this.auditLogger.log({ action: 'password_change_failed', userId: String(user.id), ...requestInfo });
         // 400 y no 401: un 401 haría que la app cerrara la sesión.
         throw new HttpError(400, 'CONTRASENA_ACTUAL_INCORRECTA', 'La contraseña temporal actual no es correcta.');
       }
-      if (await bcrypt.compare(newPassword, user.passwordHash)) {
+      if (await verificarContrasena(newPassword, user.passwordHash)) {
         throw new HttpError(400, 'CONTRASENA_REPETIDA', 'La nueva contraseña debe ser distinta de la actual.');
       }
-      changes.passwordHash = await bcrypt.hash(newPassword, 12); // nunca se guarda en texto plano
+      changes.passwordHash = await cifrarContrasena(newPassword); // Argon2id, nunca en texto plano
     }
 
     const updated = await this.userRepository.update(user.id, changes);
