@@ -4,7 +4,11 @@
 // Las contraseñas de prueba se leen de .env (SEED_*_PASSWORD); nunca se escriben aquí.
 
 require("dotenv/config");
-const bcrypt = require("bcryptjs");
+const { hash } = require("@node-rs/argon2");
+
+// Mismo cifrado que el backend (backend/src/modules/auth/passwords.js):
+// Argon2id con los parámetros mínimos de OWASP (19 MiB, 2 iteraciones, paralelismo 1).
+const OPCIONES_ARGON2 = { algorithm: 2 /* Argon2id */, memoryCost: 19456, timeCost: 2, parallelism: 1 };
 const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
@@ -37,7 +41,7 @@ async function asegurarUsuario({ email, password, name, appat, apmat, rol, depa 
       name,
       appat,
       apmat,
-      passwordHash: await bcrypt.hash(password, 12),
+      passwordHash: await hash(password, OPCIONES_ARGON2),
       ID_Rol: rol.ID_Rol,
       ID_depa: depa.ID_depa,
       // primerAcceso = true y terminosAceptados = false por defecto:
