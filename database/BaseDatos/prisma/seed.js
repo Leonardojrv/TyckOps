@@ -44,6 +44,8 @@ async function asegurarUsuario({ email, password, name, appat, apmat, rol, depa 
       passwordHash: await hash(password, OPCIONES_ARGON2),
       ID_Rol: rol.ID_Rol,
       ID_depa: depa.ID_depa,
+      estado: "activo",
+      telefono: "9 1111 1111", // teléfono de prueba
       // primerAcceso = true y terminosAceptados = false por defecto:
       // cada usuario acepta los Términos en su primer inicio de sesión.
     },
