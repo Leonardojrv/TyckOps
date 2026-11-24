@@ -352,6 +352,48 @@ export class PrismaTicketRepository {
   }
 
   /**
+   * T11 · El administrador cambia el estado de un ticket (cualquier dueño).
+   * La escritura exige que el ticket siga en el estado `desde`: si otro
+   * administrador lo movió un instante antes, no se pisa (cambiado: false).
+   * @returns {Promise<null | { ticket, cambiado: boolean }>}
+   */
+  async cambiarEstado(id, { desde, hacia, motivo = null }) {
+    const ticketId = idNumerico(id);
+    if (ticketId === null) return null;
+    const terminal = ['RECHAZADO', 'RESUELTO', 'CERRADO'].includes(hacia);
+    const { count } = await this.prisma.ticket.updateMany({
+      where: { ID_Ticket: ticketId, Estado: { equals: desde.toLowerCase(), mode: 'insensitive' } },
+      data: {
+        Estado: hacia.toLowerCase(),
+        ...(hacia === 'RECHAZADO' && { MotivoRechazo: motivo }),
+        ...(terminal && { FechaCierre: new Date() }),
+      },
+    });
+    const fila = await this.prisma.ticket.findFirst({ where: { ID_Ticket: ticketId }, include: incluir, omit: sinImagen });
+    return fila ? { ticket: aTicket(fila), cambiado: count > 0 } : null;
+  }
+
+  /** T11 · Cualquier ticket por id (para el administrador). Sin la foto. */
+  async findById(id) {
+    const ticketId = idNumerico(id);
+    if (ticketId === null) return null;
+    const fila = await this.prisma.ticket.findFirst({ where: { ID_Ticket: ticketId }, include: incluir, omit: sinImagen });
+    return fila ? aTicket(fila) : null;
+  }
+
+  /** T11 · El administrador comenta un ticket. Devuelve el comentario creado. */
+  async crearComentario(id, { adminId, texto }) {
+    const ticketId = idNumerico(id);
+    const autor = idNumerico(adminId);
+    if (ticketId === null || autor === null) return null;
+    const c = await this.prisma.comentarioTicket.create({
+      data: { ID_Ticket: ticketId, ID_admin: autor, Texto: texto },
+      select: { ID_Comentario: true, Texto: true, FechaCreacion: true },
+    });
+    return { id: String(c.ID_Comentario), text: c.Texto, createdAt: c.FechaCreacion };
+  }
+
+  /**
    * MM2 · El administrador cambia la prioridad. En UNA transacción: lee el
    * ticket, lo actualiza y deja el registro en CambioPrioridad (quién y cuándo).
    * @returns {Promise<null | { ticket, cambiado: boolean, bloqueado: boolean, prioridadAnterior?: string|null }>}

@@ -19,6 +19,10 @@ const envSchema = z.object({
   // T8: código fijo de la verificación en dos pasos, SOLO para desarrollo (6 números).
   // En producción se ignora: ahí el código siempre es aleatorio y va por correo.
   MFA_CODIGO_DESARROLLO: z.string().regex(/^\d{6}$/).optional(),
+  // T11: clave de servicio de Firebase (ruta al .json o el JSON completo).
+  // Si no está, se usa backend/firebase-service-account.json; si tampoco
+  // existe, las notificaciones push quedan en modo simulado.
+  FIREBASE_SERVICE_ACCOUNT: z.string().trim().optional(),
 });
 
 // Cifrado backend → PostgreSQL. La base de datos (Docker local y producción) solo
@@ -68,5 +72,6 @@ export function loadEnv(source = process.env) {
     groqReasoningEffort: result.data.GROQ_REASONING_EFFORT,
     groqTimeoutMs: result.data.GROQ_TIMEOUT_MS,
     mfaCodigoDesarrollo: result.data.MFA_CODIGO_DESARROLLO ?? null,
+    firebaseServiceAccount: result.data.FIREBASE_SERVICE_ACCOUNT || null,
   };
 }

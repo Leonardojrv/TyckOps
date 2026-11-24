@@ -11,6 +11,7 @@ import { AuthService } from './modules/auth/auth.service.js';
 import { MemoryGuiasRepository } from './modules/guias/guias.memory.repository.js';
 import { crearRutasGuias } from './modules/guias/guias.routes.js';
 import { GuiasService } from './modules/guias/guias.service.js';
+import { crearRutasNotificaciones } from './modules/notificaciones/notificaciones.routes.js';
 import { crearRutasReglas } from './modules/reglas/reglas.routes.js';
 import { crearRutasTickets } from './modules/tickets/tickets.routes.js';
 import { responder } from './utils/respuestas.js';
@@ -24,6 +25,7 @@ export function crearApp({
   ticketService = null,
   guiasService = null,
   reglasService = null, // MM2: reglas de prioridad del administrador
+  notificacionesService = null, // T11: notificaciones push
   groqClient = null,
   auditLogger,
   databaseStatus,
@@ -65,6 +67,9 @@ export function crearApp({
   app.use('/api/guias', rutasGuias);
 
   app.use('/api/admin', crearRutasAdmin({ jwtSecret: env.jwtSecret, authService: service, ticketService }));
+  app.use('/api/notificaciones', crearRutasNotificaciones({
+    notificacionesService, authService: service, jwtSecret: env.jwtSecret,
+  }));
   app.use('/api/reglas', crearRutasReglas({ reglasService, authService: service, jwtSecret: env.jwtSecret }));
   app.use(rutaNoEncontrada);
   app.use(manejarErrores);

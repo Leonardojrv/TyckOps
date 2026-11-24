@@ -27,6 +27,7 @@ import '../../features/worker/report/report_fault_screen.dart';
 import '../../features/worker/report/report_sent_screen.dart';
 import '../../features/worker/tickets/history_screen.dart';
 import '../../features/worker/tickets/my_tickets_screen.dart';
+import '../../features/worker/notifications/notifications_screen.dart';
 import '../../features/worker/tickets/ticket_detail_screen.dart';
 import 'role_shells.dart';
 import 'routes.dart';
@@ -91,6 +92,13 @@ GoRouter createRouter(
               path: Routes.workerHome,
               builder: (context, state) =>
                   WorkerHomeScreen(session: session, store: ticketsStore),
+              routes: [
+                // T11 · Notificaciones (se abre desde la campana del encabezado).
+                GoRoute(
+                  path: 'notificaciones',
+                  builder: (context, state) => const NotificationsScreen(),
+                ),
+              ],
             ),
           ]),
           StatefulShellBranch(routes: [
@@ -128,6 +136,8 @@ GoRouter createRouter(
                     repository: ticketsStore.repository,
                     onCancel: ticketsStore.cancelTicket, // T9
                     onResolveGuide: ticketsStore.resolveGuide, // T10
+                    // T11: desde "Nuevo comentario en tu ticket", baja hasta los comentarios.
+                    focusComments: state.uri.queryParameters['ver'] == 'comentarios',
                   ),
                 ),
               ],

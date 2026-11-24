@@ -14,11 +14,13 @@ import 'package:go_router/go_router.dart';
 
 import 'core/navigation/app_router.dart';
 import 'core/network/api_client.dart';
+import 'core/notifications/push_service.dart';
 import 'core/theme/app_theme.dart';
 import 'data/repositories/auth_repository.dart';
 import 'data/repositories/report_repository.dart';
 import 'features/auth/auth_session.dart';
 import 'features/worker/my_tickets_store.dart';
+import 'features/worker/notifications/notifications_store.dart';
 
 /// Widget raíz: aplica el tema GA.MA y el router.
 class TyckOpsApp extends StatefulWidget {
@@ -29,6 +31,8 @@ class TyckOpsApp extends StatefulWidget {
     required this.authRepository,
     required this.ticketsStore,
     required this.reportRepository,
+    this.notificationsStore,
+    this.pushService,
   });
 
   final AuthSession session;
@@ -36,6 +40,8 @@ class TyckOpsApp extends StatefulWidget {
   final AuthRepository authRepository;
   final MyTicketsStore ticketsStore;
   final ReportRepository reportRepository;
+  final NotificationsStore? notificationsStore; // T11: campana y pantalla de avisos
+  final PushService? pushService; // T11: abre el ticket al tocar un aviso
 
   @override
   State<TyckOpsApp> createState() => _TyckOpsAppState();
@@ -52,7 +58,14 @@ class _TyckOpsAppState extends State<TyckOpsApp> {
   );
 
   @override
+  void initState() {
+    super.initState();
+    widget.pushService?.attachRouter(_router); // T11
+  }
+
+  @override
   void dispose() {
+    widget.pushService?.dispose();
     _router.dispose();
     super.dispose();
   }
@@ -64,6 +77,11 @@ class _TyckOpsAppState extends State<TyckOpsApp> {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       routerConfig: _router,
+      // T11: la campana de cualquier pantalla lee los avisos desde aquí.
+      builder: (context, child) {
+        final store = widget.notificationsStore;
+        return store == null ? child! : NotificationsScope(store: store, child: child!);
+      },
     );
   }
 }

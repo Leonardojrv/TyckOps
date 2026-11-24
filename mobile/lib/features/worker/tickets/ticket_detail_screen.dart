@@ -54,6 +54,7 @@ class TicketDetailScreen extends StatefulWidget {
     required this.repository,
     this.onCancel,
     this.onResolveGuide,
+    this.focusComments = false,
   });
 
   final String ticketId;
@@ -67,12 +68,47 @@ class TicketDetailScreen extends StatefulWidget {
   /// MyTicketsStore). Si es null, la guía no se muestra.
   final Future<Ticket> Function(String id, GuideAction action)? onResolveGuide;
 
+  /// T11 · true al abrir desde "Nuevo comentario en tu ticket": la pantalla baja
+  /// sola hasta los comentarios, para que el comentario nuevo quede a la vista.
+  final bool focusComments;
+
   @override
   State<TicketDetailScreen> createState() => _TicketDetailScreenState();
 }
 
 class _TicketDetailScreenState extends State<TicketDetailScreen> {
   late Future<TicketDetail> _detail = widget.repository.ticketDetail(widget.ticketId);
+
+  // T11 · Para bajar hasta los comentarios una sola vez al abrir desde un aviso.
+  final _commentsKey = GlobalKey();
+  bool _scrolledToComments = false;
+
+  /// Los comentarios del administrador (null si no hay). Se usan en el detalle
+  /// normal y también bajo la guía o el aviso de duplicado (T11), para que el
+  /// "Nuevo comentario" siempre quede a la vista.
+  Widget? _commentsSection(TicketDetail d) {
+    if (d.comments.isEmpty) return null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        KeyedSubtree(key: _commentsKey, child: _CommentsCard(comments: d.comments)),
+        Builder(builder: (_) {
+          _scrollToCommentsOnce(); // abierto desde "Nuevo comentario en tu ticket"
+          return const SizedBox.shrink();
+        }),
+      ],
+    );
+  }
+
+  void _scrollToCommentsOnce() {
+    if (!widget.focusComments || _scrolledToComments) return;
+    _scrolledToComments = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _commentsKey.currentContext;
+      if (ctx == null || !mounted) return;
+      Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 450), curve: Curves.easeOutCubic, alignment: 0.05);
+    });
+  }
 
   // La foto se descarga una sola vez y se reutiliza en la miniatura y en el
   // visor. Vive solo mientras esta pantalla está abierta (no se guarda en disco).
@@ -171,9 +207,12 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
           final d = snapshot.data!;
 
           // T10 · Ticket agrupado con otro: aviso del mockup en vez del detalle.
-          if (d.duplicateOf != null) {
+          // Solo mientras el original siga en atención: si ya terminó, el aviso
+          // "ya están atendiéndolo" no corresponde y se muestra el detalle normal.
+          if (d.duplicateOf != null && d.duplicateOf!.status.isActiveStatus) {
             return _SpecialView(
               onRefresh: _reload,
+              comments: _commentsSection(d),
               child: DuplicateTicketView(
                 ticket: d.ticket,
                 original: d.duplicateOf!,
@@ -186,6 +225,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
           if (d.selfHelp && resolveGuide != null) {
             return _SpecialView(
               onRefresh: _reload,
+              comments: _commentsSection(d),
               child: AssistedGuideView(
                 key: ValueKey('guia-${d.ticket.id}'),
                 ticket: d.ticket,
@@ -224,7 +264,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                 ],
                 if (d.comments.isNotEmpty) ...[
                   const SizedBox(height: 24),
-                  _CommentsCard(comments: d.comments),
+                  _commentsSection(d)!,
                 ],
                 const SizedBox(height: 24),
                 _TimelineCard(steps: timeline, rejected: rejected, detail: d),
@@ -257,10 +297,11 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
 /// T10 · Contenedor de las vistas especiales (guía y duplicado): mismo fondo,
 /// márgenes y "deslizar para recargar" que el detalle normal.
 class _SpecialView extends StatelessWidget {
-  const _SpecialView({required this.child, required this.onRefresh});
+  const _SpecialView({required this.child, required this.onRefresh, this.comments});
 
   final Widget child;
   final Future<void> Function() onRefresh;
+  final Widget? comments; // T11: comentarios del administrador, debajo de la vista
 
   @override
   Widget build(BuildContext context) {
@@ -270,7 +311,10 @@ class _SpecialView extends StatelessWidget {
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-        children: [child],
+        children: [
+          child,
+          if (comments != null) ...[const SizedBox(height: 24), comments!],
+        ],
       ),
     );
   }

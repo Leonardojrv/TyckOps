@@ -30,6 +30,17 @@ const auditoriaTickets = {
 // Estados en los que el ticket sigue "en atención" (RF-05).
 const ESTADOS_ACTIVOS = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROCESO']);
 
+// T11 · A qué estados puede pasar el administrador desde cada uno (ciclo de
+// vida de docs/requerimientos/requerimientos-funcionales.md). Cancelar es del
+// colaborador (T9), por eso no está aquí.
+export const TRANSICIONES_ADMIN = {
+  RECIBIDO: ['EN_REVISION'],
+  EN_REVISION: ['APROBADO', 'RECHAZADO'],
+  APROBADO: ['EN_PROCESO'],
+  EN_PROCESO: ['RESUELTO'],
+  RESUELTO: ['CERRADO'],
+};
+
 // MM2: en estos estados el ticket ya terminó y su prioridad no se cambia.
 const ESTADOS_SIN_CAMBIO_PRIORIDAD = new Set(['RESUELTO', 'CERRADO', 'RECHAZADO', 'CANCELADO']);
 
@@ -77,12 +88,14 @@ export class TicketService {
     auditLogger = auditoriaTickets,
     analizadorIA = null,
     obtenerGuiasVigentes = async () => [],
+    notificaciones = null, // T11: avisa al dueño (push + historial)
   } = {}) {
     this.ticketRepository = ticketRepository;
     this.slaCumplido = slaCumplido;
     this.auditLogger = auditLogger;
     this.analizadorIA = analizadorIA;
     this.obtenerGuiasVigentes = obtenerGuiasVigentes;
+    this.notificaciones = notificaciones;
   }
 
   async resumen(userId) {
@@ -348,6 +361,43 @@ export class TicketService {
       this.#auditarIA(ticket, 'error_ia', { codigo });
       return { resultado: 'error_ia', codigo };
     }
+  }
+
+  // T11 · El administrador cambia el estado; el dueño recibe el aviso.
+  async cambiarEstado(adminId, id, estado, motivo = null) {
+    const actual = /^[A-Za-z0-9-]{1,40}$/.test(String(id)) ? await this.ticketRepository.findById(id) : null;
+    if (!actual) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
+    const desde = String(actual.status).toUpperCase();
+    if (!(TRANSICIONES_ADMIN[desde] ?? []).includes(estado)) {
+      throw new HttpError(409, 'TRANSICION_NO_PERMITIDA', `Un ticket "${desde}" no puede pasar a "${estado}".`);
+    }
+    const resultado = await this.ticketRepository.cambiarEstado(id, { desde, hacia: estado, motivo });
+    if (!resultado?.cambiado) {
+      throw new HttpError(409, 'TICKET_CAMBIO_SIMULTANEO', 'El ticket cambió mientras lo editabas. Vuelve a cargarlo.');
+    }
+    this.auditLogger.info?.(JSON.stringify({
+      type: 'ticket', action: 'estado_cambiado', timestamp: new Date().toISOString(),
+      ticketId: resultado.ticket.id, adminId: String(adminId), desde, hacia: estado,
+    }));
+    await this.notificaciones?.avisarCambioEstado(resultado.ticket, estado, motivo);
+    return publicTicket(resultado.ticket);
+  }
+
+  // T11 · El administrador comenta; el dueño recibe "Nuevo comentario en tu ticket".
+  async comentar(adminId, id, texto) {
+    const ticket = /^[A-Za-z0-9-]{1,40}$/.test(String(id)) ? await this.ticketRepository.findById(id) : null;
+    if (!ticket) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
+    const comentario = await this.ticketRepository.crearComentario(id, { adminId, texto });
+    this.auditLogger.info?.(JSON.stringify({
+      type: 'ticket', action: 'comentario_admin', timestamp: new Date().toISOString(),
+      ticketId: ticket.id, adminId: String(adminId), comentarioId: comentario.id,
+    }));
+    await this.notificaciones?.avisarComentario(ticket, comentario);
+    return {
+      id: comentario.id,
+      text: comentario.text,
+      createdAt: new Date(comentario.createdAt).toISOString(),
+    };
   }
 
   // MM2 · El administrador cambia la prioridad (por ejemplo, escala una baja).
