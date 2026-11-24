@@ -25,6 +25,7 @@ abstract final class Routes {
   static const workerReportSent = '/worker/reporte-enviado'; // confirmación (T6)
   static const workerTickets = '/worker/solicitudes';
   static String workerTicketDetail(String id) => '$workerTickets/${Uri.encodeComponent(id)}';
+  static const workerHistory = '$workerTickets/historial'; // historial con filtros (T9)
 
   // Administrador
   static const adminHome = '/admin/inicio';

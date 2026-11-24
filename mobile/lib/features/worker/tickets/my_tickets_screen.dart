@@ -3,7 +3,8 @@
 //
 // ¿QUÉ HACE?
 //   Lista todos tus tickets con buscador y filtros (Todos, En curso, Rechazado,
-//   Resuelto) y abre el detalle al tocar uno.
+//   Resuelto) y abre el detalle al tocar uno. Abajo tiene el acceso al
+//   Historial con filtros por fecha y estado (T9).
 //
 // ¿CÓMO LO CAMBIO?
 //   Las reglas de los filtros y la búsqueda están en ticket_logic.dart.
@@ -132,6 +133,8 @@ class _MyTicketsScreenState extends State<MyTicketsScreen> {
                       _TicketCard(ticket: visible[i], onTap: () => _open(visible[i])),
                     ],
                   const SizedBox(height: 24),
+                  _HistoryLink(onTap: () => context.go(Routes.workerHistory)),
+                  const SizedBox(height: 12),
                   _NewReportBanner(onPressed: () => context.go(Routes.workerReport)),
                 ],
               ),
@@ -412,6 +415,54 @@ class _Message extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// T9 · Acceso al historial con filtros por fecha y estado.
+class _HistoryLink extends StatelessWidget {
+  const _HistoryLink({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Ver historial de solicitudes',
+      excludeSemantics: true,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Ink(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: _C.white, borderRadius: BorderRadius.circular(12), boxShadow: workerShadowSm),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(color: _C.containerLow, borderRadius: BorderRadius.circular(8)),
+                  child: const Icon(Symbols.history, size: 22, color: _C.primaryContainer),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Historial de solicitudes', style: _T.labelLg()),
+                      Text('Busca por fecha, estado o tipo', style: _T.bodySm(_C.secondary)),
+                    ],
+                  ),
+                ),
+                const Icon(Symbols.chevron_right, size: 20, color: _C.secondary),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

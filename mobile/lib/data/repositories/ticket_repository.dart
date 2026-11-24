@@ -32,6 +32,10 @@ abstract class TicketRepository {
 
   /// La foto adjunta de un ticket tuyo, como bytes (solo en memoria).
   Future<Uint8List> ticketPhoto(String id);
+
+  /// T9 · Cancela un ticket tuyo. Solo funciona mientras está Recibido: si ya
+  /// avanzó, el servidor responde 409 y aquí llega como [ApiException].
+  Future<Ticket> cancelTicket(String id);
 }
 
 class ApiTicketRepository implements TicketRepository {
@@ -62,6 +66,15 @@ class ApiTicketRepository implements TicketRepository {
     return _api.getBytes('/tickets/${Uri.encodeComponent(id)}/foto');
   }
 
+  @override
+  Future<Ticket> cancelTicket(String id) async {
+    _checkId(id);
+    final body = await _api.post<Map<String, dynamic>>('/tickets/${Uri.encodeComponent(id)}/cancelar');
+    final ticket = (body['data'] as Map?)?['ticket'];
+    if (ticket is! Map) throw const FormatException('Respuesta de cancelación inválida');
+    return Ticket.fromJson(ticket.cast<String, dynamic>());
+  }
+
   // Un id con caracteres raros nunca llega a la URL (evita que alguien arme
   // rutas como "../admin").
   static void _checkId(String id) {
@@ -77,18 +90,27 @@ class FakeTicketRepository implements TicketRepository {
     return DateTime(now.year, now.month, now.day - daysAgo, h, m);
   }
 
+  // Lista que se puede modificar: así "Cancelar ticket" funciona en el modo de prueba.
   static final _tickets = [
+    Ticket(id: 't-0151', code: 'REP-0151', category: 'Eléctrica', title: 'Luminaria apagada en sala de reuniones B', status: TicketStatus.received, priority: null, location: 'Sala de reuniones B', createdAt: _at(0, 9, 24)),
     Ticket(id: 't-0142', code: 'REP-0142', category: 'Eléctrica', title: 'Enchufe en mal estado', status: TicketStatus.inProgress, priority: TicketPriority.high, location: 'Recepción central', createdAt: _at(0, 10, 30)),
     Ticket(id: 't-0087', code: 'REP-0087', category: 'Baños', title: 'Fuga agua en baño piso 2', status: TicketStatus.inReview, priority: TicketPriority.medium, location: 'Sector Poniente', createdAt: _at(1, 16, 45)),
     Ticket(id: 't-0139', code: 'REP-0139', category: 'Inmobiliario', title: 'Escritorio en malas condiciones', status: TicketStatus.approved, priority: TicketPriority.low, location: 'Piso 4', createdAt: _at(6, 9, 15)),
-    Ticket(id: 't-0098', code: 'REP-0098', category: 'Aire acondicionado', title: 'Aire acondicionado gotea en pasillo', status: TicketStatus.rejected, priority: TicketPriority.medium, location: 'Oficinas de Gerencia', createdAt: _at(8, 14, 0)),
-    Ticket(id: 't-0079', code: 'REP-0079', category: 'Inmobiliario', title: 'Soporte de proyector flojo en sala', status: TicketStatus.resolved, priority: TicketPriority.low, location: 'Tesorería', createdAt: _at(12, 11, 0)),
+    Ticket(id: 't-0098', code: 'REP-0098', category: 'Aire acondicionado', title: 'Aire acondicionado gotea en pasillo', status: TicketStatus.rejected, priority: TicketPriority.medium, location: 'Oficinas de Gerencia', createdAt: _at(8, 14, 0), closedAt: _at(7, 9, 20)),
+    Ticket(id: 't-0079', code: 'REP-0079', category: 'Inmobiliario', title: 'Soporte de proyector flojo en sala', status: TicketStatus.resolved, priority: TicketPriority.low, location: 'Tesorería', createdAt: _at(12, 11, 0), closedAt: _at(11, 15, 30)),
+    Ticket(id: 't-0071', code: 'REP-0071', category: 'Baños', title: 'Cambio de cerradura baño piso 1', status: TicketStatus.closed, priority: TicketPriority.medium, location: 'Baño piso 1', createdAt: _at(20, 8, 10), closedAt: _at(19, 12, 0)),
+    Ticket(id: 't-0064', code: 'REP-0064', category: 'Inmobiliario', title: 'Silla con rueda suelta', status: TicketStatus.cancelled, priority: null, location: 'Piso 4', createdAt: _at(45, 10, 0), closedAt: _at(45, 10, 20)),
   ];
 
   @override
   Future<MyTickets> myTickets() async {
     await Future<void>.delayed(const Duration(milliseconds: 700));
-    return MyTickets(tickets: _tickets, total: _tickets.length, inAttention: 3, slaPercent: 98.4);
+    return MyTickets(
+      tickets: List.unmodifiable(_tickets),
+      total: _tickets.length,
+      inAttention: _tickets.where((t) => t.isActive).length,
+      slaPercent: 98.4,
+    );
   }
 
   @override
@@ -103,7 +125,7 @@ class FakeTicketRepository implements TicketRepository {
       rejectionReason: ticket.status == TicketStatus.rejected
           ? 'La reparación requiere un proveedor externo autorizado por la marca del equipo.'
           : null,
-      closedAt: ticket.status == TicketStatus.rejected ? _at(7, 9, 20) : null,
+      closedAt: ticket.closedAt,
       comments: ticket.id == 't-0142'
           ? [
               TicketComment(id: '1', author: 'Servicios Generales', createdAt: _at(0, 11, 5), text: 'Revisamos el enchufe: hay daño por sobrecarga. Ya coordinamos el cambio de placa.'),
@@ -111,6 +133,22 @@ class FakeTicketRepository implements TicketRepository {
             ]
           : const [],
     );
+  }
+
+  @override
+  Future<Ticket> cancelTicket(String id) async {
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    final i = _tickets.indexWhere((t) => t.id == id);
+    if (i < 0) throw const ApiException('No encontramos esa solicitud.', statusCode: 404);
+    // Misma regla que el servidor: solo mientras está Recibido.
+    if (!_tickets[i].status.canBeCancelled) {
+      throw const ApiException(
+        'Esta solicitud ya no está en estado Recibido, por eso no se puede cancelar.',
+        statusCode: 409,
+        code: 'TICKET_NO_CANCELABLE',
+      );
+    }
+    return _tickets[i] = _tickets[i].copyWith(status: TicketStatus.cancelled, closedAt: DateTime.now());
   }
 
   @override
