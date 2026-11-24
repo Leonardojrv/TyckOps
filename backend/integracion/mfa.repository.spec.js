@@ -68,13 +68,13 @@ describe('Verificación', () => {
     expect(resultados.filter((x) => x.estado === 'correcto')).toHaveLength(1);
   });
 
-  test('código incorrecto suma intentos y al quinto se bloquea', async () => {
+  test('código incorrecto suma intentos y al tercero se bloquea', async () => {
     const r = repo();
     const d = await r.crear({ userId: userId(), codigo: '000001' });
-    for (let i = 1; i <= 4; i += 1) {
-      expect(await r.verificar(d.id, '999999')).toEqual({ estado: 'incorrecto', intentos: i, quedan: 5 - i });
+    for (let i = 1; i <= 2; i += 1) {
+      expect(await r.verificar(d.id, '999999')).toEqual({ estado: 'incorrecto', intentos: i, quedan: 3 - i });
     }
-    expect(await r.verificar(d.id, '999999')).toEqual({ estado: 'bloqueado', intentos: 5 });
+    expect(await r.verificar(d.id, '999999')).toEqual({ estado: 'bloqueado', intentos: 3 });
     expect(await r.verificar(d.id, '000001')).toEqual({ estado: 'inexistente' });
   });
 

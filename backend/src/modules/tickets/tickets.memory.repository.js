@@ -22,7 +22,7 @@ export class MemoryTicketRepository {
   }
 
   // MM2 · Igual que en PostgreSQL: solo si sigue en Recibido y sin prioridad.
-  async guardarPrioridadInicial(id, { prioridad, origen, reglaId = null, versionReglas = null, nivelIncidencia = null }) {
+  async guardarPrioridadInicial(id, { prioridad, origen, reglaId = null, nivelIncidencia = null }) {
     const ticket = this.tickets.find((t) => t.id === String(id));
     if (!ticket || ticket.status !== 'RECIBIDO' || ticket.priority) return false;
     Object.assign(ticket, {
@@ -30,7 +30,6 @@ export class MemoryTicketRepository {
       initialPriority: prioridad,
       priorityOrigin: origen,
       ruleId: reglaId,
-      rulesVersion: versionReglas,
       nivelIncidencia,
     });
     return true;
@@ -58,8 +57,9 @@ export class MemoryTicketRepository {
       nueva: prioridad,
       fecha: new Date(),
     });
+    const prioridadAnterior = ticket.priority ?? null;
     ticket.priority = prioridad;
-    return { ticket: vista(), cambiado: true, bloqueado: false };
+    return { ticket: vista(), cambiado: true, bloqueado: false, prioridadAnterior };
   }
 
   async findByOwner(ownerId) {

@@ -330,7 +330,7 @@ export class PrismaTicketRepository {
    * (RF-09) ni una prioridad que el administrador ya cambió a mano.
    * @returns {Promise<boolean>} true si se guardó.
    */
-  async guardarPrioridadInicial(id, { prioridad, origen, reglaId = null, versionReglas = null, nivelIncidencia = null }) {
+  async guardarPrioridadInicial(id, { prioridad, origen, reglaId = null, nivelIncidencia = null }) {
     const ticketId = idNumerico(id);
     if (ticketId === null) return false;
     const valor = prioridad.toLowerCase(); // "alta" en la BD, igual que Estado
@@ -345,7 +345,6 @@ export class PrismaTicketRepository {
         PrioridadInicial: valor,
         OrigenPrioridad: origen,
         ID_ReglaAplicada: reglaId,
-        ID_VersionReglas: versionReglas,
         NivelIncidencia: nivelIncidencia,
       },
     });
@@ -355,7 +354,7 @@ export class PrismaTicketRepository {
   /**
    * MM2 · El administrador cambia la prioridad. En UNA transacción: lee el
    * ticket, lo actualiza y deja el registro en CambioPrioridad (quién y cuándo).
-   * @returns {Promise<null | { ticket, cambiado: boolean, bloqueado: boolean }>}
+   * @returns {Promise<null | { ticket, cambiado: boolean, bloqueado: boolean, prioridadAnterior?: string|null }>}
    */
   async cambiarPrioridad(id, { prioridad, adminId, estadosBloqueados }) {
     const ticketId = idNumerico(id);
@@ -382,7 +381,7 @@ export class PrismaTicketRepository {
           PrioridadNueva: prioridad.toLowerCase(),
         },
       });
-      return { ticket: { ...ticket, priority: prioridad }, cambiado: true, bloqueado: false };
+      return { ticket: { ...ticket, priority: prioridad }, cambiado: true, bloqueado: false, prioridadAnterior: ticket.priority };
     });
   }
 
