@@ -56,11 +56,42 @@ model User {
   ticketsCreados   Ticket[]           @relation("crea")
   ticketsAprobados Ticket[]           @relation("aprueba")
   comentarios      ComentarioTicket[] @relation("comenta")
+  cambiosPrioridad CambioPrioridad[]  @relation("cambiaPrioridad")
   informes         Informe[]
   reglasPrioridad  ReglasPrioridad[]
   guiasAutoayuda   GuiaAutoayuda[]
+  codigosMfa       CodigoMFA[]
+  dispositivosPush DispositivoPush[] // T11: celulares que reciben notificaciones
+  notificaciones   Notificacion[] // T11: avisos que recibió
 
   @@map("Usuario")
+}
+
+// Verificación en dos pasos (MFA, T8): código de 6 dígitos enviado al correo.
+// Cada fila es UN desafío: se crea tras una contraseña correcta, dura 3 minutos
+// y se borra al usarse (un solo uso), al agotar intentos o al vencer.
+//  - El código NUNCA se guarda tal cual: CodigoHash es Argon2id (formato PHC),
+//    igual que las contraseñas (backend/src/modules/auth/mfa.repository.js).
+//  - ID_CodigoMFA es el id del desafío que va dentro del pase MFA (jwtid).
+//  - Las fechas son TIMESTAMPTZ para que comparar el vencimiento no dependa de
+//    la zona horaria del servidor.
+//  - Las restricciones CHECK (ck_codigomfa_*) viven en el SQL de la migración;
+//    una de ellas impide guardar un código con más de 3 minutos de vigencia.
+model CodigoMFA {
+  ID_CodigoMFA    String   @id(map: "CodigoMFA_PK") @default(uuid()) @db.Uuid
+  CodigoHash      String   @db.VarChar(255)
+  FechaCreacion   DateTime @default(now()) @db.Timestamptz(6)
+  UltimoEnvio     DateTime @default(now()) @db.Timestamptz(6)
+  FechaExpiracion DateTime @db.Timestamptz(6)
+  Intentos        Int      @default(0) @db.SmallInt
+  Reenvios        Int      @default(0) @db.SmallInt
+
+  // pertenece a (N:1 Usuario). Si se borra el usuario, sus códigos se van con él.
+  ID_user Int
+  usuario User @relation(fields: [ID_user], references: [id], onDelete: Cascade, map: "CodigoMFA_Usuario_FK")
+
+  @@index([ID_user], map: "CodigoMFA_Usuario_IDX")
+  @@index([FechaExpiracion], map: "CodigoMFA_Expiracion_IDX")
 }
 
 model CategoriaReparacion {
@@ -75,7 +106,6 @@ model Ticket {
   Descripcion     String    @db.VarChar(500)
   Estado          String    @default("recibido") @db.VarChar(50)
   Ubicacion       String    @db.VarChar(150)
-  Piso            String?   @db.VarChar(50)
   Prioridad       String?   @db.VarChar(150)
   imagen          Bytes?
   NivelIncidencia String?   @db.VarChar(150)
@@ -83,6 +113,13 @@ model Ticket {
   FechaCreacion   DateTime  @default(now()) @db.Timestamp(6)
   FechaCierre     DateTime? @db.Timestamp(6)
   MotivoRechazo   String?   @db.VarChar(255)
+
+  // Prioridad inicial (MM2). "Prioridad" es la actual (el administrador la puede
+  // cambiar); estas columnas guardan lo que decidió el sistema al crear el ticket,
+  // para medir cuántas veces el administrador corrige a la IA.
+  PrioridadInicial String? @db.VarChar(20) // baja | media | alta
+  OrigenPrioridad  String? @db.VarChar(20) // guia | regla | defecto | falla_ia
+  ID_ReglaAplicada String? @db.VarChar(30) // id de la regla del .txt (si origen = regla)
 
   // duplica (autorrelación: N duplicados -> 1 original)
   ID_TicketOriginal Int?
@@ -103,6 +140,32 @@ model Ticket {
 
   // tiene (1:N ComentarioTicket)
   comentarios ComentarioTicket[]
+
+  // T11: avisos enviados al dueño sobre este ticket
+  notificaciones Notificacion[]
+
+  // historial de cambios de prioridad hechos por el administrador (MM2)
+  cambiosPrioridad CambioPrioridad[]
+}
+
+// Cada vez que un administrador cambia la prioridad de un ticket (MM2): quién,
+// cuándo, de cuál a cuál. Junto con Ticket.PrioridadInicial permite medir
+// cuántas veces se corrige la prioridad que asignó la IA.
+model CambioPrioridad {
+  ID_Cambio         Int      @id(map: "CambioPrioridad_PK") @default(autoincrement())
+  PrioridadAnterior String?  @db.VarChar(20)
+  PrioridadNueva    String   @db.VarChar(20)
+  Fecha             DateTime @default(now()) @db.Timestamp(6)
+
+  // pertenece a (N:1 Ticket)
+  ID_Ticket Int
+  ticket    Ticket @relation(fields: [ID_Ticket], references: [ID_Ticket], onDelete: Cascade, map: "CambioPrioridad_Ticket_FK")
+
+  // lo hace (N:1 Usuario administrador)
+  ID_admin Int
+  admin    User @relation("cambiaPrioridad", fields: [ID_admin], references: [id], map: "CambioPrioridad_Usuario_FK")
+
+  @@index([ID_Ticket], map: "CambioPrioridad_Ticket_IDX")
 }
 
 // Comentarios que el administrador deja en un ticket (T7 los muestra al
@@ -121,6 +184,9 @@ model ComentarioTicket {
   ID_admin Int
   autor    User @relation("comenta", fields: [ID_admin], references: [id], map: "ComentarioTicket_Usuario_FK")
 
+  // T11: avisos de "Nuevo comentario en tu ticket"
+  notificaciones Notificacion[]
+
   @@index([ID_Ticket], map: "ComentarioTicket_Ticket_IDX")
 }
 
@@ -134,10 +200,14 @@ model Informe {
   usuario User @relation(fields: [ID_user], references: [id], map: "Informe_Usuario_FK")
 }
 
+// Cada fila es UNA VERSIÓN del .txt de reglas (no una regla suelta). Se sube
+// inactiva y el administrador la activa; solo una queda activa a la vez.
 model ReglasPrioridad {
-  ID_Regla       Int      @id(map: "ReglasPrioridad_PK") @default(autoincrement())
-  archivo        String   @db.Text
-  FechaInsercion DateTime @default(now()) @db.Timestamp(6)
+  ID_Regla        Int       @id(map: "ReglasPrioridad_PK") @default(autoincrement())
+  archivo         String    @db.Text
+  FechaInsercion  DateTime  @default(now()) @db.Timestamp(6)
+  Activa          Boolean   @default(false)
+  FechaActivacion DateTime? @db.Timestamp(6)
 
   // carga (N:1 Usuario)
   ID_user Int
@@ -152,4 +222,47 @@ model GuiaAutoayuda {
   // sube (N:1 Usuario)
   ID_user Int
   usuario User @relation(fields: [ID_user], references: [id], map: "GuiaAutoayuda_Usuario_FK")
+}
+
+// T11 · Celulares que reciben notificaciones push (token de Firebase Cloud Messaging).
+// Un token pertenece a un solo usuario: si otra persona inicia sesión en el
+// mismo celular, el token pasa a ella (así nadie recibe avisos ajenos).
+model DispositivoPush {
+  ID_Dispositivo Int      @id(map: "DispositivoPush_PK") @default(autoincrement())
+  Token          String   @unique(map: "DispositivoPush_Token_UK") @db.VarChar(512)
+  Plataforma     String   @db.VarChar(10) // android | ios
+  FechaRegistro  DateTime @default(now()) @db.Timestamp(6)
+  FechaUltimoUso DateTime @default(now()) @db.Timestamp(6)
+
+  // pertenece a (N:1 Usuario)
+  ID_user Int
+  usuario User @relation(fields: [ID_user], references: [id], onDelete: Cascade, map: "DispositivoPush_Usuario_FK")
+
+  @@index([ID_user], map: "DispositivoPush_Usuario_IDX")
+}
+
+// T11 · Historial de notificaciones del colaborador (pantalla "Notificaciones").
+// Se guarda aunque el push no llegue (celular apagado o sin Firebase).
+model Notificacion {
+  ID_Notificacion Int      @id(map: "Notificacion_PK") @default(autoincrement())
+  Tipo            String   @db.VarChar(20) // estado | comentario
+  Titulo          String   @db.VarChar(120)
+  Cuerpo          String   @db.VarChar(300)
+  EstadoTicket    String?  @db.VarChar(50) // estado nuevo (solo en tipo estado)
+  Leida           Boolean  @default(false)
+  FechaCreacion   DateTime @default(now()) @db.Timestamp(6)
+
+  // para quién (N:1 Usuario)
+  ID_user Int
+  usuario User @relation(fields: [ID_user], references: [id], onDelete: Cascade, map: "Notificacion_Usuario_FK")
+
+  // sobre qué ticket (N:1 Ticket)
+  ID_Ticket Int
+  ticket    Ticket @relation(fields: [ID_Ticket], references: [ID_Ticket], onDelete: Cascade, map: "Notificacion_Ticket_FK")
+
+  // qué comentario (solo en tipo comentario)
+  ID_Comentario Int?
+  comentario    ComentarioTicket? @relation(fields: [ID_Comentario], references: [ID_Comentario], onDelete: SetNull, map: "Notificacion_Comentario_FK")
+
+  @@index([ID_user, FechaCreacion], map: "Notificacion_Usuario_Fecha_IDX")
 }

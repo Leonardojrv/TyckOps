@@ -4,6 +4,13 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// T11 · Firebase (notificaciones push) se activa solo si existe
+// android/app/google-services.json. Ese archivo no va a GitHub: sin él, la app
+// compila igual y las notificaciones funcionan dentro de la app (sin push).
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "cl.gamaitaly.tyckops"
     compileSdk = flutter.compileSdkVersion
@@ -12,6 +19,8 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // T11: flutter_local_notifications usa fechas de Java moderno en Android antiguos.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
@@ -46,4 +55,9 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // T11: requerido por isCoreLibraryDesugaringEnabled (notificaciones locales).
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }

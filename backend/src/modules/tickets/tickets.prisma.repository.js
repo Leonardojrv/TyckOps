@@ -57,9 +57,36 @@ function aTicket(fila) {
     title: fila.Descripcion,
     status: codigoApi(fila.Estado),
     priority: codigoApi(fila.Prioridad),
-    location: [fila.Ubicacion, fila.Piso].filter(Boolean).join(' · '),
+    location: fila.Ubicacion,
     createdAt: fila.FechaCreacion,
+    closedAt: fila.FechaCierre ?? null, // cuándo terminó (resuelto, rechazado, cancelado...)
+    solutionType: fila.TipoSolucion ?? null, // T10: autoayuda_ia / escalado_colaborador (uso interno)
+    originalId: fila.ID_TicketOriginal ? String(fila.ID_TicketOriginal) : null, // T10: si es duplicado (uso interno)
     ownerId: String(fila.ID_user),
+  };
+}
+
+// T10 · Lo único que el colaborador ve del ticket ORIGINAL cuando el suyo es
+// un duplicado: nada del dueño (ni nombre, ni correo, ni foto).
+const seleccionOriginal = {
+  ID_Ticket: true,
+  Descripcion: true,
+  Estado: true,
+  Ubicacion: true,
+  FechaCreacion: true,
+  ID_user: true, // solo para saber si el original también es tuyo; nunca sale en la API
+  categoriaReparacion: { select: { nombre: true } },
+};
+
+// Datos de prioridad de un ticket (MM2), en formato de la API.
+function aPrioridad(fila) {
+  return {
+    id: String(fila.ID_Ticket),
+    status: codigoApi(fila.Estado),
+    priority: codigoApi(fila.Prioridad),
+    initialPriority: codigoApi(fila.PrioridadInicial),
+    priorityOrigin: fila.OrigenPrioridad ?? null,
+    ruleId: fila.ID_ReglaAplicada ?? null,
   };
 }
 
@@ -82,6 +109,33 @@ export class PrismaTicketRepository {
       where: { ID_user: dueno },
       include: incluir,
       omit: sinImagen,
+      orderBy: { FechaCreacion: 'desc' },
+    });
+    return filas.map(aTicket);
+  }
+
+  async findActiveCandidates({ category = null, location = null, excludeId = null } = {}) {
+    const estadosActivos = ['recibido', 'en_revision', 'en revision', 'aprobado', 'en_proceso', 'en proceso'];
+    const idExcluir = idNumerico(excludeId);
+    const where = {
+      Estado: { in: estadosActivos, mode: 'insensitive' },
+      ...(idExcluir && { ID_Ticket: { not: idExcluir } }),
+    };
+
+    const OR = [];
+    if (location) {
+      OR.push({ Ubicacion: { contains: location.trim(), mode: 'insensitive' } });
+    }
+    if (category) {
+      OR.push({ categoriaReparacion: { nombre: { contains: category.trim(), mode: 'insensitive' } } });
+    }
+    if (OR.length > 0) where.OR = OR;
+
+    const filas = await this.prisma.ticket.findMany({
+      where,
+      include: incluir,
+      omit: sinImagen,
+      take: 10,
       orderBy: { FechaCreacion: 'desc' },
     });
     return filas.map(aTicket);
@@ -126,30 +180,112 @@ export class PrismaTicketRepository {
   }
 
   /**
-   * Detalle de un ticket (T7). Si se pasa ownerId filtra por dueño (colaborador);
-   * si ownerId es null, permite al administrador consultar cualquier ticket.
+   * T9 · El colaborador cancela SU ticket, y solo si sigue en Recibido (RF-09).
+   *
+   * La condición (dueño + estado Recibido) va DENTRO de la misma escritura: si
+   * el administrador lo pasó a "En revisión" un instante antes, la escritura no
+   * cambia nada. Así no hay carrera entre leer el estado y guardarlo.
+   *
+   * @returns {Promise<null | { cancelado: boolean, ticket }>}
+   *   null si no existe o no es suyo; cancelado=false si ya no estaba en Recibido.
+   */
+  async cancelarSiRecibido(id, ownerId) {
+    const ticketId = idNumerico(id);
+    const dueno = idNumerico(ownerId);
+    if (ticketId === null || dueno === null) return null;
+
+    const { count } = await this.prisma.ticket.updateMany({
+      where: { ID_Ticket: ticketId, ID_user: dueno, Estado: { equals: 'recibido', mode: 'insensitive' } },
+      data: { Estado: 'cancelado', FechaCierre: new Date() },
+    });
+    const ticket = await this.findByIdForOwner(ticketId, dueno);
+    return ticket ? { cancelado: count > 0, ticket } : null;
+  }
+
+  /**
+   * T10 · El colaborador decide qué pasó con la guía de autoayuda:
+   * - 'cerrar':  la guía funcionó → Cerrado, con fecha y TipoSolucion autoayuda_ia.
+   * - 'escalar': no funcionó → prioridad Media y TipoSolucion escalado_colaborador,
+   *              así entra a la bandeja del administrador como una falla real.
+   *
+   * Las condiciones van DENTRO de la escritura (tuyo, Recibido, prioridad Baja y
+   * sin una decisión previa): si el administrador lo tomó un instante antes, no
+   * se cambia nada.
+   * @returns {Promise<null | { aplicado: boolean, ticket }>}
+   */
+  async resolverConGuia(id, ownerId, accion) {
+    const ticketId = idNumerico(id);
+    const dueno = idNumerico(ownerId);
+    if (ticketId === null || dueno === null) return null;
+
+    const { count } = await this.prisma.ticket.updateMany({
+      where: {
+        ID_Ticket: ticketId,
+        ID_user: dueno,
+        TipoSolucion: null,
+        Estado: { equals: 'recibido', mode: 'insensitive' },
+        Prioridad: { equals: 'baja', mode: 'insensitive' },
+      },
+      data: accion === 'cerrar'
+        ? { Estado: 'cerrado', FechaCierre: new Date(), TipoSolucion: 'autoayuda_ia' }
+        : { Prioridad: 'media', TipoSolucion: 'escalado_colaborador' },
+    });
+    const ticket = await this.findByIdForOwner(ticketId, dueno);
+    return ticket ? { aplicado: count > 0, ticket } : null;
+  }
+
+  /**
+   * T10 · Guarda que un ticket es duplicado de otro (lo decide la IA al crearlo).
+   * Solo si sigue Recibido y aún no está agrupado; nunca consigo mismo.
+   * @returns {Promise<boolean>} true si se guardó.
+   */
+  async marcarDuplicado(id, originalId) {
+    const ticketId = idNumerico(id);
+    const original = idNumerico(originalId);
+    if (ticketId === null || original === null || ticketId === original) return false;
+    const { count } = await this.prisma.ticket.updateMany({
+      where: {
+        ID_Ticket: ticketId,
+        ID_TicketOriginal: null,
+        Estado: { equals: 'recibido', mode: 'insensitive' },
+      },
+      data: { ID_TicketOriginal: original },
+    });
+    return count > 0;
+  }
+
+  /**
+   * Todo lo que necesita la pantalla de detalle (T7) de un ticket del dueño:
+   * los datos de siempre, la descripción completa, el motivo de rechazo, la
+   * fecha de cierre, si tiene foto y los comentarios del administrador.
+   *
+   * Ojo con dos cosas si la modificas:
+   * - El filtro por dueño (ID_user) va en la MISMA consulta: así es imposible
+   *   que alguien vea el detalle o los comentarios de un ticket ajeno.
+   * - La foto no se trae aquí (puede pesar MB); solo preguntamos si existe.
    */
   async findDetail(id, { ownerId = null } = {}) {
     const ticketId = idNumerico(id);
-    if (ticketId === null) return null;
-    const dueno = ownerId !== null ? idNumerico(ownerId) : null;
-    if (ownerId !== null && dueno === null) return null;
+    const dueno = ownerId === null ? null : idNumerico(ownerId);
+    if (ticketId === null || (ownerId !== null && dueno === null)) return null;
 
     const where = { ID_Ticket: ticketId };
-    if (dueno !== null) {
-      where.ID_user = dueno;
-    }
+    if (dueno !== null) where.ID_user = dueno;
 
     const fila = await this.prisma.ticket.findFirst({
       where,
       include: {
         ...incluir,
+        // T10: si es un duplicado, un resumen del original (sin datos de su dueño).
+        ticketOriginal: { select: seleccionOriginal },
+        // Solo los comentarios de este ticket, del más antiguo al más nuevo.
         comentarios: {
           orderBy: { FechaCreacion: 'asc' },
           select: {
             ID_Comentario: true,
             Texto: true,
             FechaCreacion: true,
+            // Del autor solo sale el nombre: nada de correo ni datos internos.
             autor: { select: { name: true, appat: true } },
           },
         },
@@ -158,6 +294,7 @@ export class PrismaTicketRepository {
     });
     if (!fila) return null;
 
+    // ¿Tiene foto? Lo preguntamos sin descargar los bytes de la imagen.
     const conFoto = await this.prisma.ticket.count({
       where: { ID_Ticket: ticketId, imagen: { not: null } },
     });
@@ -168,6 +305,18 @@ export class PrismaTicketRepository {
       rejectionReason: fila.MotivoRechazo,
       closedAt: fila.FechaCierre,
       hasPhoto: conFoto > 0,
+      original: fila.ticketOriginal
+        ? {
+            id: String(fila.ticketOriginal.ID_Ticket),
+            code: `REP-${String(fila.ticketOriginal.ID_Ticket).padStart(4, '0')}`,
+            category: nombreVisible(fila.ticketOriginal.categoriaReparacion?.nombre),
+            title: fila.ticketOriginal.Descripcion,
+            status: codigoApi(fila.ticketOriginal.Estado),
+            location: fila.ticketOriginal.Ubicacion,
+            createdAt: fila.ticketOriginal.FechaCreacion,
+            ownerId: String(fila.ticketOriginal.ID_user),
+          }
+        : null,
       comments: fila.comentarios.map((c) => ({
         id: c.ID_Comentario,
         author: [c.autor?.name, c.autor?.appat].filter(Boolean).join(' ') || 'Servicios Generales',
@@ -182,19 +331,120 @@ export class PrismaTicketRepository {
   }
 
   /**
-   * Foto de un ticket. Con ownerId para el colaborador, o sin él para el administrador.
+   * MM2 · Guarda la prioridad inicial que calculó la IA/reglas.
+   * Solo escribe si el ticket SIGUE en Recibido y aún no tiene prioridad: así
+   * no pisa un ticket que el colaborador canceló mientras la IA lo analizaba
+   * (RF-09) ni una prioridad que el administrador ya cambió a mano.
+   * @returns {Promise<boolean>} true si se guardó.
+   */
+  async guardarPrioridadInicial(id, { prioridad, origen, reglaId = null, nivelIncidencia = null }) {
+    const ticketId = idNumerico(id);
+    if (ticketId === null) return false;
+    const valor = prioridad.toLowerCase(); // "alta" en la BD, igual que Estado
+    const { count } = await this.prisma.ticket.updateMany({
+      where: {
+        ID_Ticket: ticketId,
+        Estado: { equals: 'recibido', mode: 'insensitive' },
+        Prioridad: null,
+      },
+      data: {
+        Prioridad: valor,
+        PrioridadInicial: valor,
+        OrigenPrioridad: origen,
+        ID_ReglaAplicada: reglaId,
+        NivelIncidencia: nivelIncidencia,
+      },
+    });
+    return count > 0;
+  }
+
+  /**
+   * T11 · El administrador cambia el estado de un ticket (cualquier dueño).
+   * La escritura exige que el ticket siga en el estado `desde`: si otro
+   * administrador lo movió un instante antes, no se pisa (cambiado: false).
+   * @returns {Promise<null | { ticket, cambiado: boolean }>}
+   */
+  async cambiarEstado(id, { desde, hacia, motivo = null }) {
+    const ticketId = idNumerico(id);
+    if (ticketId === null) return null;
+    const terminal = ['RECHAZADO', 'RESUELTO', 'CERRADO'].includes(hacia);
+    const { count } = await this.prisma.ticket.updateMany({
+      where: { ID_Ticket: ticketId, Estado: { equals: desde.toLowerCase(), mode: 'insensitive' } },
+      data: {
+        Estado: hacia.toLowerCase(),
+        ...(hacia === 'RECHAZADO' && { MotivoRechazo: motivo }),
+        ...(terminal && { FechaCierre: new Date() }),
+      },
+    });
+    const fila = await this.prisma.ticket.findFirst({ where: { ID_Ticket: ticketId }, include: incluir, omit: sinImagen });
+    return fila ? { ticket: aTicket(fila), cambiado: count > 0 } : null;
+  }
+
+  /** T11 · Cualquier ticket por id (para el administrador). Sin la foto. */
+  async findById(id) {
+    const ticketId = idNumerico(id);
+    if (ticketId === null) return null;
+    const fila = await this.prisma.ticket.findFirst({ where: { ID_Ticket: ticketId }, include: incluir, omit: sinImagen });
+    return fila ? aTicket(fila) : null;
+  }
+
+  /** T11 · El administrador comenta un ticket. Devuelve el comentario creado. */
+  async crearComentario(id, { adminId, texto }) {
+    const ticketId = idNumerico(id);
+    const autor = idNumerico(adminId);
+    if (ticketId === null || autor === null) return null;
+    const c = await this.prisma.comentarioTicket.create({
+      data: { ID_Ticket: ticketId, ID_admin: autor, Texto: texto },
+      select: { ID_Comentario: true, Texto: true, FechaCreacion: true },
+    });
+    return { id: String(c.ID_Comentario), text: c.Texto, createdAt: c.FechaCreacion };
+  }
+
+  /**
+   * MM2 · El administrador cambia la prioridad. En UNA transacción: lee el
+   * ticket, lo actualiza y deja el registro en CambioPrioridad (quién y cuándo).
+   * @returns {Promise<null | { ticket, cambiado: boolean, bloqueado: boolean, prioridadAnterior?: string|null }>}
+   */
+  async cambiarPrioridad(id, { prioridad, adminId, estadosBloqueados }) {
+    const ticketId = idNumerico(id);
+    const admin = idNumerico(adminId);
+    if (ticketId === null || admin === null) return null;
+
+    return this.prisma.$transaction(async (tx) => {
+      const fila = await tx.ticket.findUnique({
+        where: { ID_Ticket: ticketId },
+        select: { ID_Ticket: true, Estado: true, Prioridad: true, PrioridadInicial: true, OrigenPrioridad: true, ID_ReglaAplicada: true },
+      });
+      if (!fila) return null;
+
+      const ticket = aPrioridad(fila);
+      if (estadosBloqueados.has(ticket.status)) return { ticket, cambiado: false, bloqueado: true };
+      if (ticket.priority === prioridad) return { ticket, cambiado: false, bloqueado: false };
+
+      await tx.ticket.update({ where: { ID_Ticket: ticketId }, data: { Prioridad: prioridad.toLowerCase() } });
+      await tx.cambioPrioridad.create({
+        data: {
+          ID_Ticket: ticketId,
+          ID_admin: admin,
+          PrioridadAnterior: fila.Prioridad,
+          PrioridadNueva: prioridad.toLowerCase(),
+        },
+      });
+      return { ticket: { ...ticket, priority: prioridad }, cambiado: true, bloqueado: false, prioridadAnterior: ticket.priority };
+    });
+  }
+
+  /**
+   * Foto de un ticket del dueño. Solo lee la columna imagen (BYTEA).
+   * Devuelve null si el ticket no existe o es de otra persona, y
+   * { imagen: null } si el ticket existe pero no tiene foto.
    */
   async findPhoto(id, { ownerId = null } = {}) {
     const ticketId = idNumerico(id);
-    if (ticketId === null) return null;
-    const dueno = ownerId !== null ? idNumerico(ownerId) : null;
-    if (ownerId !== null && dueno === null) return null;
-
+    const dueno = ownerId === null ? null : idNumerico(ownerId);
+    if (ticketId === null || (ownerId !== null && dueno === null)) return null;
     const where = { ID_Ticket: ticketId };
-    if (dueno !== null) {
-      where.ID_user = dueno;
-    }
-
+    if (dueno !== null) where.ID_user = dueno;
     const fila = await this.prisma.ticket.findFirst({
       where,
       select: { imagen: true },

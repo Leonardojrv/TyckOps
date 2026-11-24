@@ -11,6 +11,8 @@ import { AuthService } from './modules/auth/auth.service.js';
 import { MemoryGuiasRepository } from './modules/guias/guias.memory.repository.js';
 import { crearRutasGuias } from './modules/guias/guias.routes.js';
 import { GuiasService } from './modules/guias/guias.service.js';
+import { crearRutasNotificaciones } from './modules/notificaciones/notificaciones.routes.js';
+import { crearRutasReglas } from './modules/reglas/reglas.routes.js';
 import { crearRutasTickets } from './modules/tickets/tickets.routes.js';
 import { responder } from './utils/respuestas.js';
 
@@ -22,6 +24,8 @@ export function crearApp({
   mfaService = null, // T8: si viene, el login exige verificación en dos pasos
   ticketService = null,
   guiasService = null,
+  reglasService = null, // MM2: reglas de prioridad del administrador
+  notificacionesService = null, // T11: notificaciones push
   groqClient = null,
   auditLogger,
   databaseStatus,
@@ -53,18 +57,20 @@ export function crearApp({
     responder(res, { status: 'ok', database: dbStatus });
   });
   app.use('/api/auth', crearRutasAuth({ authService: service, jwtSecret: env.jwtSecret }));
-
   const rutasTickets = crearRutasTickets({ ticketService, authService: service, jwtSecret: env.jwtSecret });
   app.use('/tickets', rutasTickets);
   app.use('/api/tickets', rutasTickets);
-
-  app.use('/api/admin', crearRutasAdmin({ jwtSecret: env.jwtSecret, authService: service }));
 
   const serviceGuias = guiasService ?? new GuiasService(new MemoryGuiasRepository());
   const rutasGuias = crearRutasGuias({ guiasService: serviceGuias, authService: service, jwtSecret: env.jwtSecret });
   app.use('/guias', rutasGuias);
   app.use('/api/guias', rutasGuias);
 
+  app.use('/api/admin', crearRutasAdmin({ jwtSecret: env.jwtSecret, authService: service, ticketService }));
+  app.use('/api/notificaciones', crearRutasNotificaciones({
+    notificacionesService, authService: service, jwtSecret: env.jwtSecret,
+  }));
+  app.use('/api/reglas', crearRutasReglas({ reglasService, authService: service, jwtSecret: env.jwtSecret }));
   app.use(rutaNoEncontrada);
   app.use(manejarErrores);
 

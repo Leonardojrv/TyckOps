@@ -133,7 +133,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           label: 'Correo corporativo',
                           trailingLabel: 'Chile HQ',
                           controller: _emailController,
-                          hint: 'ejemplo@gamaitaly.cl',
+                          hint: 'Correo electrónico',
                           prefixIcon: Icons.mail_outline,
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
@@ -328,12 +328,13 @@ class _DomainNotice extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Dominio corporativo requerido',
+                  'Dominios autorizados',
                   style: AppTypography.labelMedium.copyWith(fontSize: 13, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Por favor utiliza tu correo corporativo (@gamaitaly.cl).',
+                  // Sale de la misma lista que usa la validación del correo.
+                  'Por favor utiliza tu correo electrónico\n(${Validators.allowedDomainsText}).',
                   style: AppTypography.bodySmall.copyWith(color: _secondary),
                 ),
               ],

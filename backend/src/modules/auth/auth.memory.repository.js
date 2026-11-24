@@ -1,4 +1,4 @@
-import bcrypt from 'bcryptjs';
+import { cifrarContrasena } from './passwords.js';
 
 export class MemoryUserRepository {
   constructor(users) {
@@ -26,7 +26,7 @@ export async function crearRepositorioEnMemoria(accounts) {
   const users = await Promise.all(accounts.map(async ({ password, ...user }) => ({
     ...user,
     email: user.email.toLowerCase(),
-    passwordHash: await bcrypt.hash(password, 10),
+    passwordHash: await cifrarContrasena(password),
   })));
 
   return new MemoryUserRepository(users);

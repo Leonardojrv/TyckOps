@@ -1,7 +1,7 @@
 // PRIMER INGRESO (RF-02) y TÉRMINOS Y CONDICIONES (RF-03).
 // Cada prueba verifica la respuesta HTTP Y lo que quedó guardado en PostgreSQL.
 import request from 'supertest';
-import bcrypt from 'bcryptjs';
+import { verificarContrasena } from '../src/modules/auth/passwords.js';
 import { crearClientePruebas, reiniciarDatos } from './helpers/baseDePruebas.js';
 import { crearAppPruebas } from './helpers/app.js';
 import { USUARIOS } from './helpers/usuarios.js';
@@ -108,7 +108,7 @@ describe('Primer acceso ACEPTANDO los Términos', () => {
     expect(fila.termsAccepted).toBe(true);
     expect(fila.termsVersion).toBe(VERSION);
     expect(fila.termsAcceptedAt.getTime()).toBeGreaterThanOrEqual(antes - 5000);
-    expect(await bcrypt.compare(u.password, fila.passwordHash)).toBe(true); // misma clave
+    expect(await verificarContrasena(u.password, fila.passwordHash)).toBe(true); // misma clave
 
     expect(auditoria.map((e) => e.action)).toEqual(expect.arrayContaining(['terms_accepted', 'password_kept']));
 
@@ -131,7 +131,7 @@ describe('Primer acceso ACEPTANDO los Términos', () => {
 
     const fila = await enBd(u.email);
     expect(fila.passwordHash).not.toContain(nueva);
-    expect(fila.passwordHash).toMatch(/^\$2[aby]\$12\$/);
+    expect(fila.passwordHash).toMatch(/^\$argon2id\$v=19\$m=19456,t=2,p=1\$/);
 
     const { app: app2 } = crearAppPruebas(prisma);
     const conNueva = await request(app2).post('/api/auth/login').send({ email: u.email, password: nueva });

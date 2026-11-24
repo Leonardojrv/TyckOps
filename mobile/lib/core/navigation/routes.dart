@@ -24,7 +24,11 @@ abstract final class Routes {
   static const workerReport = '/worker/reportar';
   static const workerReportSent = '/worker/reporte-enviado'; // confirmación (T6)
   static const workerTickets = '/worker/solicitudes';
-  static String workerTicketDetail(String id) => '$workerTickets/${Uri.encodeComponent(id)}';
+  /// [focusComments]: al abrir desde "Nuevo comentario" (T11), baja hasta los comentarios.
+  static String workerTicketDetail(String id, {bool focusComments = false}) =>
+      '$workerTickets/${Uri.encodeComponent(id)}${focusComments ? '?ver=comentarios' : ''}';
+  static const workerHistory = '$workerTickets/historial'; // historial con filtros (T9)
+  static const workerNotifications = '$workerHome/notificaciones'; // campana (T11)
 
   // Administrador
   static const adminHome = '/admin/inicio';

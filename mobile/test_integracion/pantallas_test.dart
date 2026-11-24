@@ -303,7 +303,7 @@ void main() {
       await esperar(tester, menuColaborador.first);
 
       final fila = await tester.runAsync(() => usuarioEnBd(Cuentas.colaboradorNuevo.$1));
-      expect(fila!['passwordHash'], startsWith(r'$2b$12$'));
+      expect(fila!['passwordHash'], startsWith(r'$argon2id$v=19$m=19456,t=2,p=1$'));
       expect(fila['passwordHash'], isNot(contains('ClaveNuevaApp2026')));
     });
   });

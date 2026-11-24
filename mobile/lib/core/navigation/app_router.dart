@@ -25,7 +25,9 @@ import '../../features/worker/home/worker_home_screen.dart';
 import '../../features/worker/my_tickets_store.dart';
 import '../../features/worker/report/report_fault_screen.dart';
 import '../../features/worker/report/report_sent_screen.dart';
+import '../../features/worker/tickets/history_screen.dart';
 import '../../features/worker/tickets/my_tickets_screen.dart';
+import '../../features/worker/notifications/notifications_screen.dart';
 import '../../features/worker/tickets/ticket_detail_screen.dart';
 import 'role_shells.dart';
 import 'routes.dart';
@@ -90,6 +92,13 @@ GoRouter createRouter(
               path: Routes.workerHome,
               builder: (context, state) =>
                   WorkerHomeScreen(session: session, store: ticketsStore),
+              routes: [
+                // T11 · Notificaciones (se abre desde la campana del encabezado).
+                GoRoute(
+                  path: 'notificaciones',
+                  builder: (context, state) => const NotificationsScreen(),
+                ),
+              ],
             ),
           ]),
           StatefulShellBranch(routes: [
@@ -108,6 +117,12 @@ GoRouter createRouter(
               // T7 · Lista "Mis Solicitudes" (usa los mismos datos que el home).
               builder: (context, state) => MyTicketsScreen(session: session, store: ticketsStore),
               routes: [
+                // T9 · Historial con buscador y filtros. Va ANTES de ':ticketId' para
+                // que "historial" no se confunda con el id de un ticket.
+                GoRoute(
+                  path: 'historial',
+                  builder: (context, state) => HistoryScreen(store: ticketsStore),
+                ),
                 // T7 · Detalle del ticket. Un id con caracteres raros vuelve a la
                 // lista; además, el servidor responde 404 si el ticket no es tuyo.
                 GoRoute(
@@ -119,6 +134,10 @@ GoRouter createRouter(
                     key: ValueKey(state.pathParameters['ticketId']),
                     ticketId: state.pathParameters['ticketId']!,
                     repository: ticketsStore.repository,
+                    onCancel: ticketsStore.cancelTicket, // T9
+                    onResolveGuide: ticketsStore.resolveGuide, // T10
+                    // T11: desde "Nuevo comentario en tu ticket", baja hasta los comentarios.
+                    focusComments: state.uri.queryParameters['ver'] == 'comentarios',
                   ),
                 ),
               ],

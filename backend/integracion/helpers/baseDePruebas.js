@@ -9,7 +9,7 @@ import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import dotenv from 'dotenv';
-import bcrypt from 'bcryptjs';
+import { cifrarContrasena } from '../../src/modules/auth/passwords.js';
 import { PrismaClient } from '@prisma/client';
 import { conSslObligatorio } from '../../src/config/env.js';
 import { USUARIOS, ROLES, DEPARTAMENTOS, CATEGORIAS } from './usuarios.js';
@@ -88,7 +88,7 @@ export async function reiniciarDatos(prisma) {
         appat: u.appat,
         apmat: u.apmat,
         email: u.email,
-        passwordHash: await bcrypt.hash(u.password, 10),
+        passwordHash: await cifrarContrasena(u.password),
         ID_Rol: roles[u.rol].ID_Rol,
         ID_depa: depas[u.depa].ID_depa,
         isFirstLogin: u.isFirstLogin,

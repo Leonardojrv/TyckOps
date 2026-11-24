@@ -6,10 +6,14 @@
 //   (que al tocarlo permite cerrar sesión).
 //
 // ¿CÓMO LO CAMBIO?
-//   Cuando lleguen las notificaciones (T10), la campana se conecta aquí.
+//   La campana abre "Notificaciones" (T11) y muestra cuántos avisos faltan por leer.
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
+
+import '../../core/navigation/routes.dart';
+import 'notifications/notifications_store.dart';
 
 import 'worker_tokens.dart';
 
@@ -28,11 +32,6 @@ class WorkerHeader extends StatelessWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => const Size.fromHeight(64);
 
-  void _notificationsSoon(BuildContext context) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('Las notificaciones estarán disponibles pronto.')));
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,18 +62,36 @@ class WorkerHeader extends StatelessWidget implements PreferredSizeWidget {
                     ],
                   ),
                 ),
-                IconButton(
-                  tooltip: 'Notificaciones',
-                  onPressed: () => _notificationsSoon(context),
-                  constraints: const BoxConstraints.tightFor(width: 48, height: 48),
-                  icon: const Icon(Symbols.notifications, size: 24, color: _C.onSurface),
-                ),
+                _Bell(unread: NotificationsScope.maybeOf(context)?.unread ?? 0),
                 const SizedBox(width: 4),
                 _RoleChip(onSignOut: onSignOut),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// T11 · Campana con el número de avisos sin leer; abre "Notificaciones".
+class _Bell extends StatelessWidget {
+  const _Bell({required this.unread});
+
+  final int unread;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: unread == 0 ? 'Notificaciones' : 'Notificaciones, $unread sin leer',
+      onPressed: () => context.go(Routes.workerNotifications),
+      constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+      icon: Badge(
+        isLabelVisible: unread > 0,
+        label: Text(unread > 9 ? '9+' : '$unread'),
+        backgroundColor: _C.primaryContainer,
+        textColor: _C.white,
+        child: Icon(Symbols.notifications, size: 24, color: _C.onSurface, fill: unread > 0 ? 1 : 0),
       ),
     );
   }

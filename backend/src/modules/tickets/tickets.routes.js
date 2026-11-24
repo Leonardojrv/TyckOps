@@ -1,6 +1,7 @@
 // ¿PARA QUÉ SIRVE?
 //   Son las "puertas" del servidor para los tickets del colaborador: reportar una
-//   falla, ver mis tickets, ver un detalle y ver su foto.
+//   falla, ver mis tickets, ver un detalle, ver su foto, cancelar (T9) y usar
+//   la guía de autoayuda: verla, cerrar el ticket o escalarlo (T10).
 //
 // ¿QUÉ HACE?
 //   Antes de cualquier cosa revisa tres llaves: sesión válida, rol colaborador y
@@ -8,7 +9,7 @@
 //   lo que mande el teléfono.
 //
 // ¿CÓMO LO CAMBIO?
-//   Para agregar una ruta nueva (por ejemplo, cancelar en la T8), súmala aquí y pon
+//   Para agregar una ruta nueva, súmala aquí y pon
 //   la lógica en tickets.service.js. No quites los tres controles de arriba.
 
 import { Router } from 'express';
@@ -113,6 +114,36 @@ export function crearRutasTickets({ ticketService, authService, jwtSecret }) {
   // GET /tickets/:id con el detalle (solo para el dueño o un administrador).
   router.get('/:id', requerirRol('COLABORADOR', 'ADMINISTRADOR'), async (req, res) => {
     responder(res, { ticket: await ticketService.detalle(req.usuario, req.params.id) });
+  });
+
+  // T9 · Cancelar: solo el colaborador dueño y solo si sigue en Recibido.
+  // Máximo 20 intentos cada 15 minutos por persona (evita abusar de la ruta).
+  // T10 usa este mismo límite para cerrar o escalar desde la guía.
+  const limiterCancelar = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 20,
+    keyGenerator: (req) => `usuario:${req.usuario.id}`,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      error: { code: 'DEMASIADOS_INTENTOS', message: 'Hiciste muchos intentos seguidos. Espera un momento.' },
+    },
+  });
+  router.post('/:id/cancelar', requerirRol('COLABORADOR'), limiterCancelar, async (req, res) => {
+    responder(res, { ticket: await ticketService.cancelar(req.usuario.id, req.params.id) });
+  });
+
+  // T10 · Guía de autoayuda (prioridad Baja). El dueño sale del token y el
+  // servidor revisa que la guía siga aplicando en cada acción.
+  router.get('/:id/guia', requerirRol('COLABORADOR'), async (req, res) => {
+    responder(res, { guia: await ticketService.guia(req.usuario.id, req.params.id) });
+  });
+  router.post('/:id/guia/cerrar', requerirRol('COLABORADOR'), limiterCancelar, async (req, res) => {
+    responder(res, { ticket: await ticketService.resolverGuia(req.usuario.id, req.params.id, 'cerrar') });
+  });
+  router.post('/:id/guia/escalar', requerirRol('COLABORADOR'), limiterCancelar, async (req, res) => {
+    responder(res, { ticket: await ticketService.resolverGuia(req.usuario.id, req.params.id, 'escalar') });
   });
 
   // Foto del ticket (columna imagen). Solo el dueño o un administrador pueden verla.

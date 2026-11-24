@@ -12,6 +12,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../core/network/api_exception.dart';
+import '../../data/models/self_help.dart';
 import '../../data/models/ticket.dart';
 import '../../data/repositories/ticket_repository.dart';
 import '../auth/auth_session.dart';
@@ -64,6 +65,24 @@ class MyTicketsStore extends ChangeNotifier {
       _loading = false;
       notifyListeners();
     }
+  }
+
+  /// T9 · Cancela un ticket y vuelve a pedir la lista, para que el home, el
+  /// contador de la barra y el historial muestren el estado nuevo.
+  /// Si el servidor lo rechaza (por ejemplo, ya está en revisión), lanza la
+  /// [ApiException] para que la pantalla muestre el mensaje.
+  Future<Ticket> cancelTicket(String id) async {
+    final cancelled = await _repository.cancelTicket(id);
+    await load();
+    return cancelled;
+  }
+
+  /// T10 · "Cerrar ticket" o "Reportar a administración" desde la guía, y
+  /// vuelve a pedir la lista para que todo muestre el estado nuevo.
+  Future<Ticket> resolveGuide(String id, GuideAction action) async {
+    final updated = await _repository.resolveGuide(id, action);
+    await load();
+    return updated;
   }
 
   // Seguridad: si cierra sesión o entra otra persona, se borran los tickets
