@@ -127,6 +127,7 @@ GoRouter createRouter(
                     ticketId: state.pathParameters['ticketId']!,
                     repository: ticketsStore.repository,
                     onCancel: ticketsStore.cancelTicket, // T9
+                    onResolveGuide: ticketsStore.resolveGuide, // T10
                   ),
                 ),
               ],

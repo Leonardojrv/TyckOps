@@ -9,6 +9,7 @@
 //   Si el detalle suma un dato nuevo (por ejemplo, el técnico asignado), agrégalo
 //   aquí y en fromJson.
 
+import 'self_help.dart';
 import 'ticket.dart';
 import 'ticket_status.dart';
 
@@ -42,6 +43,9 @@ class TicketDetail {
     required this.comments,
     this.rejectionReason,
     this.closedAt,
+    this.selfHelp = false,
+    this.closedBySelfHelp = false,
+    this.duplicateOf,
   });
 
   final Ticket ticket; // código, estado, categoría, ubicación, fecha...
@@ -50,6 +54,9 @@ class TicketDetail {
   final List<TicketComment> comments; // del más antiguo al más nuevo
   final String? rejectionReason; // solo llega en tickets rechazados (RF-07)
   final DateTime? closedAt; // cuándo se cerró, rechazó o canceló
+  final bool selfHelp; // T10: prioridad Baja y Recibido → se muestra la guía de autoayuda
+  final bool closedBySelfHelp; // T10: lo cerraste tú con la guía (sin pasar por administración)
+  final DuplicateOriginal? duplicateOf; // T10: si tu ticket fue agrupado con otro
 
   /// Seguridad extra: aunque el servidor ya lo filtra, el motivo solo se
   /// muestra si el ticket está rechazado.
@@ -69,6 +76,11 @@ class TicketDetail {
       comments: comments,
       rejectionReason: json['rejectionReason'] as String?,
       closedAt: closed == null ? null : DateTime.parse(closed).toLocal(),
+      selfHelp: json['selfHelp'] == true,
+      closedBySelfHelp: json['closedBySelfHelp'] == true,
+      duplicateOf: json['duplicateOf'] is Map
+          ? DuplicateOriginal.fromJson((json['duplicateOf'] as Map).cast<String, dynamic>())
+          : null,
     );
   }
 }

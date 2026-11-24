@@ -14,6 +14,7 @@ import { TicketService } from './modules/tickets/tickets.service.js';
 import { MemoryGuiasRepository } from './modules/guias/guias.memory.repository.js';
 import { GuiasService } from './modules/guias/guias.service.js';
 import { AnalizadorTicket } from './ia/analizadorTicket.js';
+import { AnalizadorSimulado, buscadorGuiasSimulado } from './ia/analizadorSimulado.js';
 import { AnalizadorIntegrado } from './ia/analizadorIntegrado.js';
 
 const env = loadEnv();
@@ -84,11 +85,11 @@ const guiasService = new GuiasService(guiasRepository);
 
 // Motor de IA (Moisés): Analizador unificado con cliente Groq único,
 // detección de duplicados y asignación de guías con filtro de riesgo
-const analizadorIA = new AnalizadorTicket({
-  groqClient,
-  ticketRepository,
-  guiasRepository,
-});
+// T10 · Sin GROQ_API_KEY se usa una respuesta SIMULADA (reglas fijas, sin
+// servicios externos) para duplicados y guías; con la clave, la IA real.
+const analizadorIA = env.groqApiKey
+  ? new AnalizadorTicket({ groqClient, ticketRepository, guiasRepository })
+  : new AnalizadorSimulado({ ticketRepository });
 
 // MM2 · Reglas de prioridad que sube el administrador (.txt, con versiones).
 const reglasService = new ReglasService(prisma ? new PrismaReglasRepository(prisma) : new MemoryReglasRepository());
@@ -98,7 +99,7 @@ const reglasService = new ReglasService(prisma ? new PrismaReglasRepository(pris
 const analizadorPrioridad = new AnalizadorPrioridad({
   groqClient: env.groqApiKey ? groqClient : null,
   obtenerReglas: () => reglasService.vigentes(),
-  buscadorGuias: null,
+  buscadorGuias: env.groqApiKey ? null : buscadorGuiasSimulado, // T10
 });
 
 const analizadorIntegrado = new AnalizadorIntegrado({
@@ -109,6 +110,8 @@ const analizadorIntegrado = new AnalizadorIntegrado({
 const ticketService = new TicketService(ticketRepository, {
   slaCumplido: prisma ? null : 98.4,
   analizadorIA: analizadorIntegrado,
+  // T10: la guía del colaborador usa las guías vigentes que cargó el administrador.
+  obtenerGuiasVigentes: async () => (await guiasService.obtenerVigentes()).guias,
 });
 
 // T8 · Verificación en dos pasos (MFA). En desarrollo usa un código fijo

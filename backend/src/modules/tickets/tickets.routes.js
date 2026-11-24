@@ -1,6 +1,7 @@
 // ¿PARA QUÉ SIRVE?
 //   Son las "puertas" del servidor para los tickets del colaborador: reportar una
-//   falla, ver mis tickets, ver un detalle, ver su foto y cancelar (T9).
+//   falla, ver mis tickets, ver un detalle, ver su foto, cancelar (T9) y usar
+//   la guía de autoayuda: verla, cerrar el ticket o escalarlo (T10).
 //
 // ¿QUÉ HACE?
 //   Antes de cualquier cosa revisa tres llaves: sesión válida, rol colaborador y
@@ -117,6 +118,7 @@ export function crearRutasTickets({ ticketService, authService, jwtSecret }) {
 
   // T9 · Cancelar: solo el colaborador dueño y solo si sigue en Recibido.
   // Máximo 20 intentos cada 15 minutos por persona (evita abusar de la ruta).
+  // T10 usa este mismo límite para cerrar o escalar desde la guía.
   const limiterCancelar = rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 20,
@@ -130,6 +132,18 @@ export function crearRutasTickets({ ticketService, authService, jwtSecret }) {
   });
   router.post('/:id/cancelar', requerirRol('COLABORADOR'), limiterCancelar, async (req, res) => {
     responder(res, { ticket: await ticketService.cancelar(req.usuario.id, req.params.id) });
+  });
+
+  // T10 · Guía de autoayuda (prioridad Baja). El dueño sale del token y el
+  // servidor revisa que la guía siga aplicando en cada acción.
+  router.get('/:id/guia', requerirRol('COLABORADOR'), async (req, res) => {
+    responder(res, { guia: await ticketService.guia(req.usuario.id, req.params.id) });
+  });
+  router.post('/:id/guia/cerrar', requerirRol('COLABORADOR'), limiterCancelar, async (req, res) => {
+    responder(res, { ticket: await ticketService.resolverGuia(req.usuario.id, req.params.id, 'cerrar') });
+  });
+  router.post('/:id/guia/escalar', requerirRol('COLABORADOR'), limiterCancelar, async (req, res) => {
+    responder(res, { ticket: await ticketService.resolverGuia(req.usuario.id, req.params.id, 'escalar') });
   });
 
   // Foto del ticket (columna imagen). Solo el dueño o un administrador pueden verla.

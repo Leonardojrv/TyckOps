@@ -102,12 +102,31 @@ const normalFlow = [
 ///   las siguientes quedan pendientes.
 /// - Rechazado: Recibido → En revisión → Rechazado (mockup del rechazo).
 /// - Cancelado: Recibido → Cancelado.
+/// - Cerrado con la guía de IA (T10): Recibido → Cerrado.
 ///
 /// Las fechas: hoy la base solo guarda cuándo se creó y cuándo se cerró, así
 /// que solo mostramos esas. Cuando exista el historial de estados, se agrega aquí.
-List<TimelineStep> buildTimeline(TicketStatus status, {required DateTime createdAt, DateTime? closedAt}) {
+List<TimelineStep> buildTimeline(
+  TicketStatus status, {
+  required DateTime createdAt,
+  DateTime? closedAt,
+  bool closedBySelfHelp = false,
+}) {
   TimelineStep step(TicketStatus s, PhaseState state, [DateTime? date]) =>
       TimelineStep(status: s, state: state, description: _descriptions[s]!, date: date);
+
+  // T10: lo cerró el colaborador con la guía; nunca pasó por revisión ni reparación.
+  if (status == TicketStatus.closed && closedBySelfHelp) {
+    return [
+      step(TicketStatus.received, PhaseState.done, createdAt),
+      TimelineStep(
+        status: TicketStatus.closed,
+        state: PhaseState.current,
+        description: 'Lo solucionaste siguiendo la guía de IA.',
+        date: closedAt,
+      ),
+    ];
+  }
 
   if (status == TicketStatus.rejected) {
     return [

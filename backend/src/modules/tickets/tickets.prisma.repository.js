@@ -60,9 +60,23 @@ function aTicket(fila) {
     location: fila.Ubicacion,
     createdAt: fila.FechaCreacion,
     closedAt: fila.FechaCierre ?? null, // cuándo terminó (resuelto, rechazado, cancelado...)
+    solutionType: fila.TipoSolucion ?? null, // T10: autoayuda_ia / escalado_colaborador (uso interno)
+    originalId: fila.ID_TicketOriginal ? String(fila.ID_TicketOriginal) : null, // T10: si es duplicado (uso interno)
     ownerId: String(fila.ID_user),
   };
 }
+
+// T10 · Lo único que el colaborador ve del ticket ORIGINAL cuando el suyo es
+// un duplicado: nada del dueño (ni nombre, ni correo, ni foto).
+const seleccionOriginal = {
+  ID_Ticket: true,
+  Descripcion: true,
+  Estado: true,
+  Ubicacion: true,
+  FechaCreacion: true,
+  ID_user: true, // solo para saber si el original también es tuyo; nunca sale en la API
+  categoriaReparacion: { select: { nombre: true } },
+};
 
 // Datos de prioridad de un ticket (MM2), en formato de la API.
 function aPrioridad(fila) {
@@ -189,6 +203,58 @@ export class PrismaTicketRepository {
   }
 
   /**
+   * T10 · El colaborador decide qué pasó con la guía de autoayuda:
+   * - 'cerrar':  la guía funcionó → Cerrado, con fecha y TipoSolucion autoayuda_ia.
+   * - 'escalar': no funcionó → prioridad Media y TipoSolucion escalado_colaborador,
+   *              así entra a la bandeja del administrador como una falla real.
+   *
+   * Las condiciones van DENTRO de la escritura (tuyo, Recibido, prioridad Baja y
+   * sin una decisión previa): si el administrador lo tomó un instante antes, no
+   * se cambia nada.
+   * @returns {Promise<null | { aplicado: boolean, ticket }>}
+   */
+  async resolverConGuia(id, ownerId, accion) {
+    const ticketId = idNumerico(id);
+    const dueno = idNumerico(ownerId);
+    if (ticketId === null || dueno === null) return null;
+
+    const { count } = await this.prisma.ticket.updateMany({
+      where: {
+        ID_Ticket: ticketId,
+        ID_user: dueno,
+        TipoSolucion: null,
+        Estado: { equals: 'recibido', mode: 'insensitive' },
+        Prioridad: { equals: 'baja', mode: 'insensitive' },
+      },
+      data: accion === 'cerrar'
+        ? { Estado: 'cerrado', FechaCierre: new Date(), TipoSolucion: 'autoayuda_ia' }
+        : { Prioridad: 'media', TipoSolucion: 'escalado_colaborador' },
+    });
+    const ticket = await this.findByIdForOwner(ticketId, dueno);
+    return ticket ? { aplicado: count > 0, ticket } : null;
+  }
+
+  /**
+   * T10 · Guarda que un ticket es duplicado de otro (lo decide la IA al crearlo).
+   * Solo si sigue Recibido y aún no está agrupado; nunca consigo mismo.
+   * @returns {Promise<boolean>} true si se guardó.
+   */
+  async marcarDuplicado(id, originalId) {
+    const ticketId = idNumerico(id);
+    const original = idNumerico(originalId);
+    if (ticketId === null || original === null || ticketId === original) return false;
+    const { count } = await this.prisma.ticket.updateMany({
+      where: {
+        ID_Ticket: ticketId,
+        ID_TicketOriginal: null,
+        Estado: { equals: 'recibido', mode: 'insensitive' },
+      },
+      data: { ID_TicketOriginal: original },
+    });
+    return count > 0;
+  }
+
+  /**
    * Todo lo que necesita la pantalla de detalle (T7) de un ticket del dueño:
    * los datos de siempre, la descripción completa, el motivo de rechazo, la
    * fecha de cierre, si tiene foto y los comentarios del administrador.
@@ -207,6 +273,8 @@ export class PrismaTicketRepository {
       where: { ID_Ticket: ticketId, ID_user: dueno },
       include: {
         ...incluir,
+        // T10: si es un duplicado, un resumen del original (sin datos de su dueño).
+        ticketOriginal: { select: seleccionOriginal },
         // Solo los comentarios de este ticket, del más antiguo al más nuevo.
         comentarios: {
           orderBy: { FechaCreacion: 'asc' },
@@ -234,6 +302,18 @@ export class PrismaTicketRepository {
       rejectionReason: fila.MotivoRechazo,
       closedAt: fila.FechaCierre,
       hasPhoto: conFoto > 0,
+      original: fila.ticketOriginal
+        ? {
+            id: String(fila.ticketOriginal.ID_Ticket),
+            code: `REP-${String(fila.ticketOriginal.ID_Ticket).padStart(4, '0')}`,
+            category: nombreVisible(fila.ticketOriginal.categoriaReparacion?.nombre),
+            title: fila.ticketOriginal.Descripcion,
+            status: codigoApi(fila.ticketOriginal.Estado),
+            location: fila.ticketOriginal.Ubicacion,
+            createdAt: fila.ticketOriginal.FechaCreacion,
+            ownerId: String(fila.ticketOriginal.ID_user),
+          }
+        : null,
       comments: fila.comentarios.map((c) => ({
         id: c.ID_Comentario,
         author: [c.autor?.name, c.autor?.appat].filter(Boolean).join(' ') || 'Servicios Generales',
