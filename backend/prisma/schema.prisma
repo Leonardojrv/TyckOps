@@ -119,10 +119,6 @@ model Ticket {
   OrigenPrioridad  String? @db.VarChar(20) // guia | regla | defecto | falla_ia
   ID_ReglaAplicada String? @db.VarChar(30) // id de la regla del .txt (si origen = regla)
 
-  // versión del archivo de reglas que se usó (N:0..1 ReglasPrioridad)
-  ID_VersionReglas Int?
-  versionReglas    ReglasPrioridad? @relation(fields: [ID_VersionReglas], references: [ID_Regla], onDelete: SetNull, map: "Ticket_ReglasPrioridad_FK")
-
   // duplica (autorrelación: N duplicados -> 1 original)
   ID_TicketOriginal Int?
   ticketOriginal    Ticket?  @relation("duplica", fields: [ID_TicketOriginal], references: [ID_Ticket], onDelete: SetNull, map: "Ticket_Ticket_FK")
@@ -204,8 +200,6 @@ model ReglasPrioridad {
   FechaInsercion  DateTime  @default(now()) @db.Timestamp(6)
   Activa          Boolean   @default(false)
   FechaActivacion DateTime? @db.Timestamp(6)
-
-  tickets Ticket[]
 
   // carga (N:1 Usuario)
   ID_user Int

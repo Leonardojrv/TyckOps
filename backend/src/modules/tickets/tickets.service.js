@@ -241,6 +241,7 @@ export class TicketService {
     if (resultado.cambiado) {
       this.#auditarIA(resultado.ticket, 'prioridad_cambiada', {
         adminId: String(adminId),
+        prioridadAnterior: resultado.prioridadAnterior ?? null,
         prioridad,
         prioridadInicial: resultado.ticket.initialPriority,
         origen: resultado.ticket.priorityOrigin,

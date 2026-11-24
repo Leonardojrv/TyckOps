@@ -159,8 +159,8 @@ test('el servicio guarda prioridad, origen y regla solo si sigue en Recibido y s
   assert.equal((await service.enrutarTicket({ ...nuevo, description: 'El tablero huele raro' })).prioridadGuardada, true);
   const guardado = await repo.findByIdForOwner(nuevo.id, 'w-1');
   assert.deepEqual(
-    [guardado.priority, guardado.initialPriority, guardado.priorityOrigin, guardado.ruleId, guardado.rulesVersion],
-    ['ALTA', 'ALTA', 'regla', 'ELE-01', 7],
+    [guardado.priority, guardado.initialPriority, guardado.priorityOrigin, guardado.ruleId],
+    ['ALTA', 'ALTA', 'regla', 'ELE-01'],
   );
   const evento = eventos.find((e) => e.action === 'prioridad_asignada');
   assert.deepEqual([evento.prioridad, evento.origen, evento.reglaId], ['ALTA', 'regla', 'ELE-01']);
