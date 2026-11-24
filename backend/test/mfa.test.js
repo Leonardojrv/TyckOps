@@ -101,10 +101,12 @@ test('MFA: código vencido, reenvío con espera y bloqueo por intentos', async (
   assert.equal(enviados.length, 2);
   assert.equal((await post('mfa/verificar', { codigo: '123456' }, paso.mfaToken)).status, 200);
 
-  // Muchos intentos fallidos bloquean la verificación.
+  // Solo 3 intentos: el 2.º avisa que queda 1 y el 3.º hace caducar el código.
   const otro = await login('ana@gamaitaly.cl');
-  let ultimo;
-  for (let i = 0; i < 5; i++) ultimo = await post('mfa/verificar', { codigo: '999999' }, otro.mfaToken);
+  await post('mfa/verificar', { codigo: '999999' }, otro.mfaToken);
+  const segundo = await post('mfa/verificar', { codigo: '999999' }, otro.mfaToken);
+  assert.match((await segundo.json()).error.message, /queda 1 intento/);
+  const ultimo = await post('mfa/verificar', { codigo: '999999' }, otro.mfaToken);
   assert.equal(ultimo.status, 429);
   assert.equal(await codigo(ultimo), 'MFA_DEMASIADOS_INTENTOS');
   assert.equal(await codigo(await post('mfa/verificar', { codigo: '123456' }, otro.mfaToken)), 'MFA_SESION_INVALIDA');

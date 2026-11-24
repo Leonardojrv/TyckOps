@@ -99,6 +99,7 @@ class _AppTextFieldState extends State<AppTextField> {
           enableSuggestions: !isPassword,
           autocorrect: !isPassword,
           decoration: InputDecoration(
+            errorMaxLines: 2, // los mensajes largos (p. ej., los dominios permitidos) no se cortan
             hintText: widget.hint,
             helperText: widget.helperText,
             helperMaxLines: 2,

@@ -3,16 +3,25 @@ import 'package:tyckops/core/validators.dart';
 import 'package:tyckops/data/models/ticket_status.dart';
 
 void main() {
-  group('Correo corporativo (RF-01)', () {
-    test('acepta @gamaitaly.cl, sin importar mayúsculas ni espacios', () {
+  group('Correo con dominio permitido (RF-01)', () {
+    test('acepta @gamaitaly.cl, @outlook.com y @gmail.com, sin importar mayúsculas ni espacios', () {
       expect(Validators.corporateEmail('camila@gamaitaly.cl'), isNull);
       expect(Validators.corporateEmail('  Camila.H@GAMAITALY.CL '), isNull);
+      expect(Validators.corporateEmail('camila@outlook.com'), isNull);
+      expect(Validators.corporateEmail('Camila@Gmail.com'), isNull);
     });
 
-    test('rechaza otros dominios y textos vacíos', () {
-      expect(Validators.corporateEmail('camila@gmail.com'), isNotNull);
+    test('rechaza otros dominios, los parecidos y textos vacíos', () {
+      expect(Validators.corporateEmail('camila@hotmail.com'), isNotNull);
       expect(Validators.corporateEmail('camila@gamaitaly.cl.falso.com'), isNotNull);
+      expect(Validators.corporateEmail('camila@gmail.com.falso.cl'), isNotNull);
+      expect(Validators.corporateEmail('camila@falso-gmail.com'), isNotNull);
       expect(Validators.corporateEmail(''), isNotNull);
+    });
+
+    test('el aviso nombra los tres dominios', () {
+      expect(Validators.allowedDomainsText, '@gmail.com, @outlook.com o @gamaitaly.cl');
+      expect(Validators.corporateEmail('a@hotmail.com'), 'Usa un correo @gmail.com, @outlook.com o @gamaitaly.cl');
     });
   });
 

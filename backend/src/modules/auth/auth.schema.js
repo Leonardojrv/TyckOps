@@ -1,12 +1,21 @@
 import { z } from 'zod';
 
+// Dominios de correo con los que se puede iniciar sesión (ambos perfiles).
+// Para agregar o quitar uno, cámbialo aquí Y en la app (mobile/lib/core/validators.dart).
+export const DOMINIOS_PERMITIDOS = ['gamaitaly.cl', 'outlook.com', 'gmail.com'];
+
 export const loginSchema = z.object({
   email: z
     .string()
     .trim()
     .email()
     .toLowerCase()
-    .refine((email) => email.endsWith('@gamaitaly.cl'), 'Usa tu correo corporativo @gamaitaly.cl.'),
+    // Se compara el dominio EXACTO (lo que va después de la @), no "termina en":
+    // así "x@falso-gmail.com" o "x@gmail.com.evil.cl" no pasan.
+    .refine(
+      (email) => DOMINIOS_PERMITIDOS.includes(email.split('@')[1]),
+      'Usa un correo @gamaitaly.cl, @outlook.com o @gmail.com.',
+    ),
   password: z.string().min(1).max(128),
 });
 
