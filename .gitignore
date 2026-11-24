@@ -12,6 +12,9 @@ key.properties
 google-services.json
 GoogleService-Info.plist
 firebase_options.dart
+# T11: clave de servicio de Firebase del servidor (secreta)
+firebase-service-account.json
+*-service-account*.json
 
 # ===== Flutter / Dart (mobile/) =====
 .dart_tool/

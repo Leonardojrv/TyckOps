@@ -7,21 +7,23 @@
 //   guardada y recién ahí dibuja la app.
 //
 // ¿CÓMO LO CAMBIO?
-//   Si agregas un repositorio nuevo (por ejemplo, notificaciones en la T10), créalo
-//   aquí y pásalo hacia abajo. Para probar sin servidor se usa
+//   Si agregas un repositorio nuevo, créalo aquí y pásalo hacia abajo. Para probar sin servidor se usa
 //   --dart-define=FAKE_AUTH=true, que elige las versiones de prueba.
 
 import 'package:flutter/material.dart';
 
 import 'app.dart';
 import 'core/network/api_client.dart';
+import 'core/notifications/push_service.dart';
 import 'core/network/api_config.dart';
 import 'core/network/token_storage.dart';
 import 'data/repositories/auth_repository.dart';
+import 'data/repositories/notification_repository.dart';
 import 'data/repositories/report_repository.dart';
 import 'data/repositories/ticket_repository.dart';
 import 'features/auth/auth_session.dart';
 import 'features/worker/my_tickets_store.dart';
+import 'features/worker/notifications/notifications_store.dart';
 
 /// Punto de entrada. Aquí se crean los objetos compartidos UNA sola vez y
 /// se pasan hacia abajo (esto se llama "inyección de dependencias").
@@ -44,6 +46,12 @@ Future<void> main() async {
   final ReportRepository reportRepository =
       ApiConfig.useFakeAuth ? FakeReportRepository() : ApiReportRepository(apiClient);
 
+  // T11 · Notificaciones: la lista de avisos y el push de Firebase.
+  final NotificationRepository notificationRepository =
+      ApiConfig.useFakeAuth ? FakeNotificationRepository() : ApiNotificationRepository(apiClient);
+  final notificationsStore = NotificationsStore(notificationRepository, session);
+  final pushService = PushService(session, notificationRepository, notificationsStore);
+
   // Mientras se restaura la sesión, Android e iOS siguen mostrando su
   // pantalla de carga nativa (la app aún no dibuja nada).
   await session.restore(authRepository);
@@ -54,5 +62,9 @@ Future<void> main() async {
     authRepository: authRepository,
     ticketsStore: ticketsStore,
     reportRepository: reportRepository,
+    notificationsStore: notificationsStore,
+    pushService: pushService,
   ));
+  // Firebase se inicia después de dibujar la app, para no retrasar el arranque.
+  await pushService.start();
 }

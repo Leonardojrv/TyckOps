@@ -62,6 +62,37 @@ export class MemoryTicketRepository {
     return { ticket: vista(), cambiado: true, bloqueado: false, prioridadAnterior };
   }
 
+  // T11 · Igual que en PostgreSQL: solo si sigue en el estado `desde`.
+  async cambiarEstado(id, { desde, hacia, motivo = null }) {
+    const ticket = this.tickets.find((t) => t.id === String(id));
+    if (!ticket) return null;
+    if (ticket.status !== desde) return { ticket, cambiado: false };
+    ticket.status = hacia;
+    if (hacia === 'RECHAZADO') ticket.rejectionReason = motivo;
+    if (['RECHAZADO', 'RESUELTO', 'CERRADO'].includes(hacia)) ticket.closedAt = new Date();
+    return { ticket, cambiado: true };
+  }
+
+  async findById(id) {
+    return this.tickets.find((t) => t.id === String(id)) ?? null;
+  }
+
+  // T11 · El comentario queda en el ticket (lo muestra el detalle).
+  async crearComentario(id, { adminId, texto }) {
+    const ticket = this.tickets.find((t) => t.id === String(id));
+    if (!ticket) return null;
+    ticket.comments ??= [];
+    const comentario = {
+      id: String(Date.now()) + String(ticket.comments.length),
+      author: 'Servicios Generales',
+      authorId: String(adminId),
+      createdAt: new Date(),
+      text: texto,
+    };
+    ticket.comments.push(comentario);
+    return { id: comentario.id, text: texto, createdAt: comentario.createdAt };
+  }
+
   async findByOwner(ownerId) {
     return this.tickets.filter((ticket) => ticket.ownerId === String(ownerId));
   }

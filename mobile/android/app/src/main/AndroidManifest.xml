@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Necesario para hablar con la API en el APK final (release). -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- T11: Android 13 o más nuevo pide permiso para mostrar notificaciones. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="TyckOps"
         android:allowBackup="false"
@@ -33,6 +35,11 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- T11: canal donde caen los avisos de tickets cuando la app está cerrada
+             (el servidor y la app usan el mismo id: "tickets"). -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="tickets" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

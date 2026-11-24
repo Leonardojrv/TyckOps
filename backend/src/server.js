@@ -11,6 +11,9 @@ import { ReglasService } from './modules/reglas/reglas.service.js';
 import { MemoryTicketRepository, ticketsDeDemostracion } from './modules/tickets/tickets.memory.repository.js';
 import { PrismaTicketRepository } from './modules/tickets/tickets.prisma.repository.js';
 import { TicketService } from './modules/tickets/tickets.service.js';
+import { crearEnviadorPush } from './modules/notificaciones/notificaciones.enviador.js';
+import { MemoryNotificacionesRepository, PrismaNotificacionesRepository } from './modules/notificaciones/notificaciones.repositories.js';
+import { NotificacionesService } from './modules/notificaciones/notificaciones.service.js';
 import { MemoryGuiasRepository } from './modules/guias/guias.memory.repository.js';
 import { GuiasService } from './modules/guias/guias.service.js';
 import { AnalizadorTicket } from './ia/analizadorTicket.js';
@@ -107,11 +110,19 @@ const analizadorIntegrado = new AnalizadorIntegrado({
   analizadorPrioridad,
 });
 
+// T11 · Notificaciones push: historial en la BD (o en memoria) y envío por
+// Firebase; sin la clave de Firebase el envío queda simulado (solo log).
+const notificacionesService = new NotificacionesService(
+  prisma ? new PrismaNotificacionesRepository(prisma) : new MemoryNotificacionesRepository(),
+  await crearEnviadorPush({ env }),
+);
+
 const ticketService = new TicketService(ticketRepository, {
   slaCumplido: prisma ? null : 98.4,
   analizadorIA: analizadorIntegrado,
   // T10: la guía del colaborador usa las guías vigentes que cargó el administrador.
   obtenerGuiasVigentes: async () => (await guiasService.obtenerVigentes()).guias,
+  notificaciones: notificacionesService, // T11
 });
 
 // T8 · Verificación en dos pasos (MFA). En desarrollo usa un código fijo
@@ -127,6 +138,7 @@ const app = crearApp({
   ticketService,
   guiasService,
   reglasService,
+  notificacionesService,
   groqClient,
   databaseStatus,
 });
