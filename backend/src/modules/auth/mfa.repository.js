@@ -22,7 +22,8 @@ import { OPCIONES_ARGON2 } from './passwords.js';
 
 /** Vigencia máxima de un código. La BD rechaza (CHECK) cualquier valor mayor. */
 export const VIGENCIA_MFA_MS = 3 * 60 * 1000;
-export const MAX_INTENTOS_MFA = 5;
+/** Códigos incorrectos permitidos: al 3.º el código caduca y hay que volver a iniciar sesión. */
+export const MAX_INTENTOS_MFA = 3;
 
 const CODIGO_VALIDO = /^\d{6}$/;
 

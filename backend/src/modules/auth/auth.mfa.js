@@ -17,6 +17,7 @@
 import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { HttpError } from '../../utils/http-error.js';
+import { MAX_INTENTOS_MFA } from './mfa.repository.js';
 
 // La "huella" del código: un resumen que no permite recuperar el código.
 // Se mezcla con el id del desafío para que dos códigos iguales no dejen la misma huella.
@@ -36,7 +37,7 @@ export class MfaService {
     codigoFijo = null, // SOLO desarrollo: código conocido para probar sin correo
     vigenciaMs = 3 * 60 * 1000, // el mockup dice 3 minutos
     esperaReenvioMs = 30 * 1000,
-    maxIntentos = 5,
+    maxIntentos = MAX_INTENTOS_MFA, // 3: al tercer código incorrecto, el código caduca
     maxReenvios = 5,
     ahora = () => Date.now(),
     auditLogger = { log: () => {} },
