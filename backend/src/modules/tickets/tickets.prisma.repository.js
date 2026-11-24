@@ -59,6 +59,7 @@ function aTicket(fila) {
     priority: codigoApi(fila.Prioridad),
     location: fila.Ubicacion,
     createdAt: fila.FechaCreacion,
+    closedAt: fila.FechaCierre ?? null, // cuándo terminó (resuelto, rechazado, cancelado...)
     ownerId: String(fila.ID_user),
   };
 }
@@ -162,6 +163,29 @@ export class PrismaTicketRepository {
       omit: sinImagen,
     });
     return aTicket(fila);
+  }
+
+  /**
+   * T9 · El colaborador cancela SU ticket, y solo si sigue en Recibido (RF-09).
+   *
+   * La condición (dueño + estado Recibido) va DENTRO de la misma escritura: si
+   * el administrador lo pasó a "En revisión" un instante antes, la escritura no
+   * cambia nada. Así no hay carrera entre leer el estado y guardarlo.
+   *
+   * @returns {Promise<null | { cancelado: boolean, ticket }>}
+   *   null si no existe o no es suyo; cancelado=false si ya no estaba en Recibido.
+   */
+  async cancelarSiRecibido(id, ownerId) {
+    const ticketId = idNumerico(id);
+    const dueno = idNumerico(ownerId);
+    if (ticketId === null || dueno === null) return null;
+
+    const { count } = await this.prisma.ticket.updateMany({
+      where: { ID_Ticket: ticketId, ID_user: dueno, Estado: { equals: 'recibido', mode: 'insensitive' } },
+      data: { Estado: 'cancelado', FechaCierre: new Date() },
+    });
+    const ticket = await this.findByIdForOwner(ticketId, dueno);
+    return ticket ? { cancelado: count > 0, ticket } : null;
   }
 
   /**

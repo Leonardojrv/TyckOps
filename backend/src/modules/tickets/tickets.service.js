@@ -43,6 +43,8 @@ function publicTicket(ticket) {
     priority: ticket.priority ?? null,
     location: ticket.location,
     createdAt: new Date(ticket.createdAt).toISOString(),
+    // T9: el historial filtra y muestra "Finalizado: ..." con esta fecha.
+    closedAt: ticket.closedAt ? new Date(ticket.closedAt).toISOString() : null,
   };
 }
 
@@ -119,6 +121,33 @@ export class TicketService {
         text: comentario.text,
       })),
     };
+  }
+
+  // T9 · RF-09: el colaborador cancela su ticket, solo mientras está Recibido.
+  // El dueño sale de la sesión; el estado se revisa en la misma escritura
+  // (ver cancelarSiRecibido), así que el botón oculto en la app no es la única barrera.
+  async cancelar(userId, id) {
+    if (!/^[A-Za-z0-9-]{1,40}$/.test(String(id))) {
+      throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
+    }
+    const resultado = await this.ticketRepository.cancelarSiRecibido(id, userId);
+    // Ajeno o inexistente: el mismo 404 de siempre, para no revelar qué IDs existen.
+    if (!resultado) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
+    if (!resultado.cancelado) {
+      throw new HttpError(
+        409,
+        'TICKET_NO_CANCELABLE',
+        'Esta solicitud ya no está en estado Recibido, por eso no se puede cancelar.',
+      );
+    }
+    this.auditLogger.info?.(JSON.stringify({
+      type: 'ticket',
+      action: 'ticket_cancelado',
+      timestamp: new Date().toISOString(),
+      ticketId: resultado.ticket.id,
+      userId: String(userId),
+    }));
+    return publicTicket(resultado.ticket);
   }
 
   // Foto de un ticket (columna imagen). Solo el dueño o un administrador pueden verla.

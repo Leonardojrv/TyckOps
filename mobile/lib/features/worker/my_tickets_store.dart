@@ -66,6 +66,16 @@ class MyTicketsStore extends ChangeNotifier {
     }
   }
 
+  /// T9 · Cancela un ticket y vuelve a pedir la lista, para que el home, el
+  /// contador de la barra y el historial muestren el estado nuevo.
+  /// Si el servidor lo rechaza (por ejemplo, ya está en revisión), lanza la
+  /// [ApiException] para que la pantalla muestre el mensaje.
+  Future<Ticket> cancelTicket(String id) async {
+    final cancelled = await _repository.cancelTicket(id);
+    await load();
+    return cancelled;
+  }
+
   // Seguridad: si cierra sesión o entra otra persona, se borran los tickets
   // del usuario anterior para que nunca aparezcan en la pantalla del siguiente.
   void _onSessionChanged() {

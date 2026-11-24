@@ -13,6 +13,9 @@ const _months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 
 
 String _two(int n) => n.toString().padLeft(2, '0');
 
+/// Fecha sin hora, como en el historial: "02 May 2026".
+String formatTicketDate(DateTime date) => '${_two(date.day)} ${_months[date.month - 1]} ${date.year}';
+
 /// Fecha corta de los tickets, como en el mockup:
 /// "Hoy, 10:30 hrs" · "Ayer, 16:45 hrs" · "14 May, 09:15 hrs".
 ///

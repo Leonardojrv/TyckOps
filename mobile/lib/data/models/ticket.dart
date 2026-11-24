@@ -42,6 +42,7 @@ class Ticket {
     required this.priority,
     required this.location,
     required this.createdAt,
+    this.closedAt,
   });
 
   final String id; // id interno: solo se usa para pedir el detalle
@@ -52,9 +53,23 @@ class Ticket {
   final TicketPriority? priority; // null = por asignar
   final String location;
   final DateTime createdAt; // siempre en hora local
+  final DateTime? closedAt; // cuándo terminó (resuelto, cerrado, rechazado o cancelado)
 
   /// Sigue en atención (RF-05): aún no está resuelto, cerrado, rechazado ni cancelado.
   bool get isActive => status.isActiveStatus;
+
+  /// T9 · Copia del ticket con otro estado (por ejemplo, después de cancelarlo).
+  Ticket copyWith({TicketStatus? status, DateTime? closedAt}) => Ticket(
+        id: id,
+        code: code,
+        category: category,
+        title: title,
+        status: status ?? this.status,
+        priority: priority,
+        location: location,
+        createdAt: createdAt,
+        closedAt: closedAt ?? this.closedAt,
+      );
 
   /// Seguridad: el id viaja en la URL del detalle, así que solo se aceptan
   /// letras, números y guiones (nada de "/", "?" o "..").
@@ -74,6 +89,7 @@ class Ticket {
       priority: TicketPriority.fromApi(json['priority']),
       location: json['location'] as String? ?? '',
       createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
+      closedAt: json['closedAt'] == null ? null : DateTime.parse(json['closedAt'] as String).toLocal(),
     );
   }
 }

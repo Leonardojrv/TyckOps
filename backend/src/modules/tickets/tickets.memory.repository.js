@@ -90,6 +90,16 @@ export class MemoryTicketRepository {
     ) ?? null;
   }
 
+  // T9 · Igual que en PostgreSQL: solo el dueño, y solo si sigue en Recibido.
+  async cancelarSiRecibido(id, ownerId) {
+    const ticket = await this.findByIdForOwner(id, ownerId);
+    if (!ticket) return null;
+    if (ticket.status !== 'RECIBIDO') return { cancelado: false, ticket };
+    ticket.status = 'CANCELADO';
+    ticket.closedAt = new Date();
+    return { cancelado: true, ticket };
+  }
+
   // Versión en memoria del detalle (misma forma que en PostgreSQL). Sirve para
   // probar la app sin base de datos y para las pruebas automáticas.
   async findDetailForOwner(id, ownerId) {

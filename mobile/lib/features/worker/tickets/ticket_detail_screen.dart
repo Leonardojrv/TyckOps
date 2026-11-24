@@ -3,7 +3,8 @@
 //
 // ¿QUÉ HACE?
 //   Muestra la ficha, la foto (se agranda al tocarla), el motivo si fue rechazado,
-//   los comentarios del administrador y la línea de tiempo.
+//   los comentarios del administrador y la línea de tiempo. Si el ticket sigue
+//   Recibido, agrega el botón "Cancelar ticket" con su confirmación (T9).
 //
 // ¿CÓMO LO CAMBIO?
 //   Las fases y sus textos están en ticket_logic.dart. El visor de la foto está en
@@ -24,6 +25,7 @@ import '../../../data/models/ticket_detail.dart';
 import '../../../data/models/ticket_status.dart';
 import '../../../data/repositories/ticket_repository.dart';
 import '../worker_tokens.dart';
+import 'cancel_ticket_sheet.dart';
 import 'ticket_logic.dart';
 import 'ticket_status_chip.dart';
 
@@ -41,10 +43,14 @@ typedef _T = WorkerText;
 /// son de solo lectura y el más reciente lleva la etiqueta "NUEVO".
 /// Si tocas la foto, se abre en grande (visor compartido con el administrador).
 class TicketDetailScreen extends StatefulWidget {
-  const TicketDetailScreen({super.key, required this.ticketId, required this.repository});
+  const TicketDetailScreen({super.key, required this.ticketId, required this.repository, this.onCancel});
 
   final String ticketId;
   final TicketRepository repository;
+
+  /// T9 · Cancela el ticket (lo entrega MyTicketsStore para que la lista y el
+  /// home se actualicen). Si es null, el botón "Cancelar ticket" no aparece.
+  final Future<Ticket> Function(String id)? onCancel;
 
   @override
   State<TicketDetailScreen> createState() => _TicketDetailScreenState();
@@ -66,6 +72,36 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
       _detail = widget.repository.ticketDetail(widget.ticketId);
     });
     await _detail.then((_) {}, onError: (_) {});
+  }
+
+  // T9 · Pide confirmar y, si la persona acepta, cancela en el servidor.
+  // La hoja queda abierta (con el botón ocupado) hasta que el servidor responde.
+  Future<void> _confirmCancel(Ticket ticket) async {
+    final cancel = widget.onCancel;
+    if (cancel == null) return;
+    String? message;
+    await showCancelTicketSheet(
+      context,
+      code: ticket.code,
+      onConfirm: () async {
+        try {
+          await cancel(ticket.id);
+          message = 'Cancelaste la solicitud #${ticket.code}.';
+        } on ApiException catch (e) {
+          // Por ejemplo: el administrador ya la pasó a revisión (409).
+          message = e.message;
+        } catch (_) {
+          message = 'No pudimos cancelar la solicitud. Intenta nuevamente.';
+        }
+      },
+    );
+    if (!mounted || message == null) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message!), behavior: SnackBarBehavior.floating));
+    // Se vuelve a pedir el detalle: el botón desaparece y la línea de tiempo
+    // muestra "Cancelado" (o el estado real, si no se pudo cancelar).
+    await _reload();
   }
 
   void _openPhoto(TicketDetail d) {
@@ -136,6 +172,11 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                 ],
                 const SizedBox(height: 24),
                 _TimelineCard(steps: timeline, rejected: rejected, detail: d),
+                // T9 · RF-09: solo mientras está Recibido (el servidor lo vuelve a revisar).
+                if (d.ticket.status.canBeCancelled && widget.onCancel != null) ...[
+                  const SizedBox(height: 24),
+                  CancelTicketSection(onPressed: () => _confirmCancel(d.ticket)),
+                ],
                 if (rejected) ...[
                   const SizedBox(height: 24),
                   const _HelpBanner(),

@@ -35,6 +35,8 @@ class _StubTickets implements TicketRepository {
   Future<TicketDetail> ticketDetail(String id) => throw UnimplementedError();
   @override
   Future<Uint8List> ticketPhoto(String id) => throw UnimplementedError();
+  @override
+  Future<Ticket> cancelTicket(String id) => throw UnimplementedError();
 }
 
 AppUser _user(String id) => AppUser(id: id, name: 'Ana', email: 'ana@gamaitaly.cl', role: UserRole.worker, termsAccepted: true);
