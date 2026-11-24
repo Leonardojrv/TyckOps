@@ -14,6 +14,7 @@ import { logger } from '../../config/logger.js';
 import { HttpError } from '../../utils/http-error.js';
 import { detectarTipoImagen, quitarMetadatos } from './tickets.fotos.js';
 import { datosParaIA, evaluarFlujoIA } from './tickets.flujoIA.js';
+import { SOLUCION_AUTOAYUDA, admiteAutoayuda, elegirGuia } from './tickets.guia.js';
 
 // Logger por defecto: recibe la misma línea JSON que antes iba a console.info
 // y la escribe en logs/ con winston. Las pruebas pueden pasar el suyo.
@@ -31,6 +32,21 @@ const ESTADOS_ACTIVOS = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROC
 
 // MM2: en estos estados el ticket ya terminó y su prioridad no se cambia.
 const ESTADOS_SIN_CAMBIO_PRIORIDAD = new Set(['RESUELTO', 'CERRADO', 'RECHAZADO', 'CANCELADO']);
+
+// T10 · Resumen del ticket original de un duplicado: sin dueño, foto ni comentarios.
+// `mine` solo dice si el original también es tuyo (para cambiar el mensaje).
+function publicOriginal(original, userId) {
+  return {
+    mine: String(original.ownerId) === String(userId),
+    id: String(original.id),
+    code: original.code,
+    category: original.category,
+    title: original.title,
+    status: original.status,
+    location: original.location,
+    createdAt: new Date(original.createdAt).toISOString(),
+  };
+}
 
 // Solo lo que la app necesita mostrar: nunca el ownerId ni datos internos.
 function publicTicket(ticket) {
@@ -54,11 +70,19 @@ export class TicketService {
   // analizadorIA: motor de IA opcional (módulo de IA). Debe exponer
   // `async analizar({ ticketId, categoria, descripcion, ubicacion })`.
   // Si es null, los tickets Recibidos quedan registrados como pendientes.
-  constructor(ticketRepository, { slaCumplido = null, auditLogger = auditoriaTickets, analizadorIA = null } = {}) {
+  // obtenerGuiasVigentes (T10): función que devuelve las guías que cargó el
+  // administrador. Si no hay, la guía del colaborador es la simulada.
+  constructor(ticketRepository, {
+    slaCumplido = null,
+    auditLogger = auditoriaTickets,
+    analizadorIA = null,
+    obtenerGuiasVigentes = async () => [],
+  } = {}) {
     this.ticketRepository = ticketRepository;
     this.slaCumplido = slaCumplido;
     this.auditLogger = auditLogger;
     this.analizadorIA = analizadorIA;
+    this.obtenerGuiasVigentes = obtenerGuiasVigentes;
   }
 
   async resumen(userId) {
@@ -113,6 +137,12 @@ export class TicketService {
       // El motivo solo viaja si el ticket está rechazado (RF-07), aunque la base tenga algo escrito.
       rejectionReason: ticket.status === 'RECHAZADO' ? ticket.rejectionReason ?? null : null,
       closedAt: ticket.closedAt ? new Date(ticket.closedAt).toISOString() : null,
+      // T10: ¿mostrar la guía de autoayuda? (prioridad Baja, Recibido y sin decisión previa)
+      selfHelp: admiteAutoayuda(ticket),
+      // T10: lo cerró el propio colaborador con la guía (su línea de tiempo es más corta).
+      closedBySelfHelp: ticket.solutionType === SOLUCION_AUTOAYUDA,
+      // T10: si es un duplicado, el resumen del original (sin datos de su dueño).
+      duplicateOf: ticket.original ? publicOriginal(ticket.original, ticket.ownerId) : null,
       // La consulta ya filtró por este ticket: nunca se mezclan comentarios de otro.
       comments: (ticket.comments ?? []).map((comentario) => ({
         id: String(comentario.id),
@@ -148,6 +178,59 @@ export class TicketService {
       userId: String(userId),
     }));
     return publicTicket(resultado.ticket);
+  }
+
+  // T10 · RF-10: la guía paso a paso de un ticket de prioridad Baja (solo el dueño).
+  async guia(userId, id) {
+    const ticket = await this.#ticketPropio(userId, id);
+    if (!admiteAutoayuda(ticket)) {
+      throw new HttpError(404, 'GUIA_NO_DISPONIBLE', 'Esta solicitud no tiene una guía de autoayuda disponible.');
+    }
+    let vigentes = [];
+    try {
+      vigentes = (await this.obtenerGuiasVigentes()) ?? [];
+    } catch {
+      vigentes = []; // si falla la lectura de guías, se usa la simulada
+    }
+    return elegirGuia(ticket, vigentes);
+  }
+
+  // T10 · RF-11 / RF-12: "Cerrar ticket" (la guía funcionó) o "Reportar a
+  // administración" (no funcionó). Solo el dueño y solo mientras la guía aplica.
+  async resolverGuia(userId, id, accion) {
+    if (accion !== 'cerrar' && accion !== 'escalar') {
+      throw new HttpError(400, 'DATOS_INVALIDOS', 'Acción no válida.');
+    }
+    if (!/^[A-Za-z0-9-]{1,40}$/.test(String(id))) {
+      throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
+    }
+    const resultado = await this.ticketRepository.resolverConGuia(id, userId, accion);
+    if (!resultado) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
+    if (!resultado.aplicado) {
+      throw new HttpError(
+        409,
+        'GUIA_NO_APLICABLE',
+        'Esta solicitud ya fue tomada por Servicios Generales o ya registraste una decisión.',
+      );
+    }
+    this.auditLogger.info?.(JSON.stringify({
+      type: 'ticket',
+      action: accion === 'cerrar' ? 'ticket_cerrado_autoayuda' : 'ticket_escalado_colaborador',
+      timestamp: new Date().toISOString(),
+      ticketId: resultado.ticket.id,
+      userId: String(userId),
+    }));
+    return publicTicket(resultado.ticket);
+  }
+
+  // Busca un ticket del dueño (mismo 404 para ajeno o inexistente).
+  async #ticketPropio(userId, id) {
+    if (!/^[A-Za-z0-9-]{1,40}$/.test(String(id))) {
+      throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
+    }
+    const ticket = await this.ticketRepository.findByIdForOwner(id, userId);
+    if (!ticket) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
+    return ticket;
   }
 
   // Foto de un ticket (columna imagen). Solo el dueño o un administrador pueden verla.
@@ -234,6 +317,16 @@ export class TicketService {
 
       const analisis = await this.analizadorIA.analizar(datosParaIA(ticket));
       this.#auditarIA(ticket, 'enviado_ia');
+
+      // T10: si la IA detectó que es un duplicado, se guarda el original
+      // (solo si sigue Recibido; nunca se cambia el estado).
+      if (analisis?.duplicado?.esDuplicado && analisis.duplicado.ticketOriginalId && this.ticketRepository.marcarDuplicado) {
+        const agrupado = await this.ticketRepository.marcarDuplicado(ticket.id, analisis.duplicado.ticketOriginalId);
+        this.#auditarIA(ticket, agrupado ? 'duplicado_detectado' : 'duplicado_descartado', {
+          ticketOriginalId: String(analisis.duplicado.ticketOriginalId),
+          confianza: analisis.duplicado.confianza ?? null,
+        });
+      }
 
       const guardada = analisis?.prioridad && this.ticketRepository.guardarPrioridadInicial
         ? await this.ticketRepository.guardarPrioridadInicial(ticket.id, analisis)

@@ -14,6 +14,7 @@ import 'dart:ui' as ui;
 
 import '../../core/network/api_client.dart';
 import '../../core/network/api_exception.dart';
+import '../models/self_help.dart';
 import '../models/ticket.dart';
 import '../models/ticket_detail.dart';
 import '../models/ticket_status.dart';
@@ -36,6 +37,13 @@ abstract class TicketRepository {
   /// T9 · Cancela un ticket tuyo. Solo funciona mientras está Recibido: si ya
   /// avanzó, el servidor responde 409 y aquí llega como [ApiException].
   Future<Ticket> cancelTicket(String id);
+
+  /// T10 · La guía paso a paso de un ticket tuyo de prioridad Baja.
+  Future<SelfHelpGuide> selfHelpGuide(String id);
+
+  /// T10 · "Cerrar ticket" (la guía funcionó) o "Reportar a administración".
+  /// Si el ticket ya no admite la guía, el servidor responde 409.
+  Future<Ticket> resolveGuide(String id, GuideAction action);
 }
 
 class ApiTicketRepository implements TicketRepository {
@@ -75,6 +83,24 @@ class ApiTicketRepository implements TicketRepository {
     return Ticket.fromJson(ticket.cast<String, dynamic>());
   }
 
+  @override
+  Future<SelfHelpGuide> selfHelpGuide(String id) async {
+    _checkId(id);
+    final body = await _api.get<Map<String, dynamic>>('/tickets/${Uri.encodeComponent(id)}/guia');
+    final guide = (body['data'] as Map?)?['guia'];
+    if (guide is! Map) throw const FormatException('Respuesta de guía inválida');
+    return SelfHelpGuide.fromJson(guide.cast<String, dynamic>());
+  }
+
+  @override
+  Future<Ticket> resolveGuide(String id, GuideAction action) async {
+    _checkId(id);
+    final body = await _api.post<Map<String, dynamic>>('/tickets/${Uri.encodeComponent(id)}/guia/${action.apiValue}');
+    final ticket = (body['data'] as Map?)?['ticket'];
+    if (ticket is! Map) throw const FormatException('Respuesta de la guía inválida');
+    return Ticket.fromJson(ticket.cast<String, dynamic>());
+  }
+
   // Un id con caracteres raros nunca llega a la URL (evita que alguien arme
   // rutas como "../admin").
   static void _checkId(String id) {
@@ -92,6 +118,9 @@ class FakeTicketRepository implements TicketRepository {
 
   // Lista que se puede modificar: así "Cancelar ticket" funciona en el modo de prueba.
   static final _tickets = [
+    // T10: uno de prioridad Baja (muestra la guía) y uno agrupado con el REP-0087.
+    Ticket(id: 't-0153', code: 'REP-0153', category: 'Eléctrica', title: 'Falla en tomacorriente de puesto de trabajo', status: TicketStatus.received, priority: TicketPriority.low, location: 'Edificio Central · Piso 2, Puesto 204', createdAt: _at(0, 8, 50)),
+    Ticket(id: 't-0152', code: 'REP-0152', category: 'Baños', title: 'Agua en el piso del baño del piso 2', status: TicketStatus.received, priority: null, location: 'Sector Poniente', createdAt: _at(0, 9, 5)),
     Ticket(id: 't-0151', code: 'REP-0151', category: 'Eléctrica', title: 'Luminaria apagada en sala de reuniones B', status: TicketStatus.received, priority: null, location: 'Sala de reuniones B', createdAt: _at(0, 9, 24)),
     Ticket(id: 't-0142', code: 'REP-0142', category: 'Eléctrica', title: 'Enchufe en mal estado', status: TicketStatus.inProgress, priority: TicketPriority.high, location: 'Recepción central', createdAt: _at(0, 10, 30)),
     Ticket(id: 't-0087', code: 'REP-0087', category: 'Baños', title: 'Fuga agua en baño piso 2', status: TicketStatus.inReview, priority: TicketPriority.medium, location: 'Sector Poniente', createdAt: _at(1, 16, 45)),
@@ -126,6 +155,9 @@ class FakeTicketRepository implements TicketRepository {
           ? 'La reparación requiere un proveedor externo autorizado por la marca del equipo.'
           : null,
       closedAt: ticket.closedAt,
+      selfHelp: _selfHelp(ticket),
+      closedBySelfHelp: ticket.status == TicketStatus.closed && _guideDecided.contains(ticket.id),
+      duplicateOf: ticket.id == 't-0152' ? _original('t-0087') : null,
       comments: ticket.id == 't-0142'
           ? [
               TicketComment(id: '1', author: 'Servicios Generales', createdAt: _at(0, 11, 5), text: 'Revisamos el enchufe: hay daño por sobrecarga. Ya coordinamos el cambio de placa.'),
@@ -133,6 +165,57 @@ class FakeTicketRepository implements TicketRepository {
             ]
           : const [],
     );
+  }
+
+  // Tickets del modo de prueba en los que el colaborador ya usó la guía.
+  static final _guideDecided = <String>{};
+
+  static bool _selfHelp(Ticket t) =>
+      t.priority == TicketPriority.low && t.status == TicketStatus.received && !_guideDecided.contains(t.id);
+
+  static DuplicateOriginal? _original(String id) {
+    final t = _tickets.where((x) => x.id == id).firstOrNull;
+    return t == null
+        ? null
+        : DuplicateOriginal(code: t.code, category: t.category, title: t.title, status: t.status, location: t.location, createdAt: t.createdAt);
+  }
+
+  @override
+  Future<SelfHelpGuide> selfHelpGuide(String id) async {
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    final t = _tickets.where((x) => x.id == id).firstOrNull;
+    if (t == null || !_selfHelp(t)) throw const ApiException('Esta solicitud no tiene una guía de autoayuda disponible.', statusCode: 404);
+    // Misma guía simulada que entrega el servidor para Eléctrica.
+    return const SelfHelpGuide(
+      id: 'simulada-electrica',
+      title: 'Revisión básica de enchufe o luminaria',
+      simulated: true,
+      steps: [
+        GuideStep(title: 'Inspección visual del cableado', detail: 'Verifique visualmente que el cable y el conector no presenten daños físicos, dobleces agresivos o cortes visibles.'),
+        GuideStep(title: 'Comprobación de disyuntor', detail: 'Compruebe que el automático o disyuntor se encuentre activado en el tablero eléctrico secundario del sector.'),
+        GuideStep(title: 'Prueba de carga auxiliar', detail: 'Pruebe conectando un equipo auxiliar de baja carga para verificar si el flujo eléctrico se restablece.'),
+      ],
+    );
+  }
+
+  @override
+  Future<Ticket> resolveGuide(String id, GuideAction action) async {
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    final i = _tickets.indexWhere((t) => t.id == id);
+    if (i < 0) throw const ApiException('No encontramos esa solicitud.', statusCode: 404);
+    // Misma regla que el servidor: solo mientras la guía aplica, y una sola vez.
+    if (!_selfHelp(_tickets[i])) {
+      throw const ApiException(
+        'Esta solicitud ya fue tomada por Servicios Generales o ya registraste una decisión.',
+        statusCode: 409,
+        code: 'GUIA_NO_APLICABLE',
+      );
+    }
+    _guideDecided.add(id);
+    final t = _tickets[i];
+    return _tickets[i] = action == GuideAction.close
+        ? t.copyWith(status: TicketStatus.closed, closedAt: DateTime.now())
+        : Ticket(id: t.id, code: t.code, category: t.category, title: t.title, status: t.status, priority: TicketPriority.medium, location: t.location, createdAt: t.createdAt);
   }
 
   @override
