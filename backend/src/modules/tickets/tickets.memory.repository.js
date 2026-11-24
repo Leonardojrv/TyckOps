@@ -90,6 +90,39 @@ export class MemoryTicketRepository {
     ) ?? null;
   }
 
+  // T9 · Igual que en PostgreSQL: solo el dueño, y solo si sigue en Recibido.
+  async cancelarSiRecibido(id, ownerId) {
+    const ticket = await this.findByIdForOwner(id, ownerId);
+    if (!ticket) return null;
+    if (ticket.status !== 'RECIBIDO') return { cancelado: false, ticket };
+    ticket.status = 'CANCELADO';
+    ticket.closedAt = new Date();
+    return { cancelado: true, ticket };
+  }
+
+  // T10 · Igual que en PostgreSQL: tuyo, Recibido, prioridad Baja y sin decisión previa.
+  async resolverConGuia(id, ownerId, accion) {
+    const ticket = await this.findByIdForOwner(id, ownerId);
+    if (!ticket) return null;
+    const aplica = ticket.status === 'RECIBIDO' && String(ticket.priority).toUpperCase() === 'BAJA' && !ticket.solutionType;
+    if (!aplica) return { aplicado: false, ticket };
+    if (accion === 'cerrar') {
+      Object.assign(ticket, { status: 'CERRADO', closedAt: new Date(), solutionType: 'autoayuda_ia' });
+    } else {
+      Object.assign(ticket, { priority: 'MEDIA', solutionType: 'escalado_colaborador' });
+    }
+    return { aplicado: true, ticket };
+  }
+
+  // T10 · Igual que en PostgreSQL: solo si sigue Recibido y no está agrupado.
+  async marcarDuplicado(id, originalId) {
+    const ticket = this.tickets.find((t) => t.id === String(id));
+    const original = this.tickets.find((t) => t.id === String(originalId));
+    if (!ticket || !original || ticket === original || ticket.status !== 'RECIBIDO' || ticket.originalId) return false;
+    ticket.originalId = original.id;
+    return true;
+  }
+
   // Versión en memoria del detalle (misma forma que en PostgreSQL). Sirve para
   // probar la app sin base de datos y para las pruebas automáticas.
   async findDetailForOwner(id, ownerId) {
@@ -99,6 +132,7 @@ export class MemoryTicketRepository {
       ...ticket,
       description: ticket.description ?? ticket.title,
       hasPhoto: Boolean(ticket.imagen),
+      original: resumenOriginal(this.tickets.find((t) => t.id === ticket.originalId)),
       comments: [...(ticket.comments ?? [])].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)),
     };
   }
@@ -129,6 +163,13 @@ export class MemoryTicketRepository {
   }
 }
 
+// T10 · Lo único que se muestra del ticket original (nada de su dueño).
+function resumenOriginal(t) {
+  if (!t) return null;
+  const { id, code, category, title, status, location, createdAt, ownerId } = t;
+  return { id, code, category, title: t.description ?? title, status, location, createdAt, ownerId };
+}
+
 const CATEGORIA_VISIBLE = {
   ELECTRICA: 'Eléctrica',
   BANOS: 'Baños',
@@ -147,6 +188,9 @@ function haceDias(dias, hora, minuto) {
 // Datos de demostración del colaborador de prueba (mockup home_inicio).
 export function ticketsDeDemostracion(ownerId) {
   return [
+    // T10: uno de prioridad Baja (muestra la guía) y uno duplicado del REP-0087.
+    ['t-0150', 'REP-0150', 'Electricidad', 'Falla en tomacorriente de puesto de trabajo', 'RECIBIDO', 'BAJA', 'Piso 2, Puesto 204', haceDias(0, 8, 50)],
+    ['t-0149', 'REP-0149', 'Baños', 'Agua en el piso del baño del piso 2', 'RECIBIDO', null, 'Sector Poniente', haceDias(0, 9, 10)],
     ['t-0142', 'REP-0142', 'Electricidad', 'Enchufe en mal estado', 'EN_PROCESO', 'ALTA', 'Recepción central', haceDias(0, 10, 30)],
     ['t-0087', 'REP-0087', 'Infraestructura', 'Fuga agua en baño piso 2', 'EN_REVISION', 'MEDIA', 'Sector Poniente', haceDias(1, 16, 45)],
     ['t-0139', 'REP-0139', 'Inmobiliario', 'Escritorio en malas condiciones', 'APROBADO', 'BAJA', 'Piso 4', haceDias(6, 9, 15)],
@@ -164,6 +208,7 @@ export function ticketsDeDemostracion(ownerId) {
 // Detalles extra de la demo para ver en el detalle: un rechazo con su motivo
 // y comentarios del administrador (el último aparecerá como "NUEVO").
 const EXTRAS_DEMO = {
+  't-0149': { originalId: 't-0087' },
   't-0142': {
     comments: [
       { id: 1, author: 'Servicios Generales', createdAt: haceDias(0, 11, 5), text: 'Revisamos el enchufe: hay daño por sobrecarga. Ya coordinamos el cambio de placa.' },

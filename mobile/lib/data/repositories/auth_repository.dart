@@ -185,7 +185,8 @@ class ApiAuthRepository implements AuthRepository {
 ///
 /// Regla de la simulación:
 /// - Correos que empiezan con "admin" → rol Administrador.
-/// - Cualquier otro correo @gamaitaly.cl → rol Colaborador, en primer acceso.
+/// - Cualquier otro correo permitido (@gamaitaly.cl, @outlook.com o @gmail.com)
+///   → rol Colaborador, en primer acceso.
 /// - Cualquier contraseña de al menos 4 caracteres es aceptada.
 /// - Después del primer acceso, el login pide el código: siempre 123456
 ///   (código fijo SOLO para desarrollo, como pide la T8).
@@ -193,6 +194,8 @@ class FakeAuthRepository implements AuthRepository {
   AppUser? _current;
   final _alreadyConfigured = <String>{}; // correos que ya hicieron el primer acceso
   static const devCode = '123456';
+  // Igual que el servidor (MAX_INTENTOS_MFA): al 3.er código incorrecto, caduca.
+  static const maxMfaTries = 3;
   int _wrongTries = 0;
 
   @override
@@ -267,10 +270,11 @@ class FakeAuthRepository implements AuthRepository {
     }
     if (code != devCode) {
       _wrongTries++;
-      if (_wrongTries >= 5) {
+      if (_wrongTries >= maxMfaTries) {
         throw const ApiException('Demasiados intentos. Inicia sesión de nuevo para recibir otro código.', statusCode: 429, code: 'MFA_DEMASIADOS_INTENTOS');
       }
-      throw ApiException('Código incorrecto. Te quedan ${5 - _wrongTries} intentos.', statusCode: 400, code: 'MFA_CODIGO_INCORRECTO');
+      final left = maxMfaTries - _wrongTries;
+      throw ApiException('Código incorrecto. Te ${left == 1 ? 'queda 1 intento' : 'quedan $left intentos'}.', statusCode: 400, code: 'MFA_CODIGO_INCORRECTO');
     }
     final user = _current ?? (throw _expired);
     return (user: user, token: 'token-simulado');

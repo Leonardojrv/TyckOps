@@ -6,6 +6,7 @@ import 'package:tyckops/core/navigation/routes.dart';
 import 'package:tyckops/core/network/api_exception.dart';
 import 'package:tyckops/core/network/token_storage.dart';
 import 'package:tyckops/data/models/app_user.dart';
+import 'package:tyckops/data/models/self_help.dart';
 import 'package:tyckops/data/models/ticket.dart';
 import 'package:tyckops/data/models/ticket_detail.dart';
 import 'package:tyckops/data/models/ticket_status.dart';
@@ -35,6 +36,12 @@ class _StubTickets implements TicketRepository {
   Future<TicketDetail> ticketDetail(String id) => throw UnimplementedError();
   @override
   Future<Uint8List> ticketPhoto(String id) => throw UnimplementedError();
+  @override
+  Future<Ticket> cancelTicket(String id) => throw UnimplementedError();
+  @override
+  Future<SelfHelpGuide> selfHelpGuide(String id) => throw UnimplementedError();
+  @override
+  Future<Ticket> resolveGuide(String id, GuideAction action) => throw UnimplementedError();
 }
 
 AppUser _user(String id) => AppUser(id: id, name: 'Ana', email: 'ana@gamaitaly.cl', role: UserRole.worker, termsAccepted: true);

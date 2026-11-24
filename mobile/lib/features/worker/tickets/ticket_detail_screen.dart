@@ -3,7 +3,10 @@
 //
 // ¿QUÉ HACE?
 //   Muestra la ficha, la foto (se agranda al tocarla), el motivo si fue rechazado,
-//   los comentarios del administrador y la línea de tiempo.
+//   los comentarios del administrador y la línea de tiempo. Si el ticket sigue
+//   Recibido, agrega el botón "Cancelar ticket" con su confirmación (T9).
+//   T10: si el ticket es un duplicado, muestra el aviso de ticket agrupado; si
+//   es de prioridad Baja, muestra la guía de solución IA con sus acciones.
 //
 // ¿CÓMO LO CAMBIO?
 //   Las fases y sus textos están en ticket_logic.dart. El visor de la foto está en
@@ -19,11 +22,15 @@ import '../../../core/format/ticket_time.dart';
 import '../../../core/navigation/routes.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/widgets/photo_viewer.dart';
+import '../../../data/models/self_help.dart';
 import '../../../data/models/ticket.dart';
 import '../../../data/models/ticket_detail.dart';
 import '../../../data/models/ticket_status.dart';
 import '../../../data/repositories/ticket_repository.dart';
 import '../worker_tokens.dart';
+import 'assisted_guide_view.dart';
+import 'cancel_ticket_sheet.dart';
+import 'duplicate_ticket_view.dart';
 import 'ticket_logic.dart';
 import 'ticket_status_chip.dart';
 
@@ -41,10 +48,24 @@ typedef _T = WorkerText;
 /// son de solo lectura y el más reciente lleva la etiqueta "NUEVO".
 /// Si tocas la foto, se abre en grande (visor compartido con el administrador).
 class TicketDetailScreen extends StatefulWidget {
-  const TicketDetailScreen({super.key, required this.ticketId, required this.repository});
+  const TicketDetailScreen({
+    super.key,
+    required this.ticketId,
+    required this.repository,
+    this.onCancel,
+    this.onResolveGuide,
+  });
 
   final String ticketId;
   final TicketRepository repository;
+
+  /// T9 · Cancela el ticket (lo entrega MyTicketsStore para que la lista y el
+  /// home se actualicen). Si es null, el botón "Cancelar ticket" no aparece.
+  final Future<Ticket> Function(String id)? onCancel;
+
+  /// T10 · Cierra o escala el ticket desde la guía (también lo entrega
+  /// MyTicketsStore). Si es null, la guía no se muestra.
+  final Future<Ticket> Function(String id, GuideAction action)? onResolveGuide;
 
   @override
   State<TicketDetailScreen> createState() => _TicketDetailScreenState();
@@ -68,6 +89,45 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
     await _detail.then((_) {}, onError: (_) {});
   }
 
+  // T9 · Pide confirmar y, si la persona acepta, cancela en el servidor.
+  // La hoja queda abierta (con el botón ocupado) hasta que el servidor responde.
+  Future<void> _confirmCancel(Ticket ticket) async {
+    final cancel = widget.onCancel;
+    if (cancel == null) return;
+    String? message;
+    await showCancelTicketSheet(
+      context,
+      code: ticket.code,
+      onConfirm: () async {
+        try {
+          await cancel(ticket.id);
+          message = 'Cancelaste la solicitud #${ticket.code}.';
+        } on ApiException catch (e) {
+          // Por ejemplo: el administrador ya la pasó a revisión (409).
+          message = e.message;
+        } catch (_) {
+          message = 'No pudimos cancelar la solicitud. Intenta nuevamente.';
+        }
+      },
+    );
+    if (!mounted || message == null) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message!), behavior: SnackBarBehavior.floating));
+    // Se vuelve a pedir el detalle: el botón desaparece y la línea de tiempo
+    // muestra "Cancelado" (o el estado real, si no se pudo cancelar).
+    await _reload();
+  }
+
+  // T10 · Después de cerrar o escalar desde la guía: aviso y detalle nuevo.
+  Future<void> _afterGuide(String message) async {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message), behavior: SnackBarBehavior.floating));
+    await _reload();
+  }
+
   void _openPhoto(TicketDetail d) {
     showPhotoViewer(
       context,
@@ -88,7 +148,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _C.surface,
-      appBar: const _DetailHeader(),
+      appBar: _DetailHeader(onBack: _back),
       body: FutureBuilder<TicketDetail>(
         future: _detail,
         builder: (context, snapshot) {
@@ -109,8 +169,40 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             return const Center(child: CircularProgressIndicator(strokeWidth: 2, color: _C.primaryContainer));
           }
           final d = snapshot.data!;
+
+          // T10 · Ticket agrupado con otro: aviso del mockup en vez del detalle.
+          if (d.duplicateOf != null) {
+            return _SpecialView(
+              onRefresh: _reload,
+              child: DuplicateTicketView(
+                ticket: d.ticket,
+                original: d.duplicateOf!,
+                onGoHome: () => context.go(Routes.workerHome),
+              ),
+            );
+          }
+          // T10 · Prioridad Baja y Recibido: guía de solución IA con sus acciones.
+          final resolveGuide = widget.onResolveGuide;
+          if (d.selfHelp && resolveGuide != null) {
+            return _SpecialView(
+              onRefresh: _reload,
+              child: AssistedGuideView(
+                key: ValueKey('guia-${d.ticket.id}'),
+                ticket: d.ticket,
+                loadGuide: () => widget.repository.selfHelpGuide(d.ticket.id),
+                onResolve: (action) => resolveGuide(d.ticket.id, action),
+                onDone: _afterGuide,
+              ),
+            );
+          }
+
           final rejected = d.ticket.status == TicketStatus.rejected;
-          final timeline = buildTimeline(d.ticket.status, createdAt: d.ticket.createdAt, closedAt: d.closedAt);
+          final timeline = buildTimeline(
+            d.ticket.status,
+            createdAt: d.ticket.createdAt,
+            closedAt: d.closedAt,
+            closedBySelfHelp: d.closedBySelfHelp,
+          );
 
           return RefreshIndicator(
             color: _C.primaryContainer,
@@ -136,6 +228,11 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                 ],
                 const SizedBox(height: 24),
                 _TimelineCard(steps: timeline, rejected: rejected, detail: d),
+                // T9 · RF-09: solo mientras está Recibido (el servidor lo vuelve a revisar).
+                if (d.ticket.status.canBeCancelled && widget.onCancel != null) ...[
+                  const SizedBox(height: 24),
+                  CancelTicketSection(onPressed: () => _confirmCancel(d.ticket)),
+                ],
                 if (rejected) ...[
                   const SizedBox(height: 24),
                   const _HelpBanner(),
@@ -157,8 +254,32 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
 
 // ===================== Encabezado =====================
 
+/// T10 · Contenedor de las vistas especiales (guía y duplicado): mismo fondo,
+/// márgenes y "deslizar para recargar" que el detalle normal.
+class _SpecialView extends StatelessWidget {
+  const _SpecialView({required this.child, required this.onRefresh});
+
+  final Widget child;
+  final Future<void> Function() onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      color: _C.primaryContainer,
+      onRefresh: onRefresh,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+        children: [child],
+      ),
+    );
+  }
+}
+
 class _DetailHeader extends StatelessWidget implements PreferredSizeWidget {
-  const _DetailHeader();
+  const _DetailHeader({required this.onBack});
+
+  final VoidCallback onBack;
 
   @override
   Size get preferredSize => const Size.fromHeight(64);
@@ -175,10 +296,16 @@ class _DetailHeader extends StatelessWidget implements PreferredSizeWidget {
         child: SizedBox(
           height: 64,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.only(left: 4, right: 16),
             child: Row(
               children: [
-                const SizedBox(width: 32),
+                // Flecha para volver, como en los mockups de la T10.
+                IconButton(
+                  tooltip: 'Regresar',
+                  onPressed: onBack,
+                  icon: const Icon(Symbols.arrow_back, size: 24, color: _C.onSurface),
+                ),
+                const SizedBox(width: 4),
                 Expanded(child: Text('Detalle del Ticket', style: _T.headlineSm(), overflow: TextOverflow.ellipsis)),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

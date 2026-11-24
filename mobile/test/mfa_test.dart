@@ -95,11 +95,13 @@ void main() {
       mfa.dispose();
     });
 
-    test('muchos intentos devuelven al login con el aviso', () async {
+    test('al 3.er código incorrecto caduca y vuelve al login con el aviso', () async {
       final (session, _, mfa) = await preparar();
-      for (var i = 0; i < 5; i++) {
-        await mfa.verify('999999');
-      }
+      await mfa.verify('999999');
+      await mfa.verify('999999');
+      expect(mfa.error, contains('queda 1 intento'));
+      expect(session.mfaPending, isTrue, reason: 'con 2 errores todavía puede intentar');
+      await mfa.verify('999999');
       expect(session.mfaPending, isFalse, reason: 'se cancela la verificación');
       expect(session.isLoggedIn, isFalse);
       expect(session.takeNotice(), contains('Demasiados intentos'));

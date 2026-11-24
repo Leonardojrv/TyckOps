@@ -115,7 +115,7 @@ describe('Login incorrecto', () => {
     expect(res.body.error.code).toBe('DATOS_INVALIDOS');
     expect(res.body.error.details).toContainEqual({
       field: 'email',
-      message: 'Usa tu correo corporativo @gamaitaly.cl.',
+      message: 'Usa un correo @gamaitaly.cl, @outlook.com o @gmail.com.',
     });
   });
 
