@@ -264,13 +264,16 @@ export class PrismaTicketRepository {
    *   que alguien vea el detalle o los comentarios de un ticket ajeno.
    * - La foto no se trae aquí (puede pesar MB); solo preguntamos si existe.
    */
-  async findDetailForOwner(id, ownerId) {
+  async findDetail(id, { ownerId = null } = {}) {
     const ticketId = idNumerico(id);
-    const dueno = idNumerico(ownerId);
-    if (ticketId === null || dueno === null) return null;
+    const dueno = ownerId === null ? null : idNumerico(ownerId);
+    if (ticketId === null || (ownerId !== null && dueno === null)) return null;
+
+    const where = { ID_Ticket: ticketId };
+    if (dueno !== null) where.ID_user = dueno;
 
     const fila = await this.prisma.ticket.findFirst({
-      where: { ID_Ticket: ticketId, ID_user: dueno },
+      where,
       include: {
         ...incluir,
         // T10: si es un duplicado, un resumen del original (sin datos de su dueño).
@@ -321,6 +324,10 @@ export class PrismaTicketRepository {
         text: c.Texto,
       })),
     };
+  }
+
+  async findDetailForOwner(id, ownerId) {
+    return this.findDetail(id, { ownerId });
   }
 
   /**
@@ -432,15 +439,21 @@ export class PrismaTicketRepository {
    * Devuelve null si el ticket no existe o es de otra persona, y
    * { imagen: null } si el ticket existe pero no tiene foto.
    */
-  async findPhotoForOwner(id, ownerId) {
+  async findPhoto(id, { ownerId = null } = {}) {
     const ticketId = idNumerico(id);
-    const dueno = idNumerico(ownerId);
-    if (ticketId === null || dueno === null) return null;
+    const dueno = ownerId === null ? null : idNumerico(ownerId);
+    if (ticketId === null || (ownerId !== null && dueno === null)) return null;
+    const where = { ID_Ticket: ticketId };
+    if (dueno !== null) where.ID_user = dueno;
     const fila = await this.prisma.ticket.findFirst({
-      where: { ID_Ticket: ticketId, ID_user: dueno },
+      where,
       select: { imagen: true },
     });
     if (!fila) return null;
     return { imagen: fila.imagen ? Buffer.from(fila.imagen) : null };
+  }
+
+  async findPhotoForOwner(id, ownerId) {
+    return this.findPhoto(id, { ownerId });
   }
 }
