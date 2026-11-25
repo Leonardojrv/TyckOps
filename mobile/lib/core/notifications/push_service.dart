@@ -24,7 +24,7 @@ import 'dart:io' show Platform;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart' show Color;
+import 'package:flutter/widgets.dart' show Color, VoidCallback, WidgetsBinding;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
 
@@ -40,7 +40,15 @@ const _channel = AndroidNotificationChannel(
   'Tus solicitudes',
   description: 'Cambios de estado y comentarios en tus tickets.',
   importance: Importance.high,
+  playSound: true,
+  enableVibration: true,
+  showBadge: true,
 );
+
+// Ícono monocromo (android/app/src/main/res/drawable/ic_stat_tyckops.xml) y
+// color de marca: los mismos que usa el servidor (notificaciones.enviador.js).
+const _androidIcon = 'ic_stat_tyckops';
+const _brandColor = Color(0xFFD7282F);
 
 class PushService {
   PushService(this._session, this._repository, this._store);
@@ -52,6 +60,10 @@ class PushService {
 
   GoRouter? _router;
   Map<String, dynamic>? _pending; // aviso tocado antes de que la app estuviera lista
+  String? _pendingFor; // si se sabe, de quién es ese aviso (solo se abre para esa persona)
+  // Último aviso abierto: si la sesión vence justo al abrirlo (el servidor
+  // responde 401 y la app vuelve al login), se recupera tras iniciar sesión.
+  ({Map<String, dynamic> data, String userId, DateTime at})? _lastOpened;
   bool _firebaseReady = false;
   String? _registeredFor; // a quién pertenece el token registrado
   final _subs = <StreamSubscription<dynamic>>[];
@@ -84,7 +96,7 @@ class PushService {
   Future<void> _setUpFirebase() async {
     await _local.initialize(
       settings: const InitializationSettings(
-        android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        android: AndroidInitializationSettings(_androidIcon),
         iOS: DarwinInitializationSettings(
           requestAlertPermission: false,
           requestBadgePermission: false,
@@ -130,14 +142,26 @@ class PushService {
       _registeredFor = user.id;
       _store.load();
       if (_firebaseReady) unawaited(_askPermissionAndRegister());
-      // Si tocó un aviso antes de iniciar sesión, se abre ahora.
+      // Si tocó un aviso antes de iniciar sesión, se abre ahora (si era de
+      // otra persona, se descarta).
       final pending = _pending;
-      if (pending != null && _router != null) {
+      final pendingFor = _pendingFor;
+      final router = _router;
+      if (pending != null && router != null) {
         _pending = null;
-        _open(pending);
+        _pendingFor = null;
+        if (pendingFor == null || pendingFor == user.id) _openAfterSignIn(router, pending);
       }
     } else if (user == null && _registeredFor != null) {
       _registeredFor = null;
+      // ¿La sesión se cerró justo al abrir un aviso (sesión vencida)? Se
+      // guarda para abrirlo apenas la misma persona vuelva a entrar.
+      final last = _lastOpened;
+      _lastOpened = null;
+      if (last != null && _pending == null && DateTime.now().difference(last.at) < const Duration(minutes: 1)) {
+        _pending = last.data;
+        _pendingFor = last.userId;
+      }
       // Cerró sesión: el token se invalida en Firebase, así este celular ya no
       // recibe avisos de esa persona (el servidor lo borra en el próximo envío).
       // ignore: deprecated_member_use
@@ -174,8 +198,13 @@ class PushService {
     _store.load();
     final n = message.notification;
     if (n == null || Platform.isIOS) return; // iOS ya lo muestra solo
+    // Mismo "tag" que el servidor: un aviso por ticket y tipo (el nuevo
+    // reemplaza al anterior en vez de apilarse). Android reemplaza solo si
+    // coinciden tag e id, y Firebase usa id 0 con la app en segundo plano:
+    // por eso aquí también va id 0.
+    final tag = 'ticket-${message.data['ticketId'] ?? 'general'}-${message.data['tipo'] ?? 'aviso'}';
     _local.show(
-      id: message.hashCode,
+      id: 0,
       title: n.title,
       body: n.body,
       notificationDetails: NotificationDetails(
@@ -185,12 +214,41 @@ class PushService {
           channelDescription: _channel.description,
           importance: Importance.high,
           priority: Priority.high,
-          color: const Color(0xFFD7282F),
-          styleInformation: BigTextStyleInformation(n.body ?? ''),
+          icon: _androidIcon,
+          color: _brandColor,
+          tag: tag,
+          visibility: NotificationVisibility.public,
+          category: AndroidNotificationCategory.status,
+          ticker: n.title,
+          styleInformation: BigTextStyleInformation(n.body ?? '', contentTitle: n.title),
         ),
       ),
       payload: jsonEncode(message.data),
     );
+  }
+
+  /// Al terminar el login, el mapa de pantallas (router) también reacciona y
+  /// manda al inicio. Si abriéramos el ticket en ese mismo instante, el router
+  /// lo pisaría. Por eso se espera a que la app salga de las pantallas de
+  /// acceso (login, código MFA, primer acceso) y recién ahí se abre el ticket.
+  void _openAfterSignIn(GoRouter router, Map<String, dynamic> data) {
+    bool inAuthScreens() {
+      final path = router.routerDelegate.currentConfiguration.uri.path;
+      return path == Routes.login || path == Routes.mfaVerification || path == Routes.firstAccess;
+    }
+
+    if (!inAuthScreens()) {
+      _open(data);
+      return;
+    }
+    late final VoidCallback listener;
+    listener = () {
+      if (inAuthScreens()) return;
+      router.routerDelegate.removeListener(listener);
+      // Después del cuadro actual: el router ya terminó de ir al inicio.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _open(data));
+    };
+    router.routerDelegate.addListener(listener);
   }
 
   /// Abre el ticket del aviso. Solo para el colaborador con sesión iniciada.
@@ -205,6 +263,8 @@ class PushService {
       return;
     }
     if (_session.role != UserRole.worker) return;
+    final userId = _session.user?.id;
+    if (userId != null) _lastOpened = (data: data, userId: userId, at: DateTime.now());
     final notificationId = data['notificacionId']?.toString();
     if (notificationId != null) unawaited(_store.markRead(notificationId));
     router.go(Routes.workerTicketDetail(ticketId, focusComments: data['tipo'] == 'comentario'));

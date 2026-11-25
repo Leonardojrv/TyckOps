@@ -3,16 +3,18 @@
 //   colaborador/notificaciones_push). Se abre desde la campana del encabezado.
 //
 // ¿QUÉ HACE?
-//   - Arriba, "Previsualización del sistema push": cómo se ve en el celular el
-//     aviso más reciente (al tocarlo, abre su ticket).
-//   - Abajo, la lista de avisos: cambios de estado y "Nuevo comentario en tu
-//     ticket", cada uno con su número de ticket. Los no leídos llevan el punto rojo.
+//   - Muestra la bandeja de avisos: cambios de estado y "Nuevo comentario en tu
+//     ticket", agrupados por día (Hoy, Ayer, Esta semana, Anteriores).
+//   - Los no leídos se destacan con fondo, franja y punto rojo.
 //   - Tocar un aviso lo marca como leído y abre el ticket; si es un comentario,
 //     el ticket se abre con los comentarios a la vista.
+//   La notificación de la pantalla bloqueada NO se dibuja aquí: la muestra el
+//   sistema (Android/iOS) y se configura en core/notifications/push_service.dart
+//   y en el servidor (notificaciones.enviador.js).
 //
 // ¿CÓMO LO CAMBIO?
-//   Íconos y etiquetas por tipo: _visualFor. Los datos vienen de
-//   NotificationsStore (los comparte con la campana).
+//   Íconos y etiquetas por tipo: _visualFor. Grupos por día: _sectionFor.
+//   Los datos vienen de NotificationsStore (los comparte con la campana).
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -80,22 +82,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
                 children: [
-                  _PushPreview(
-                    latest: items.firstOrNull,
-                    onTap: items.isEmpty
-                        ? null
-                        : () => _open(store, items.first),
-                  ),
-                  const SizedBox(height: 24),
-                  const Divider(height: 1, color: _C.containerHighest),
-                  const SizedBox(height: 24),
-                  _FeedHeader(
-                    unread: feed?.unread ?? 0,
-                    onMarkAll: (feed?.unread ?? 0) > 0
-                        ? store.markAllRead
-                        : null,
-                  ),
-                  const SizedBox(height: 16),
+                  if (items.isNotEmpty) ...[
+                    _FeedHeader(
+                      unread: feed?.unread ?? 0,
+                      onMarkAll: (feed?.unread ?? 0) > 0
+                          ? store.markAllRead
+                          : null,
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   if (feed == null && store.error != null)
                     _Message(
                       icon: Symbols.cloud_off,
@@ -114,21 +109,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       ),
                     )
                   else if (items.isEmpty)
-                    const _Message(
-                      icon: Symbols.notifications_off,
-                      title: 'Aún no tienes notificaciones',
-                      text: 'Te avisaremos aquí cuando tus solicitudes cambien de estado o tengan un comentario nuevo.',
-                    )
+                    const _EmptyState()
                   else
                     for (var i = 0; i < items.length; i++) ...[
-                      if (i > 0) const SizedBox(height: 12),
+                      // Título del día solo cuando cambia el grupo.
+                      if (i == 0 ||
+                          _sectionFor(items[i].createdAt) !=
+                              _sectionFor(items[i - 1].createdAt))
+                        _SectionLabel(
+                          _sectionFor(items[i].createdAt),
+                          first: i == 0,
+                        )
+                      else
+                        const SizedBox(height: 10),
                       _NotificationCard(
                         notification: items[i],
                         onTap: () => _open(store, items[i]),
                       ),
                     ],
-                  const SizedBox(height: 24),
-                  const _TapHint(),
                 ],
               ),
             ),
@@ -204,252 +202,9 @@ class _Header extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
-// ===================== Previsualización del push =====================
-
-const _weekdays = [
-  'Lunes',
-  'Martes',
-  'Miércoles',
-  'Jueves',
-  'Viernes',
-  'Sábado',
-  'Domingo',
-];
-const _months = [
-  'Enero',
-  'Febrero',
-  'Marzo',
-  'Abril',
-  'Mayo',
-  'Junio',
-  'Julio',
-  'Agosto',
-  'Septiembre',
-  'Octubre',
-  'Noviembre',
-  'Diciembre',
-];
-
-/// Imita la pantalla de bloqueo del celular con el aviso más reciente.
-class _PushPreview extends StatelessWidget {
-  const _PushPreview({required this.latest, required this.onTap});
-
-  final AppNotification? latest;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final time =
-        '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-    final date =
-        '${_weekdays[now.weekday - 1]}, ${now.day} de ${_months[now.month - 1]}';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 6,
-              height: 6,
-              decoration: const BoxDecoration(
-                color: _C.primary,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                'PREVISUALIZACIÓN DEL SISTEMA PUSH',
-                overflow: TextOverflow.ellipsis,
-                style: _T.caption(_C.secondary).copyWith(letterSpacing: 0.6),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Container(
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x33000000),
-                blurRadius: 20,
-                offset: Offset(0, 8),
-              ),
-            ],
-            gradient: const RadialGradient(
-              center: Alignment(1.1, -1.2),
-              radius: 1.2,
-              colors: [Color(0xFF5A2A2C), _C.inverseSurface],
-            ),
-          ),
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Symbols.lock, size: 14, color: Color(0xFFC8C6C5)),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Santiago de Chile',
-                    style: _T.labelSm(const Color(0xFFC8C6C5)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Text(
-                time,
-                style: _T
-                    .headlineLg(_C.white)
-                    .copyWith(
-                      fontSize: 36,
-                      height: 1.1,
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              Text(date, style: _T.labelMd(const Color(0xFFC8C6C5))),
-              const SizedBox(height: 16),
-              _Banner(notification: latest, onTap: onTap),
-              const SizedBox(height: 16),
-              Container(
-                width: 96,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: _C.containerHighest.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _Banner extends StatelessWidget {
-  const _Banner({required this.notification, required this.onTap});
-
-  final AppNotification? notification;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final n = notification;
-    final heading = n == null
-        ? 'Sin avisos todavía'
-        : n.type == NotificationType.comment
-        ? 'Nuevo comentario en tu ticket'
-        : 'Actualización de Estado';
-    return Material(
-      color: _C.white.withValues(alpha: 0.95),
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 20,
-                    height: 20,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: _C.inverseSurface,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(
-                            text: 'G',
-                            style: _T
-                                .caption(_C.white)
-                                .copyWith(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                          ),
-                          TextSpan(
-                            text: '.',
-                            style: _T
-                                .caption(_C.primaryContainer)
-                                .copyWith(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'SERVICIOS GENERALES GAMA',
-                      overflow: TextOverflow.ellipsis,
-                      style: _T.caption().copyWith(
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
-                  ),
-                  if (n != null)
-                    Text(
-                      timeAgo(n.createdAt).toLowerCase(),
-                      style: _T.caption(_C.secondary),
-                    ),
-                ],
-              ),
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Divider(height: 1, color: _C.container),
-              ),
-              Row(
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: const BoxDecoration(
-                      color: _C.primary,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      heading,
-                      overflow: TextOverflow.ellipsis,
-                      style: _T.labelSm().copyWith(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Text(
-                n?.body ?? 'Cuando tus solicitudes cambien de estado, el aviso se verá así en tu celular.',
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: _T.bodySm(_C.secondary).copyWith(height: 1.35),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // ===================== Lista =====================
 
+/// Fila superior: cuántas quedan sin leer y "Marcar todas leídas".
 class _FeedHeader extends StatelessWidget {
   const _FeedHeader({required this.unread, required this.onMarkAll});
 
@@ -460,40 +215,86 @@ class _FeedHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        // Título y contador usan solo el ancho que necesitan; si el celular es
-        // muy angosto, el título se acorta antes que esconder el botón.
         Expanded(
-          child: Row(
-            children: [
-              Flexible(
-                child: Semantics(
-                  header: true,
-                  child: Text('Notificaciones', style: _T.headlineMd(), maxLines: 1, overflow: TextOverflow.ellipsis),
-                ),
-              ),
-              const SizedBox(width: 8),
-              if (unread > 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(color: _C.primaryFixed, borderRadius: BorderRadius.circular(999)),
-                  child: Text(
-                    unread == 1 ? '1 nueva' : '$unread nuevas',
-                    style: _T.labelSm(_C.onPrimaryFixed).copyWith(fontWeight: FontWeight.w600),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: unread > 0
+                ? Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _C.primaryFixed,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      unread == 1 ? '1 nueva' : '$unread nuevas',
+                      style: _T
+                          .labelSm(_C.onPrimaryFixed)
+                          .copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  )
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Symbols.done_all,
+                        size: 16,
+                        color: _C.secondary,
+                      ),
+                      const SizedBox(width: 6),
+                      Text('Estás al día', style: _T.labelMd(_C.secondary)),
+                    ],
                   ),
-                ),
-            ],
           ),
         ),
-        TextButton(
+        TextButton.icon(
           onPressed: onMarkAll,
-          style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4), minimumSize: const Size(0, 36)),
-          child: Text(
-            'Marcar todas leídas',
-            maxLines: 1,
-            style: _T.labelMd(onMarkAll == null ? _C.secondary.withValues(alpha: 0.5) : _C.primary),
+          icon: const Icon(Symbols.done_all, size: 18),
+          label: const Text('Marcar todas leídas', maxLines: 1),
+          style: TextButton.styleFrom(
+            foregroundColor: _C.primary,
+            disabledForegroundColor: _C.secondary.withValues(alpha: 0.5),
+            textStyle: _T.labelMd(),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            minimumSize: const Size(0, 36),
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Grupo de un aviso según su fecha: Hoy, Ayer, Esta semana o Anteriores.
+String _sectionFor(DateTime date, {DateTime? now}) {
+  final today = DateUtils.dateOnly(now ?? DateTime.now());
+  final days = today.difference(DateUtils.dateOnly(date)).inDays;
+  if (days <= 0) return 'Hoy';
+  if (days == 1) return 'Ayer';
+  if (days < 7) return 'Esta semana';
+  return 'Anteriores';
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text, {required this.first});
+
+  final String text;
+  final bool first;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(top: first ? 8 : 24, bottom: 10, left: 4),
+      child: Semantics(
+        header: true,
+        child: Text(
+          text.toUpperCase(),
+          style: _T
+              .caption(_C.secondary)
+              .copyWith(fontWeight: FontWeight.w600, letterSpacing: 0.8),
+        ),
+      ),
     );
   }
 }
@@ -574,121 +375,145 @@ class _NotificationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final n = notification;
     final v = _visualFor(n);
+    final unread = !n.read;
+    final radius = BorderRadius.circular(14);
     return Semantics(
       button: true,
       label:
-          '${n.read ? '' : 'No leída. '}Ticket ${n.ticketCode}. ${n.title}. ${n.body}. ${timeAgo(n.createdAt)}',
+          '${unread ? 'No leída. ' : ''}Ticket ${n.ticketCode}. ${n.title}. ${n.body}. ${timeAgo(n.createdAt)}',
       excludeSemantics: true,
       child: Material(
-        type: MaterialType.transparency,
+        color: unread ? const Color(0xFFFFF7F6) : _C.white,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          splashColor: Colors.transparent,
           highlightColor: _C.containerLow,
+          splashColor: Colors.transparent,
           child: Ink(
-            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: _C.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: workerShadowSm,
+              borderRadius: radius,
+              border: Border.all(
+                color: unread ? _C.primaryFixed : _C.container,
+              ),
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: _C.container,
-                    borderRadius: BorderRadius.circular(8),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Franja roja a la izquierda: solo en las no leídas.
+                  Container(
+                    width: 3,
+                    color: unread ? _C.primaryContainer : Colors.transparent,
                   ),
-                  child: Icon(v.icon, size: 20, color: v.iconColor),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(13, 14, 14, 14),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            '#${n.ticketCode}',
-                            style: _T.labelMd(
-                              n.read ? _C.secondary : _C.primary,
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: v.tagBg,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(v.icon, size: 20, color: v.iconColor),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      '#${n.ticketCode}',
+                                      style: _T.labelMd(
+                                        unread ? _C.primary : _C.secondary,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: v.tagBg,
+                                          borderRadius: BorderRadius.circular(
+                                            999,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          v.tag,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: _T.labelSm(v.tagFg),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  n.title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: _T.bodyMd().copyWith(
+                                    fontWeight: unread
+                                        ? FontWeight.w600
+                                        : FontWeight.w500,
+                                    height: 1.3,
+                                  ),
+                                ),
+                                if (_detailLine(n).isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _detailLine(n),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: _T
+                                        .bodySm(_C.secondary)
+                                        .copyWith(height: 1.35),
+                                  ),
+                                ],
+                                // La hora va abajo: así la etiqueta del estado
+                                // no se corta en celulares angostos.
+                                const SizedBox(height: 8),
+                                Text(
+                                  timeAgo(n.createdAt),
+                                  style: _T.caption(_C.secondary),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: v.tagBg,
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Text(
-                                v.tag,
-                                overflow: TextOverflow.ellipsis,
-                                style: _T.labelSm(v.tagFg),
-                              ),
-                            ),
+                          const SizedBox(width: 8),
+                          Padding(
+                            padding: const EdgeInsets.only(top: 14),
+                            child: unread
+                                ? Container(
+                                    width: 9,
+                                    height: 9,
+                                    decoration: const BoxDecoration(
+                                      color: _C.primaryContainer,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Symbols.chevron_right,
+                                    size: 18,
+                                    color: _C.containerHighest,
+                                  ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        n.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: _T.bodyMd().copyWith(
-                          fontWeight: n.read
-                              ? FontWeight.w400
-                              : FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _detailLine(n),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: _T.bodySm(_C.secondary),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        timeAgo(n.createdAt),
-                        style: _T.caption(_C.secondary),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: n.read
-                      ? const Icon(
-                          Symbols.chevron_right,
-                          size: 18,
-                          color: _C.containerHighest,
-                        )
-                      : Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: _C.primaryContainer,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: _C.primaryFixed.withValues(alpha: 0.6),
-                                spreadRadius: 4,
-                              ),
-                            ],
-                          ),
-                        ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -707,33 +532,42 @@ String _detailLine(AppNotification n) => n.body
       '',
     );
 
-class _TapHint extends StatelessWidget {
-  const _TapHint();
+/// Bandeja vacía.
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: _C.containerLow,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
+    return Padding(
+      padding: const EdgeInsets.only(top: 72),
+      child: Column(
         children: [
           Container(
-            width: 32,
-            height: 32,
+            width: 72,
+            height: 72,
             decoration: const BoxDecoration(
-              color: _C.containerHigh,
+              color: _C.container,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Symbols.touch_app, size: 18, color: _C.secondary),
+            child: const Icon(
+              Symbols.notifications,
+              size: 32,
+              color: _C.secondary,
+            ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
+          const SizedBox(height: 20),
+          Text(
+            'No tienes notificaciones',
+            textAlign: TextAlign.center,
+            style: _T.headlineSm(),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Text(
-              'Toca cualquier notificación para abrir el detalle del ticket.',
-              style: _T.bodySm(_C.secondary),
+              'Aquí verás los cambios de estado y los comentarios nuevos de tus solicitudes.',
+              textAlign: TextAlign.center,
+              style: _T.bodySm(_C.secondary).copyWith(height: 1.4),
             ),
           ),
         ],

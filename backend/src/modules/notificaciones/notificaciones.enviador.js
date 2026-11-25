@@ -29,6 +29,47 @@ const TOKEN_INVALIDO = new Set([
   'messaging/invalid-argument',
 ]);
 
+// Ícono monocromo de la barra de estado de Android (res/drawable de la app).
+export const ICONO_ANDROID = 'ic_stat_tyckops';
+const COLOR_MARCA = '#D7282F';
+
+/**
+ * Arma el mensaje de FCM para que se vea bien en la pantalla bloqueada:
+ * - Android: ícono propio, color de marca, sonido y vibración, visible con el
+ *   celular bloqueado, y un "tag" por ticket y tipo: si el mismo ticket cambia
+ *   varias veces, se reemplaza el aviso anterior en vez de apilarse.
+ * - iOS: sonido, alerta inmediata, agrupado por ticket (thread-id) y el mismo
+ *   reemplazo con apns-collapse-id.
+ */
+export function mensajeFcm({ titulo, cuerpo, datos = {} }) {
+  const grupo = `ticket-${datos.ticketId ?? 'general'}`;
+  const tag = `${grupo}-${datos.tipo ?? 'aviso'}`.slice(0, 64);
+  return {
+    notification: { title: titulo, body: cuerpo },
+    // Solo ids y el tipo: la app los usa para abrir el ticket correcto.
+    data: datos,
+    android: {
+      priority: 'high',
+      notification: {
+        channelId: CANAL_ANDROID,
+        icon: ICONO_ANDROID,
+        color: COLOR_MARCA,
+        tag,
+        visibility: 'public',
+        notificationPriority: 'PRIORITY_HIGH',
+        defaultSound: true,
+        defaultVibrateTimings: true,
+      },
+    },
+    apns: {
+      headers: { 'apns-priority': '10', 'apns-push-type': 'alert', 'apns-collapse-id': tag },
+      payload: {
+        aps: { sound: 'default', 'thread-id': grupo, 'interruption-level': 'active' },
+      },
+    },
+  };
+}
+
 /** Envía de verdad con Firebase Admin. */
 class EnviadorFirebase {
   constructor(messaging) {
@@ -36,19 +77,9 @@ class EnviadorFirebase {
     this.simulado = false;
   }
 
-  async enviar(tokens, { titulo, cuerpo, datos }) {
+  async enviar(tokens, mensaje) {
     if (!tokens.length) return { enviados: 0, invalidos: [] };
-    const respuesta = await this.messaging.sendEachForMulticast({
-      tokens,
-      notification: { title: titulo, body: cuerpo },
-      // Solo ids y el tipo: la app los usa para abrir el ticket correcto.
-      data: datos,
-      android: {
-        priority: 'high',
-        notification: { channelId: CANAL_ANDROID, color: '#D7282F' },
-      },
-      apns: { payload: { aps: { sound: 'default' } } },
-    });
+    const respuesta = await this.messaging.sendEachForMulticast({ tokens, ...mensajeFcm(mensaje) });
     const invalidos = respuesta.responses
       .map((r, i) => (!r.success && TOKEN_INVALIDO.has(r.error?.code) ? tokens[i] : null))
       .filter(Boolean);
