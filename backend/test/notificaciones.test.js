@@ -17,7 +17,7 @@ import jwt from 'jsonwebtoken';
 import { crearApp } from '../src/app.js';
 import { crearRepositorioEnMemoria } from '../src/modules/auth/auth.memory.repository.js';
 import { AuthService } from '../src/modules/auth/auth.service.js';
-import { EnviadorSimulado } from '../src/modules/notificaciones/notificaciones.enviador.js';
+import { EnviadorSimulado, mensajeFcm } from '../src/modules/notificaciones/notificaciones.enviador.js';
 import { MemoryNotificacionesRepository } from '../src/modules/notificaciones/notificaciones.repositories.js';
 import { NotificacionesService } from '../src/modules/notificaciones/notificaciones.service.js';
 import { MemoryTicketRepository } from '../src/modules/tickets/tickets.memory.repository.js';
@@ -141,4 +141,24 @@ test('T11: al cerrar sesión el celular deja de recibir; un token pasa al nuevo 
   await llamar('DELETE', '/notificaciones/dispositivos', 'w-1', { token: TOKEN_ANA });
   await admin('PATCH', '/admin/tickets/87/estado', { estado: 'APROBADO' });
   assert.deepEqual(enviador.enviadosSimulados.at(-1).tokens, []);
+});
+
+test('el push se arma para verse bien con el celular bloqueado (Android e iOS)', () => {
+  const m = mensajeFcm({
+    titulo: 'Ticket #REP-0087 pasó a "En proceso"',
+    cuerpo: 'Tu ticket #REP-0087 cambió a "En proceso".',
+    datos: { tipo: 'estado', ticketId: '87', notificacionId: 'n-1' },
+  });
+  assert.equal(m.notification.title, 'Ticket #REP-0087 pasó a "En proceso"');
+  assert.deepEqual(m.data, { tipo: 'estado', ticketId: '87', notificacionId: 'n-1' });
+  // Android: ícono propio, visible bloqueado y un aviso por ticket y tipo.
+  assert.equal(m.android.notification.channelId, 'tickets');
+  assert.equal(m.android.notification.icon, 'ic_stat_tyckops');
+  assert.equal(m.android.notification.visibility, 'public');
+  assert.equal(m.android.notification.tag, 'ticket-87-estado');
+  // iOS: alerta con sonido, agrupada por ticket y que reemplaza la anterior.
+  assert.equal(m.apns.payload.aps.sound, 'default');
+  assert.equal(m.apns.payload.aps['thread-id'], 'ticket-87');
+  assert.equal(m.apns.headers['apns-collapse-id'], 'ticket-87-estado');
+  assert.equal(m.apns.headers['apns-push-type'], 'alert');
 });
