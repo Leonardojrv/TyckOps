@@ -16,6 +16,7 @@ import 'core/navigation/app_router.dart';
 import 'core/network/api_client.dart';
 import 'core/notifications/push_service.dart';
 import 'core/theme/app_theme.dart';
+import 'data/repositories/admin_repository.dart';
 import 'data/repositories/auth_repository.dart';
 import 'data/repositories/report_repository.dart';
 import 'features/auth/auth_session.dart';
@@ -31,6 +32,7 @@ class TyckOpsApp extends StatefulWidget {
     required this.authRepository,
     required this.ticketsStore,
     required this.reportRepository,
+    this.adminRepository,
     this.notificationsStore,
     this.pushService,
   });
@@ -40,6 +42,7 @@ class TyckOpsApp extends StatefulWidget {
   final AuthRepository authRepository;
   final MyTicketsStore ticketsStore;
   final ReportRepository reportRepository;
+  final AdminRepository? adminRepository; // T13: Home del administrador y personal
   final NotificationsStore? notificationsStore; // T11: campana y pantalla de avisos
   final PushService? pushService; // T11: abre el ticket al tocar un aviso
 
@@ -55,6 +58,7 @@ class _TyckOpsAppState extends State<TyckOpsApp> {
     widget.authRepository,
     widget.ticketsStore,
     widget.reportRepository,
+    widget.adminRepository ?? ApiAdminRepository(widget.apiClient),
   );
 
   @override

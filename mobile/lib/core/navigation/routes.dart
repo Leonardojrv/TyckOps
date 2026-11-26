@@ -35,6 +35,11 @@ abstract final class Routes {
   static const adminHome = '/admin/inicio';
   static const adminTickets = '/admin/tickets';
   static const adminDashboard = '/admin/dashboard';
+  // T13 · Opciones del Home del administrador (cada una a su pantalla).
+  static const adminNewTicket = '$adminHome/generar-ticket';
+  static const adminPriority = '$adminHome/asignacion-prioridad';
+  static const adminHistory = '$adminHome/historial';
+  static const adminStaff = '$adminHome/personal';
 
   static String homeFor(UserRole role) =>
       role == UserRole.admin ? adminHome : workerHome;
