@@ -101,14 +101,17 @@ class ApiClient {
 
   /// Para enviar archivos (fotos del reporte en la T6, archivo plano en la
   /// T15). [onProgress] recibe un valor entre 0 y 1 para la barra de progreso.
+  /// [headers]: cabeceras extra solo para este envío (ej. el permiso de creación).
   Future<T> upload<T>(
     String path,
     FormData form, {
     void Function(double progress)? onProgress,
+    Map<String, String>? headers,
   }) =>
       _send(() => _dio.post<T>(
             path,
             data: form,
+            options: headers == null ? null : Options(headers: headers),
             onSendProgress: (sent, total) {
               if (total > 0) onProgress?.call(sent / total);
             },

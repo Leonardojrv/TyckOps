@@ -24,6 +24,7 @@ import '../../features/worker/home/worker_home_screen.dart';
 import '../../features/worker/my_tickets_store.dart';
 import '../../features/worker/report/report_fault_screen.dart';
 import '../../features/worker/report/report_sent_screen.dart';
+import '../../features/worker/report/report_timeout_notice.dart';
 import '../../features/worker/tickets/history_screen.dart';
 import '../../features/worker/tickets/my_tickets_screen.dart';
 import '../../data/repositories/admin_repository.dart';
@@ -46,6 +47,9 @@ GoRouter createRouter(
   ReportRepository reportRepository,
   AdminRepository adminRepository, // T13: Home del administrador y personal
 ) {
+  // Une "Reportar falla" con el inicio: si vence el tiempo para crear el
+  // ticket, el inicio muestra la alerta.
+  final reportTimeout = ReportTimeoutNotice();
   return GoRouter(
     initialLocation: Routes.login,
     refreshListenable: session,
@@ -102,7 +106,7 @@ GoRouter createRouter(
             GoRoute(
               path: Routes.workerHome,
               builder: (context, state) =>
-                  WorkerHomeScreen(session: session, store: ticketsStore),
+                  WorkerHomeScreen(session: session, store: ticketsStore, reportTimeout: reportTimeout),
               routes: [
                 // T11 · Notificaciones (se abre desde la campana del encabezado).
                 GoRoute(
@@ -119,6 +123,7 @@ GoRouter createRouter(
                 session: session,
                 store: ticketsStore,
                 reports: reportRepository,
+                reportTimeout: reportTimeout,
               ),
             ),
           ]),

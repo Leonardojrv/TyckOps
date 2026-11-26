@@ -17,6 +17,7 @@ import { crearRepositorioEnMemoria } from '../src/modules/auth/auth.memory.repos
 import { AuthService } from '../src/modules/auth/auth.service.js';
 import { detectarTipoImagen, quitarMetadatos } from '../src/modules/tickets/tickets.fotos.js';
 import { MemoryTicketRepository } from '../src/modules/tickets/tickets.memory.repository.js';
+import { crearSesionCreacion } from '../src/modules/tickets/tickets.sesionCreacion.js';
 import { TicketService } from '../src/modules/tickets/tickets.service.js';
 
 const jwtSecret = 'test-secret-with-more-than-thirty-two-characters';
@@ -90,7 +91,8 @@ test('reportar falla: valida, guarda la foto limpia y crea el ticket Recibido (R
     const datos = { categoria: 'ELECTRICA', ubicacion: 'Piso 2, Sala B', descripcion: 'El enchufe echa chispas al conectar', ...campos };
     for (const [clave, valor] of Object.entries(datos)) form.append(clave, valor);
     if (foto) form.append('foto', new Blob([foto], { type: tipo }), nombre);
-    return fetch(`${baseUrl}/api/tickets`, { method: 'POST', headers: { authorization: token(sub, role) }, body: form });
+    const headers = { authorization: token(sub, role), 'x-sesion-creacion': crearSesionCreacion(jwtSecret, sub).token };
+    return fetch(`${baseUrl}/api/tickets`, { method: 'POST', headers, body: form });
   };
   const codigo = async (respuesta) => (await respuesta.json()).error.code;
 

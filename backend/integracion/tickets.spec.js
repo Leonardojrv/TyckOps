@@ -1,10 +1,12 @@
 // REPORTAR FALLA (RF-04) contra PostgreSQL real: la foto se guarda en la
 // columna imagen (BYTEA) del ticket, sin metadatos, y nunca viaja en las
 // respuestas ni en los listados.
+import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { crearClientePruebas, reiniciarDatos } from './helpers/baseDePruebas.js';
-import { crearAppPruebas } from './helpers/app.js';
+import { ENV_PRUEBAS, crearAppPruebas } from './helpers/app.js';
 import { USUARIOS } from './helpers/usuarios.js';
+import { crearSesionCreacion } from '../src/modules/tickets/tickets.sesionCreacion.js';
 
 let prisma;
 
@@ -45,6 +47,7 @@ function reportar(app, token, { categoria = 'ELECTRICA', foto = JPG_CON_GPS } = 
   const peticion = request(app)
     .post('/api/tickets')
     .set('Authorization', `Bearer ${token}`)
+    .set('X-Sesion-Creacion', crearSesionCreacion(ENV_PRUEBAS.jwtSecret, jwt.decode(token).sub).token)
     .field('categoria', categoria)
     .field('ubicacion', 'Piso 2, Sala B')
     .field('descripcion', 'El enchufe echa chispas al conectar');

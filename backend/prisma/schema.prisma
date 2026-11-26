@@ -35,7 +35,6 @@ model User {
   email        String  @unique(map: "Usuario_correo_UK") @map("correo") @db.VarChar(100)
   passwordHash String  @map("password") @db.VarChar(255)
   estado       String? @db.VarChar(50)
-  Cargo        String? @db.VarChar(150)
   telefono     String? @db.VarChar(50)
 
   // Primer acceso y Términos (RF-02 / RF-03). No están en el diagrama: los pide el backend.

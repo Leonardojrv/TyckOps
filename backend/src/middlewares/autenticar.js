@@ -17,7 +17,7 @@ import { HttpError } from '../utils/http-error.js';
 
 // Llaves que NO son una sesión completa. Una llave sin tipo es de antes del
 // MFA y se trata como completa (así siguen funcionando las pruebas antiguas).
-const LLAVES_LIMITADAS = new Set(['mfa', 'primer_acceso']);
+const LLAVES_LIMITADAS = new Set(['mfa', 'primer_acceso', 'creacion_ticket']);
 
 export function autenticar(secret, { permitir = [] } = {}) {
   return (req, _res, next) => {

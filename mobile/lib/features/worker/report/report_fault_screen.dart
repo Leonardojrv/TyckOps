@@ -8,6 +8,13 @@
 // ¿CÓMO LO CAMBIO?
 //   Los límites del formulario están en fault_category.dart. Si cambias uno,
 //   cámbialo también en el servidor (tickets.schema.js).
+//
+//   Tiempo límite: al abrir la pantalla se pide al servidor un permiso de
+//   creación (3 minutos, lo decide el servidor). Si vence, el reporte se
+//   descarta, la app vuelve al inicio y el inicio muestra una alerta. No hay
+//   contador visible; el servidor rechaza igual el ticket si llega tarde.
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,6 +29,7 @@ import '../../../data/repositories/report_repository.dart';
 import '../../auth/auth_session.dart';
 import '../my_tickets_store.dart';
 import '../worker_header.dart';
+import 'report_timeout_notice.dart';
 import '../worker_tokens.dart';
 
 typedef _C = WorkerColors;
@@ -34,12 +42,14 @@ class ReportFaultScreen extends StatefulWidget {
     required this.session,
     required this.store,
     required this.reports,
+    this.reportTimeout,
     this.picker,
   });
 
   final AuthSession session;
   final MyTicketsStore store;
   final ReportRepository reports;
+  final ReportTimeoutNotice? reportTimeout; // avisa al inicio si vence el tiempo
   final ImagePicker? picker; // se puede reemplazar en pruebas
 
   @override
@@ -57,6 +67,12 @@ class _ReportFaultScreenState extends State<ReportFaultScreen> {
   bool _submitted = false; // los errores se muestran después del primer intento
   double _progress = 0;
 
+  // Tiempo límite para crear el ticket (lo entrega el servidor).
+  ReportSession? _reportSession;
+  Future<ReportSession?>? _startingSession;
+  Timer? _expiryTimer;
+  bool _visible = false;
+
   @override
   void initState() {
     super.initState();
@@ -67,8 +83,19 @@ class _ReportFaultScreenState extends State<ReportFaultScreen> {
     _recoverLostPhoto();
   }
 
+  // La pantalla vive dentro de las pestañas (sigue montada aunque no se vea):
+  // TickerMode dice si es la pestaña visible. El tiempo empieza al mostrarse.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.valuesOf(context).enabled;
+    if (visible && !_visible && _reportSession == null) _startSession();
+    _visible = visible;
+  }
+
   @override
   void dispose() {
+    _expiryTimer?.cancel();
     _location.dispose();
     _description.dispose();
     super.dispose();
@@ -147,6 +174,52 @@ class _ReportFaultScreenState extends State<ReportFaultScreen> {
     return name.length <= 18 ? name : '…${name.substring(name.length - 17)}';
   }
 
+  // ---------- Tiempo límite ----------
+
+  /// Pide el permiso al servidor (una sola petición a la vez). null si falló.
+  Future<ReportSession?> _startSession() {
+    return _startingSession ??= () async {
+      try {
+        final session = await widget.reports.startSession();
+        if (!mounted) return null;
+        _expiryTimer?.cancel();
+        _reportSession = session;
+        _expiryTimer = Timer(session.duration, _onTimeUp);
+        return session;
+      } on ApiException {
+        return null; // sin conexión: se vuelve a pedir al enviar
+      } on FormatException {
+        return null;
+      } finally {
+        _startingSession = null;
+      }
+    }();
+  }
+
+  void _clearSession() {
+    _expiryTimer?.cancel();
+    _expiryTimer = null;
+    _reportSession = null;
+  }
+
+  void _onTimeUp() {
+    if (!mounted) return;
+    // Si el envío ya partió, decide el servidor (responde 201 o 410).
+    if (_sending) return;
+    _expire();
+  }
+
+  /// Venció el tiempo: el ticket no se guarda, el formulario se limpia y, si la
+  /// pantalla está a la vista, vuelve al inicio, que muestra la alerta.
+  void _expire() {
+    _clearSession();
+    _reset();
+    if (!_visible) return; // en otra pestaña: al volver empieza un tiempo nuevo
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    widget.reportTimeout?.trigger();
+    context.go(Routes.workerHome);
+  }
+
   // ---------- Envío ----------
 
   Future<void> _submit() async {
@@ -163,7 +236,13 @@ class _ReportFaultScreenState extends State<ReportFaultScreen> {
     });
     HapticFeedback.lightImpact();
     try {
+      final session = _reportSession ?? await _startSession();
+      if (session == null) {
+        _showMessage('No pudimos iniciar el reporte. Revisa tu conexión e inténtalo de nuevo.');
+        return;
+      }
       final ticket = await widget.reports.create(
+        sessionToken: session.token,
         category: _category!,
         location: _location.text.trim(),
         description: _description.text.trim(),
@@ -172,10 +251,19 @@ class _ReportFaultScreenState extends State<ReportFaultScreen> {
           if (mounted) setState(() => _progress = p);
         },
       );
+      _clearSession(); // el próximo reporte tendrá su propio tiempo
       _reset(); // el formulario queda limpio para el próximo reporte
       widget.store.load(); // el home y el contador se actualizan
       if (mounted) context.go(Routes.workerReportSent, extra: ticket);
     } on ApiException catch (e) {
+      if (e.code == reportTimeExpiredCode) {
+        if (mounted) _expire();
+        return;
+      }
+      if (e.code == 'SESION_CREACION_INVALIDA' || e.code == 'SESION_CREACION_REQUERIDA') {
+        _clearSession();
+        _startSession(); // permiso nuevo para el próximo intento
+      }
       _showMessage(e.message);
     } on FormatException {
       _showMessage('El reporte se envió, pero no pudimos leer la respuesta. Revisa "Mis solicitudes".');
@@ -219,6 +307,7 @@ class _ReportFaultScreenState extends State<ReportFaultScreen> {
       if (discard != true) return;
       _reset();
     }
+    _clearSession(); // al volver a "Reportar falla" empieza un tiempo nuevo
     if (mounted) context.go(Routes.workerHome);
   }
 
