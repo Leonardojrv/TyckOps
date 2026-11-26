@@ -7,7 +7,10 @@
 //
 // ¿CÓMO LO CAMBIO?
 //   Los colores y letras salen de worker_tokens.dart. Si quieres mostrar más o menos
-//   solicitudes, cambia _maxActiveShown.
+//   solicitudes, cambia _maxActiveShown. Cuánto se ve la alerta de "tiempo
+//   expirado" está en _timeoutAlertDuration.
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -19,6 +22,7 @@ import '../../../data/models/ticket.dart';
 import '../../../data/models/ticket_status.dart';
 import '../../auth/auth_session.dart';
 import '../my_tickets_store.dart';
+import '../report/report_timeout_notice.dart';
 import '../worker_header.dart';
 import '../worker_tokens.dart';
 
@@ -27,10 +31,11 @@ typedef _T = WorkerText;
 
 /// T5 · Home del colaborador (mockup colaborador/home_inicio).
 class WorkerHomeScreen extends StatefulWidget {
-  const WorkerHomeScreen({super.key, required this.session, required this.store});
+  const WorkerHomeScreen({super.key, required this.session, required this.store, this.reportTimeout});
 
   final AuthSession session;
   final MyTicketsStore store;
+  final ReportTimeoutNotice? reportTimeout; // alerta: venció el tiempo para crear un ticket
 
   @override
   State<WorkerHomeScreen> createState() => _WorkerHomeScreenState();
@@ -38,11 +43,38 @@ class WorkerHomeScreen extends StatefulWidget {
 
 class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
   static const _maxActiveShown = 3; // el mockup muestra las 3 más recientes
+  static const _timeoutAlertDuration = Duration(seconds: 7);
+
+  bool _showTimeoutAlert = false;
+  Timer? _timeoutAlertTimer;
 
   @override
   void initState() {
     super.initState();
     widget.store.loadIfNeeded();
+    widget.reportTimeout?.addListener(_onReportTimeout);
+    _onReportTimeout(); // por si llegó antes de que existiera esta pantalla
+  }
+
+  @override
+  void dispose() {
+    widget.reportTimeout?.removeListener(_onReportTimeout);
+    _timeoutAlertTimer?.cancel();
+    super.dispose();
+  }
+
+  // Venció el tiempo en "Reportar falla": se muestra la alerta y a los 7 s se
+  // quita sola (o antes, si la persona la cierra con la X).
+  void _onReportTimeout() {
+    if (widget.reportTimeout?.consume() != true) return;
+    _timeoutAlertTimer?.cancel();
+    setState(() => _showTimeoutAlert = true);
+    _timeoutAlertTimer = Timer(_timeoutAlertDuration, _hideTimeoutAlert);
+  }
+
+  void _hideTimeoutAlert() {
+    _timeoutAlertTimer?.cancel();
+    if (mounted) setState(() => _showTimeoutAlert = false);
   }
 
   void _openTicket(Ticket ticket) {
@@ -56,7 +88,33 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
     return Scaffold(
       backgroundColor: _C.surface,
       appBar: WorkerHeader(title: 'Inicio', onSignOut: widget.session.signOut),
-      body: ListenableBuilder(
+      body: Stack(
+        children: [
+          _buildContent(),
+          // La alerta flota sobre el inicio, sin mover el resto de la pantalla.
+          Positioned(
+            top: 12,
+            left: 16,
+            right: 16,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              transitionBuilder: (child, animation) => FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween(begin: const Offset(0, -0.3), end: Offset.zero).animate(animation),
+                  child: child,
+                ),
+              ),
+              child: _showTimeoutAlert ? _TimeoutAlert(onClose: _hideTimeoutAlert) : const SizedBox.shrink(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    return ListenableBuilder(
         listenable: widget.store,
         builder: (context, _) {
           final store = widget.store;
@@ -97,6 +155,44 @@ class _WorkerHomeScreenState extends State<WorkerHomeScreen> {
             ),
           );
         },
+    );
+  }
+}
+
+// ===================== Alerta: tiempo expirado =====================
+
+/// Recuadro que avisa que venció el tiempo para crear el ticket (no se guardó).
+/// Recuadro blanco como las tarjetas de la app, con una X para cerrarlo.
+class _TimeoutAlert extends StatelessWidget {
+  const _TimeoutAlert({required this.onClose});
+
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 6, 6, 6),
+        decoration: BoxDecoration(
+          color: _C.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: const [BoxShadow(color: Color(0x26000000), blurRadius: 12, offset: Offset(0, 4))],
+        ),
+        child: Row(
+          children: [
+            const Icon(Symbols.timer_off, size: 22, color: _C.primaryContainer),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text('Tiempo para la creación del ticket expirado', style: _T.labelLg(_C.onSurface)),
+            ),
+            IconButton(
+              onPressed: onClose,
+              tooltip: 'Cerrar',
+              icon: const Icon(Symbols.close, size: 20, color: _C.secondary),
+            ),
+          ],
+        ),
       ),
     );
   }

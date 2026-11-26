@@ -22,6 +22,7 @@ import { HttpError } from '../../utils/http-error.js';
 import { responder } from '../../utils/respuestas.js';
 import { MAX_FOTO_BYTES, detectarTipoImagen } from './tickets.fotos.js';
 import { reporteSchema } from './tickets.schema.js';
+import { crearSesionCreacion, exigirSesionCreacion } from './tickets.sesionCreacion.js';
 
 // Multer guarda la foto solo en memoria y corta antes de leer de más.
 // Una foto por reporte: se guarda en la columna imagen (BYTEA) del ticket.
@@ -93,8 +94,15 @@ export function crearRutasTickets({ ticketService, authService, jwtSecret }) {
     responder(res, { ticket }, 201);
   };
 
-  router.post('/', requerirRol('COLABORADOR'), limiterReportes, subirFoto(recibirFoto), crearReporte);
-  router.post('/reparaciones', requerirRol('COLABORADOR'), limiterReportes, subirFoto(recibirFoto), crearReporte);
+  // Tiempo límite de 3 minutos para crear un ticket (tickets.sesionCreacion.js).
+  // La app pide el permiso al abrir "Reportar falla" y lo manda al enviar.
+  router.post('/sesion-creacion', requerirRol('COLABORADOR'), (req, res) => {
+    responder(res, crearSesionCreacion(jwtSecret, req.usuario.id), 201);
+  });
+
+  const tiempoCreacion = exigirSesionCreacion(jwtSecret);
+  router.post('/', requerirRol('COLABORADOR'), tiempoCreacion, limiterReportes, subirFoto(recibirFoto), crearReporte);
+  router.post('/reparaciones', requerirRol('COLABORADOR'), tiempoCreacion, limiterReportes, subirFoto(recibirFoto), crearReporte);
 
   // Lista de tickets del colaborador (compatibilidad con la app móvil y T5).
   router.get('/mis-tickets', requerirRol('COLABORADOR'), async (req, res) => {
