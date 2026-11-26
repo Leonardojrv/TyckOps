@@ -1,13 +1,18 @@
 // ¿PARA QUÉ SIRVE?
-//   Es la pantalla "Primer Acceso y Seguridad del Colaborador" (T3 y T4).
+//   Es la pantalla "Primer Acceso y Seguridad del Colaborador" (T3 y T4) y,
+//   con adminMode, el "Cambio de Contraseña" del administrador (T12).
 //
 // ¿QUÉ HACE?
-//   Deja cambiar la contraseña temporal (opcional), muestra los Términos y
-//   Condiciones y no deja guardar hasta marcar la casilla. Rechazar cierra sesión.
+//   Colaborador: deja cambiar la contraseña temporal (opcional), muestra los
+//   Términos y Condiciones y no deja guardar hasta marcar la casilla.
+//   Administrador: aparece después del código MFA en su primer ingreso; cambia
+//   la contraseña ("Actualizar contraseña") o la mantiene ("Mantener contraseña
+//   actual"), sin términos, y entra directo a su Home.
 //
 // ¿CÓMO LO CAMBIO?
 //   El texto de los términos está en terms_content.dart. Los colores y medidas
-//   copian el mockup y están al final, en _C y _T.
+//   copian los mockups (primer_acceso_y_seguridad_del_colaborador y
+//   cambio_de_contrase_a_administrador) y están al final, en _C y _T.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -26,10 +31,13 @@ import 'terms_content.dart';
 ///
 /// Pendiente en la T4: botón "Rechazar términos" y registro en el servidor.
 class FirstAccessScreen extends StatefulWidget {
-  const FirstAccessScreen({super.key, required this.session, required this.authRepository});
+  const FirstAccessScreen({super.key, required this.session, required this.authRepository, this.adminMode = false});
 
   final AuthSession session;
   final AuthRepository authRepository;
+
+  /// T12: "Cambio de Contraseña" del administrador (sin términos, tras el MFA).
+  final bool adminMode;
 
   @override
   State<FirstAccessScreen> createState() => _FirstAccessScreenState();
@@ -53,7 +61,35 @@ class _FirstAccessScreenState extends State<FirstAccessScreen> {
 
   /// "Guardar preferencias y continuar": si se escribió una contraseña nueva
   /// la cambia; si el campo quedó vacío, mantiene la actual.
-  Future<void> _save() => _complete(changePassword: _newPassword.text.isNotEmpty);
+  Future<void> _save() => widget.adminMode
+      ? _completeAdmin(changePassword: _newPassword.text.isNotEmpty)
+      : _complete(changePassword: _newPassword.text.isNotEmpty);
+
+  /// T12 · Administrador: cambia o mantiene su contraseña y entra a su Home.
+  /// El servidor exige la llave que solo se obtiene después del código MFA.
+  Future<void> _completeAdmin({required bool changePassword}) async {
+    FocusScope.of(context).unfocus();
+    if (changePassword && !_formKey.currentState!.validate()) return;
+
+    setState(() => _loading = true);
+    try {
+      final result = await widget.authRepository.completeAdminFirstAccess(
+        currentPassword: changePassword ? _currentPassword.text : null,
+        newPassword: changePassword ? _newPassword.text : null,
+      );
+      // Seguridad: las claves no se quedan escritas en memoria.
+      _currentPassword.clear();
+      _newPassword.clear();
+      _confirmPassword.clear();
+      // Sesión completa: el router lo lleva solo al Home del administrador.
+      await widget.session.signIn(result.user, result.token);
+    } on ApiException catch (e) {
+      _currentPassword.clear();
+      _showMessage(e.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
 
   Future<void> _complete({required bool changePassword}) async {
     if (!_termsChecked) return; // segunda barrera, por si el botón fallara
@@ -100,10 +136,14 @@ class _FirstAccessScreenState extends State<FirstAccessScreen> {
   @override
   Widget build(BuildContext context) {
     final roleLabel = widget.session.user?.role.label ?? 'Colaborador';
+    final admin = widget.adminMode;
     return Scaffold(
       backgroundColor: _C.surface,
       // La flecha "volver" cierra la sesión y regresa al login.
-      appBar: _Header(onBack: _loading ? null : widget.session.signOut),
+      appBar: _Header(
+        title: admin ? 'Cambio De Contraseña' : 'Configuración De Cuenta',
+        onBack: _loading ? null : widget.session.signOut,
+      ),
       body: SafeArea(
         top: false,
         child: SingleChildScrollView(
@@ -113,17 +153,40 @@ class _FirstAccessScreenState extends State<FirstAccessScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const _HeroBanner(),
+                _HeroBanner(adminMode: admin),
                 const SizedBox(height: 16),
-                _IdentityCard(title: '$roleLabel GA.MA Chile'),
+                _IdentityCard(
+                  title: '$roleLabel GA.MA Chile',
+                  subtitle: admin
+                      ? 'Panel de Administración - Seguridad de Cuenta'
+                      : 'Casa Matriz · Red de Infraestructura & Mantenimiento',
+                ),
                 const SizedBox(height: 16),
                 _CredentialsCard(
                   current: _currentPassword,
                   newPassword: _newPassword,
                   confirm: _confirmPassword,
                   enabled: !_loading,
-                  onNewPasswordChanged: () => setState(() {}), // actualiza el medidor
+                  adminMode: admin,
+                  onNewPasswordChanged: () => setState(() {}), // actualiza el medidor y el botón
                 ),
+                if (admin) ...[
+                  // T12 (sin términos). Rojo: cambia la contraseña (exige escribir la
+                  // nueva). Gris: mantiene la original y entra directo al Home.
+                  // Para salir sin hacer nada está la flecha del encabezado.
+                  const SizedBox(height: 24),
+                  _PrimaryButton(
+                    loading: _loading,
+                    enabled: true,
+                    label: 'Actualizar contraseña',
+                    onPressed: () => _completeAdmin(changePassword: true),
+                  ),
+                  const SizedBox(height: 8),
+                  _SecondaryButton(
+                    label: 'Mantener contraseña actual',
+                    onPressed: _loading ? null : () => _completeAdmin(changePassword: false),
+                  ),
+                ] else ...[
                 const SizedBox(height: 16),
                 _TermsCard(
                   checked: _termsChecked,
@@ -145,7 +208,12 @@ class _FirstAccessScreenState extends State<FirstAccessScreen> {
                 // RF-03: sin marcar la casilla de términos no se puede continuar.
                 _PrimaryButton(loading: _loading, enabled: _termsChecked, onPressed: _save),
                 const SizedBox(height: 8),
-                _RejectButton(onPressed: _loading ? null : _rejectTerms),
+                _SecondaryButton(
+                  icon: Symbols.block,
+                  label: 'Rechazar los términos y condiciones',
+                  onPressed: _loading ? null : _rejectTerms,
+                ),
+                ],
               ],
             ),
           ),
@@ -158,8 +226,9 @@ class _FirstAccessScreenState extends State<FirstAccessScreen> {
 // ===================== Encabezado =====================
 
 class _Header extends StatelessWidget implements PreferredSizeWidget {
-  const _Header({required this.onBack});
+  const _Header({required this.title, required this.onBack});
 
+  final String title;
   final VoidCallback? onBack;
 
   @override
@@ -187,7 +256,7 @@ class _Header extends StatelessWidget implements PreferredSizeWidget {
               ),
               const SizedBox(width: 4),
               Expanded(
-                child: Text('Configuración De Cuenta', style: _T.headlineSm(), overflow: TextOverflow.ellipsis),
+                child: Text(title, style: _T.headlineSm(), overflow: TextOverflow.ellipsis),
               ),
             ],
           ),
@@ -200,7 +269,9 @@ class _Header extends StatelessWidget implements PreferredSizeWidget {
 // ===================== Banner oscuro =====================
 
 class _HeroBanner extends StatelessWidget {
-  const _HeroBanner();
+  const _HeroBanner({this.adminMode = false});
+
+  final bool adminMode;
 
   @override
   Widget build(BuildContext context) {
@@ -228,13 +299,18 @@ class _HeroBanner extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Configuración de Cuenta',
+                  adminMode ? 'Cambio de Contraseña' : 'Configuración de Cuenta',
                   style: _T.headlineLg(_C.inverseOnSurface).copyWith(letterSpacing: -0.6),
                 ),
                 const SizedBox(height: 2),
-                Text('Seguridad y Políticas de Acceso GA.MA Chile', style: _T.bodySm(_C.surfaceDim)),
+                Text(
+                  adminMode
+                      ? 'Seguridad de Credenciales Administrativas · GA.MA Chile'
+                      : 'Seguridad y Políticas de Acceso GA.MA Chile',
+                  style: _T.bodySm(_C.surfaceDim),
+                ),
                 const SizedBox(height: 12),
-                const _StepBadge(),
+                if (adminMode) const _RoleChip() else const _StepBadge(),
               ],
             ),
           ),
@@ -314,6 +390,27 @@ class _PulsingDotState extends State<_PulsingDot> with SingleTickerProviderState
   }
 }
 
+/// T12 · Chip "Rol Administrador" del mockup del administrador.
+class _RoleChip extends StatelessWidget {
+  const _RoleChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: _C.white.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Symbols.admin_panel_settings, size: 14, color: Color(0xFFE9C46A)),
+          const SizedBox(width: 6),
+          Text('Rol Administrador', style: _T.labelSm(_C.surfaceBright).copyWith(fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+}
+
 class _StepBadge extends StatelessWidget {
   const _StepBadge();
 
@@ -380,9 +477,10 @@ class _Panel extends StatelessWidget {
 }
 
 class _IdentityCard extends StatelessWidget {
-  const _IdentityCard({required this.title});
+  const _IdentityCard({required this.title, required this.subtitle});
 
   final String title;
+  final String subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -410,7 +508,7 @@ class _IdentityCard extends StatelessWidget {
                   ],
                 ),
                 Text(
-                  'Casa Matriz · Red de Infraestructura & Mantenimiento',
+                  subtitle,
                   style: _T.caption(_C.secondary),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -465,6 +563,7 @@ class _CredentialsCard extends StatelessWidget {
     required this.confirm,
     required this.enabled,
     required this.onNewPasswordChanged,
+    this.adminMode = false,
   });
 
   final TextEditingController current;
@@ -472,6 +571,7 @@ class _CredentialsCard extends StatelessWidget {
   final TextEditingController confirm;
   final bool enabled;
   final VoidCallback onNewPasswordChanged;
+  final bool adminMode; // T12: textos del mockup del administrador
 
   @override
   Widget build(BuildContext context) {
@@ -518,8 +618,8 @@ class _CredentialsCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _PasswordField(
-            label: 'Contraseña temporal actual',
-            trailing: 'Asignada vía IT',
+            label: adminMode ? 'Contraseña actual o temporal' : 'Contraseña temporal actual',
+            trailing: adminMode ? null : 'Asignada vía IT',
             hint: '••••••••••••',
             icon: Symbols.lock,
             controller: current,
@@ -532,19 +632,27 @@ class _CredentialsCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _PasswordField(
-            label: 'Nueva contraseña (Opcional)',
-            trailing: 'Recomendado',
+            label: adminMode ? 'Nueva contraseña' : 'Nueva contraseña (Opcional)',
+            trailing: adminMode ? null : 'Recomendado',
             trailingColor: _C.primaryContainer,
-            hint: 'Dejar en blanco para mantener actual',
+            hint: adminMode ? 'Ingresa tu nueva contraseña' : 'Dejar en blanco para mantener actual',
             icon: Symbols.lock_reset,
             controller: newPassword,
             enabled: enabled,
             autofillHints: const [AutofillHints.newPassword],
-            validator: Validators.optionalNewPassword,
+            validator: adminMode
+                ? (value) => (value == null || value.isEmpty)
+                    ? 'Ingresa tu nueva contraseña o elige "Mantener contraseña actual"'
+                    : Validators.optionalNewPassword(value)
+                : Validators.optionalNewPassword,
             onChanged: (_) => onNewPasswordChanged(),
           ),
           const SizedBox(height: 4),
-          _StrengthMeter(strength: Validators.passwordStrength(newPassword.text)),
+          _StrengthMeter(strength: Validators.passwordStrength(newPassword.text), showCaption: !adminMode),
+          if (adminMode) ...[
+            const SizedBox(height: 6),
+            const _FieldHint(icon: Symbols.check_circle, text: 'Mínimo 8 caracteres, combinación de letras y números'),
+          ],
           const SizedBox(height: 16),
           _PasswordField(
             label: 'Confirmar nueva contraseña',
@@ -555,8 +663,32 @@ class _CredentialsCard extends StatelessWidget {
             autofillHints: const [AutofillHints.newPassword],
             validator: (value) => Validators.confirmPassword(value, newPassword.text),
           ),
+          if (adminMode) ...[
+            const SizedBox(height: 6),
+            const _FieldHint(icon: Symbols.sync_alt, text: 'Las contraseñas deben coincidir exactamente'),
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// T12 · Ayuda gris bajo un campo (mockup del administrador).
+class _FieldHint extends StatelessWidget {
+  const _FieldHint({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(padding: const EdgeInsets.only(top: 1), child: Icon(icon, size: 14, color: _C.secondary)),
+        const SizedBox(width: 6),
+        Expanded(child: Text(text, style: _T.caption(_C.secondary))),
+      ],
     );
   }
 }
@@ -684,9 +816,10 @@ class _PasswordFieldState extends State<_PasswordField> {
 
 /// Barra de seguridad de la nueva contraseña (mismos niveles del mockup).
 class _StrengthMeter extends StatelessWidget {
-  const _StrengthMeter({required this.strength});
+  const _StrengthMeter({required this.strength, this.showCaption = true});
 
   final PasswordStrength strength;
+  final bool showCaption; // T12: el mockup del administrador muestra solo la barra
 
   @override
   Widget build(BuildContext context) {
@@ -701,16 +834,19 @@ class _StrengthMeter extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text('Criterio: mínimo 8 caracteres con letras y números', style: _T.caption(_C.secondary)),
-              ),
-              const SizedBox(width: 8),
-              Text(label, style: _T.caption(labelColor).copyWith(fontWeight: weight)),
-            ],
-          ),
-          const SizedBox(height: 4),
+          if (showCaption) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Criterio: mínimo 8 caracteres con letras y números', style: _T.caption(_C.secondary)),
+                ),
+                const SizedBox(width: 8),
+                Text(label, style: _T.caption(labelColor).copyWith(fontWeight: weight)),
+              ],
+            ),
+            const SizedBox(height: 4),
+          ] else
+            const SizedBox(height: 4),
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: Container(
@@ -912,10 +1048,13 @@ class _InfoTile extends StatelessWidget {
   }
 }
 
-// "Rechazar los términos y condiciones": cierra la sesión (RF-03).
-class _RejectButton extends StatelessWidget {
-  const _RejectButton({required this.onPressed});
+/// Botón gris: "Rechazar los términos y condiciones" (colaborador, RF-03) o
+/// "Cancelar y volver" (administrador, T12). Los dos cierran la sesión.
+class _SecondaryButton extends StatelessWidget {
+  const _SecondaryButton({required this.label, required this.onPressed, this.icon});
 
+  final String label;
+  final IconData? icon;
   final VoidCallback? onPressed;
 
   @override
@@ -936,11 +1075,10 @@ class _RejectButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Symbols.block, size: 20),
-            const SizedBox(width: 8),
+            if (icon != null) ...[Icon(icon, size: 20), const SizedBox(width: 8)],
             Flexible(
               child: Text(
-                'Rechazar los términos y condiciones',
+                label,
                 style: _T.labelLg(_C.secondary),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -953,8 +1091,14 @@ class _RejectButton extends StatelessWidget {
 }
 
 class _PrimaryButton extends StatelessWidget {
-  const _PrimaryButton({required this.loading, required this.enabled, required this.onPressed});
+  const _PrimaryButton({
+    required this.loading,
+    required this.enabled,
+    required this.onPressed,
+    this.label = 'Guardar preferencias y continuar',
+  });
 
+  final String label;
   final bool loading;
   final bool enabled; // false = gris y no responde (términos sin aceptar)
   final VoidCallback onPressed;
@@ -996,7 +1140,7 @@ class _PrimaryButton extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        'Guardar preferencias y continuar',
+                        label,
                         style: _T.labelLg(contentColor),
                         overflow: TextOverflow.ellipsis,
                       ),

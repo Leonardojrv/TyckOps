@@ -17,6 +17,7 @@ import 'core/network/api_client.dart';
 import 'core/notifications/push_service.dart';
 import 'core/network/api_config.dart';
 import 'core/network/token_storage.dart';
+import 'data/repositories/admin_repository.dart';
 import 'data/repositories/auth_repository.dart';
 import 'data/repositories/notification_repository.dart';
 import 'data/repositories/report_repository.dart';
@@ -62,6 +63,8 @@ Future<void> main() async {
     authRepository: authRepository,
     ticketsStore: ticketsStore,
     reportRepository: reportRepository,
+    // T13: Home del administrador y listado de personal.
+    adminRepository: ApiConfig.useFakeAuth ? FakeAdminRepository() : ApiAdminRepository(apiClient),
     notificationsStore: notificationsStore,
     pushService: pushService,
   ));

@@ -39,8 +39,9 @@ export class AuthService {
   // Crea la "llave" de la sesión. `typ` dice qué abre:
   // - 'acceso': la sesión completa (después de verificar el código).
   // - 'primer_acceso': solo deja hacer el primer acceso (contraseña y términos).
-  #token(user, role, typ, expiresIn = this.jwtExpiresIn) {
-    return jwt.sign({ role, typ }, this.jwtSecret, { subject: String(user.id), expiresIn });
+  // extra: datos adicionales de la llave (T12: mfa:true = se obtuvo después del código).
+  #token(user, role, typ, expiresIn = this.jwtExpiresIn, extra = {}) {
+    return jwt.sign({ role, typ, ...extra }, this.jwtSecret, { subject: String(user.id), expiresIn });
   }
 
   async login({ email, password }, requestInfo = {}) {
@@ -83,10 +84,12 @@ export class AuthService {
       return { token: this.#token(user, role, 'acceso'), user: publicUser(user, role) };
     }
 
-    // Orden pedido para el acceso (T8): la PRIMERA vez va primero el primer
-    // acceso (contraseña y términos) con una llave limitada; después la persona
+    // Orden pedido para el acceso (T8): la PRIMERA vez el COLABORADOR va primero
+    // al primer acceso (contraseña y términos) con una llave limitada; después
     // vuelve a iniciar sesión y recién ahí se le pide el código.
-    if (user.isFirstLogin || !user.termsAccepted) {
+    // T12: el ADMINISTRADOR siempre pasa primero por el código; su cambio de
+    // contraseña viene después (ver completeMfa).
+    if (role === 'COLABORADOR' && (user.isFirstLogin || !user.termsAccepted)) {
       return {
         step: 'PRIMER_ACCESO',
         token: this.#token(user, role, 'primer_acceso', '15m'),
@@ -129,7 +132,61 @@ export class AuthService {
       throw new HttpError(401, 'SESION_INVALIDA', 'La sesión ya no es válida. Inicia sesión nuevamente.');
     }
     this.auditLogger.log({ action: 'mfa_login_completado', userId: String(user.id), role, ...requestInfo });
+
+    // T12: el administrador en su primer ingreso ya demostró su identidad con el
+    // código; recibe una llave LIMITADA (15 min) que solo sirve para el cambio de
+    // contraseña. La marca mfa:true impide conseguirla saltándose el código.
+    if (role === 'ADMINISTRADOR' && user.isFirstLogin) {
+      return {
+        step: 'PRIMER_ACCESO',
+        token: this.#token(user, role, 'primer_acceso', '15m', { mfa: true }),
+        user: publicUser(user, role),
+      };
+    }
     return { token: this.#token(user, role, 'acceso'), user: publicUser(user, role) };
+  }
+
+  /**
+   * T12 · Primer ingreso del administrador: cambia su contraseña temporal o la
+   * mantiene (sin Términos y Condiciones). Solo con la llave obtenida DESPUÉS
+   * del código MFA. Al terminar entrega la sesión completa para ir al Home.
+   * @returns {Promise<{ user, token }>}
+   */
+  async completeAdminFirstAccess(id, { currentPassword, newPassword }, { mfaVerificado = false } = {}, requestInfo = {}) {
+    const user = await this.userRepository.findById(id);
+    const role = user ? roleMap.get(String(user.role).toUpperCase()) : null;
+    if (!user || role !== 'ADMINISTRADOR') {
+      throw new HttpError(403, 'SOLO_ADMINISTRADOR', 'Esta configuración es solo para administradores.');
+    }
+    if (!mfaVerificado) {
+      throw new HttpError(403, 'MFA_REQUERIDO', 'Ingresa primero el código de verificación.');
+    }
+    if (!user.isFirstLogin) {
+      throw new HttpError(409, 'PRIMER_ACCESO_COMPLETADO', 'La configuración inicial ya fue realizada.');
+    }
+
+    const changes = { isFirstLogin: false };
+    if (newPassword) {
+      // Igual que el colaborador: para cambiarla hay que demostrar la actual.
+      const matches = user.passwordHash ? await verificarContrasena(currentPassword, user.passwordHash) : false;
+      if (!matches) {
+        this.auditLogger.log({ action: 'password_change_failed', userId: String(user.id), ...requestInfo });
+        throw new HttpError(400, 'CONTRASENA_ACTUAL_INCORRECTA', 'La contraseña actual no es correcta.');
+      }
+      if (await verificarContrasena(newPassword, user.passwordHash)) {
+        throw new HttpError(400, 'CONTRASENA_REPETIDA', 'La nueva contraseña debe ser distinta de la actual.');
+      }
+      changes.passwordHash = await cifrarContrasena(newPassword); // Argon2id, nunca en texto plano
+    }
+
+    const updated = await this.userRepository.update(user.id, changes);
+    this.auditLogger.log({
+      action: newPassword ? 'password_changed' : 'password_kept',
+      userId: String(user.id),
+      role,
+      ...requestInfo,
+    });
+    return { user: publicUser(updated, role), token: this.#token(updated, role, 'acceso') };
   }
 
   // RF-02: el usuario cambia su contraseña temporal o decide mantenerla.

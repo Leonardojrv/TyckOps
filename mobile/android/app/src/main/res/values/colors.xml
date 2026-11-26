@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- T11 · Color de marca de las notificaciones (ícono y acentos). -->
+    <color name="notification_color">#D7282F</color>
+</resources>

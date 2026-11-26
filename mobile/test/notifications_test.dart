@@ -108,7 +108,8 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: NotificationsScope(store: store, child: const NotificationsScreen())));
     await tester.pumpAndSettle();
 
-    expect(find.text('PREVISUALIZACIÓN DEL SISTEMA PUSH'), findsOneWidget);
+    // La simulación de la pantalla bloqueada ya no se dibuja dentro de la app.
+    expect(find.text('PREVISUALIZACIÓN DEL SISTEMA PUSH'), findsNothing);
     expect(find.text('2 nuevas'), findsOneWidget);
     expect(find.text('Nota Admin'), findsOneWidget);
     expect(find.text('#REP-0098'), findsOneWidget);

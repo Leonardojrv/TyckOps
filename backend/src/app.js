@@ -26,6 +26,7 @@ export function crearApp({
   guiasService = null,
   reglasService = null, // MM2: reglas de prioridad del administrador
   notificacionesService = null, // T11: notificaciones push
+  personalRepository = null, // T13: listado de personal y resumen del Home
   groqClient = null,
   auditLogger,
   databaseStatus,
@@ -66,7 +67,7 @@ export function crearApp({
   app.use('/guias', rutasGuias);
   app.use('/api/guias', rutasGuias);
 
-  app.use('/api/admin', crearRutasAdmin({ jwtSecret: env.jwtSecret, authService: service, ticketService }));
+  app.use('/api/admin', crearRutasAdmin({ jwtSecret: env.jwtSecret, authService: service, ticketService, personalRepository }));
   app.use('/api/notificaciones', crearRutasNotificaciones({
     notificacionesService, authService: service, jwtSecret: env.jwtSecret,
   }));

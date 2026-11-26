@@ -20,7 +20,6 @@ import '../../features/auth/first_access_screen.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/mfa/mfa_screen.dart';
 import '../../features/shared/components_gallery_screen.dart';
-import '../../features/shared/placeholder_screen.dart';
 import '../../features/worker/home/worker_home_screen.dart';
 import '../../features/worker/my_tickets_store.dart';
 import '../../features/worker/report/report_fault_screen.dart';
@@ -28,6 +27,10 @@ import '../../features/worker/report/report_sent_screen.dart';
 import '../../features/worker/report/report_timeout_notice.dart';
 import '../../features/worker/tickets/history_screen.dart';
 import '../../features/worker/tickets/my_tickets_screen.dart';
+import '../../data/repositories/admin_repository.dart';
+import '../../features/admin/admin_header.dart';
+import '../../features/admin/home/admin_home_screen.dart';
+import '../../features/admin/staff/staff_screen.dart';
 import '../../features/worker/notifications/notifications_screen.dart';
 import '../../features/worker/tickets/ticket_detail_screen.dart';
 import 'role_shells.dart';
@@ -42,6 +45,7 @@ GoRouter createRouter(
   AuthRepository authRepository,
   MyTicketsStore ticketsStore,
   ReportRepository reportRepository,
+  AdminRepository adminRepository, // T13: Home del administrador y personal
 ) {
   // Une "Reportar falla" con el inicio: si vence el tiempo para crear el
   // ticket, el inicio muestra la alerta.
@@ -67,6 +71,13 @@ GoRouter createRouter(
         path: Routes.firstAccess,
         builder: (context, state) =>
             FirstAccessScreen(session: session, authRepository: authRepository),
+      ),
+      // T12 · Cambio de contraseña del administrador en su primer ingreso: la
+      // misma pantalla del colaborador, en modo administrador (sin términos).
+      GoRoute(
+        path: Routes.adminPasswordChange,
+        builder: (context, state) =>
+            FirstAccessScreen(session: session, authRepository: authRepository, adminMode: true),
       ),
       // T8 · Verificación en dos pasos (colaborador y, en la T12, administrador).
       GoRoute(
@@ -158,22 +169,56 @@ GoRouter createRouter(
           StatefulShellBranch(routes: [
             GoRoute(
               path: Routes.adminHome,
-              builder: (context, state) =>
-                  PlaceholderScreen(title: 'Inicio', task: 'T11', onSignOut: session.signOut),
+              // T13 · Home del administrador con sus cinco opciones.
+              builder: (context, state) => AdminHomeScreen(session: session, repository: adminRepository),
+              routes: [
+                GoRoute(
+                  path: 'personal',
+                  builder: (context, state) => StaffScreen(repository: adminRepository, onSignOut: session.signOut),
+                ),
+                // Opciones que se construyen en otras tareas: ya llevan a su pantalla.
+                GoRoute(
+                  path: 'generar-ticket',
+                  builder: (context, state) => AdminPlaceholderScreen(
+                    title: 'Generar ticket',
+                    task: 'T14',
+                    onSignOut: session.signOut,
+                    onBack: () => context.go(Routes.adminHome),
+                  ),
+                ),
+                GoRoute(
+                  path: 'asignacion-prioridad',
+                  builder: (context, state) => AdminPlaceholderScreen(
+                    title: 'Asignación de prioridad',
+                    task: 'T17',
+                    onSignOut: session.signOut,
+                    onBack: () => context.go(Routes.adminHome),
+                  ),
+                ),
+                GoRoute(
+                  path: 'historial',
+                  builder: (context, state) => AdminPlaceholderScreen(
+                    title: 'Historial de reparaciones',
+                    task: 'T14',
+                    onSignOut: session.signOut,
+                    onBack: () => context.go(Routes.adminHome),
+                  ),
+                ),
+              ],
             ),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
               path: Routes.adminTickets,
               builder: (context, state) =>
-                  const PlaceholderScreen(title: 'Bandeja de tickets', task: 'T12'),
+                  AdminPlaceholderScreen(title: 'Bandeja de tickets', task: 'T14', onSignOut: session.signOut),
             ),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
               path: Routes.adminDashboard,
               builder: (context, state) =>
-                  const PlaceholderScreen(title: 'Dashboard operativo', task: 'T14'),
+                  AdminPlaceholderScreen(title: 'Dashboard operativo', task: 'T16', onSignOut: session.signOut),
             ),
           ]),
         ],

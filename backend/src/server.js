@@ -14,6 +14,7 @@ import { TicketService } from './modules/tickets/tickets.service.js';
 import { crearEnviadorPush } from './modules/notificaciones/notificaciones.enviador.js';
 import { MemoryNotificacionesRepository, PrismaNotificacionesRepository } from './modules/notificaciones/notificaciones.repositories.js';
 import { NotificacionesService } from './modules/notificaciones/notificaciones.service.js';
+import { PrismaPersonalRepository } from './modules/personal/personal.repository.js';
 import { MemoryGuiasRepository } from './modules/guias/guias.memory.repository.js';
 import { GuiasService } from './modules/guias/guias.service.js';
 import { AnalizadorTicket } from './ia/analizadorTicket.js';
@@ -139,6 +140,8 @@ const app = crearApp({
   guiasService,
   reglasService,
   notificacionesService,
+  // T13: listado de personal (solo con base de datos)
+  personalRepository: prisma ? new PrismaPersonalRepository(prisma) : null,
   groqClient,
   databaseStatus,
 });
