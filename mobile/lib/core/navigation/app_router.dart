@@ -68,6 +68,13 @@ GoRouter createRouter(
       GoRoute(
         path: Routes.mfaVerification,
         builder: (context, state) => MfaScreen(session: session, authRepository: authRepository),
+      // T12 · Cambio de contraseña del administrador en su primer ingreso: la
+      // misma pantalla del colaborador, en modo administrador (sin términos).
+      GoRoute(
+        path: Routes.adminPasswordChange,
+        builder: (context, state) =>
+            FirstAccessScreen(session: session, authRepository: authRepository, adminMode: true),
+      ),
       ),
       if (kDebugMode)
         GoRoute(

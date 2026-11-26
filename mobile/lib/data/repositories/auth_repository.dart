@@ -84,7 +84,13 @@ abstract interface class AuthRepository {
     required String termsVersion,
   });
 
+  /// T12: primer ingreso del administrador (después del código, sin términos).
+  /// Sin [newPassword] mantiene la actual. Entrega la sesión completa.
+  Future<({AppUser user, String token})> completeAdminFirstAccess({String? currentPassword, String? newPassword});
+
   /// T8: revisa el código de 6 dígitos. Si es correcto, entrega la sesión completa.
+  /// T12: si es el primer ingreso del administrador, entrega una llave limitada
+  /// (el usuario llega con isFirstLogin = true y va al cambio de contraseña).
   Future<({AppUser user, String token})> verifyMfa(MfaChallenge challenge, String code);
 
   /// T8: pide un código nuevo (el anterior deja de servir).
@@ -150,6 +156,21 @@ class ApiAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<({AppUser user, String token})> completeAdminFirstAccess({String? currentPassword, String? newPassword}) async {
+    final changing = newPassword != null && newPassword.isNotEmpty;
+    final data = _unwrap(
+      await _api.post<Map<String, dynamic>>(
+        '/auth/primer-acceso/administrador',
+        body: {
+          if (changing) 'currentPassword': currentPassword,
+          if (changing) 'newPassword': newPassword,
+        },
+      ),
+    );
+    return (user: AppUser.fromJson(_map(data['user'])), token: data['token'] as String);
+  }
+
+  @override
   Future<({AppUser user, String token})> verifyMfa(MfaChallenge challenge, String code) async {
     final data = _unwrap(await _api.post<Map<String, dynamic>>(
       '/auth/mfa/verificar',
@@ -190,6 +211,8 @@ class ApiAuthRepository implements AuthRepository {
 /// - Cualquier contraseña de al menos 4 caracteres es aceptada.
 /// - Después del primer acceso, el login pide el código: siempre 123456
 ///   (código fijo SOLO para desarrollo, como pide la T8).
+/// - T12: el administrador va siempre primero al código; la primera vez, después
+///   del código pasa al cambio de contraseña (sin términos).
 class FakeAuthRepository implements AuthRepository {
   AppUser? _current;
   final _alreadyConfigured = <String>{}; // correos que ya hicieron el primer acceso
@@ -215,18 +238,19 @@ class FakeAuthRepository implements AuthRepository {
 
     final normalized = email.trim().toLowerCase();
     final isAdmin = normalized.startsWith('admin');
-    final firstTime = !isAdmin && !_alreadyConfigured.contains(normalized);
+    final firstTime = !_alreadyConfigured.contains(normalized);
     final user = AppUser(
       id: 'demo-${isAdmin ? 'admin' : 'worker'}',
       // Nombres neutros: no inventamos personas en los datos de prueba.
       name: isAdmin ? 'Administrador GA.MA' : 'Colaborador GA.MA',
       email: normalized,
       role: isAdmin ? UserRole.admin : UserRole.worker,
-      termsAccepted: !firstTime,
+      termsAccepted: !firstTime && !isAdmin,
       isFirstLogin: firstTime,
     );
     _current = user;
-    if (firstTime) return LoginResult.session(user, 'token-simulado-primer-acceso');
+    // Colaborador nuevo: primero el primer acceso. El administrador, primero el código.
+    if (firstTime && !isAdmin) return LoginResult.session(user, 'token-simulado-primer-acceso');
 
     // Ya configurado: primero el código.
     _wrongTries = 0;
@@ -277,7 +301,22 @@ class FakeAuthRepository implements AuthRepository {
       throw ApiException('Código incorrecto. Te ${left == 1 ? 'queda 1 intento' : 'quedan $left intentos'}.', statusCode: 400, code: 'MFA_CODIGO_INCORRECTO');
     }
     final user = _current ?? (throw _expired);
-    return (user: user, token: 'token-simulado');
+    // T12: administrador nuevo → llave limitada para el cambio de contraseña.
+    return (user: user, token: user.isFirstLogin ? 'token-simulado-primer-acceso' : 'token-simulado');
+  }
+
+  @override
+  Future<({AppUser user, String token})> completeAdminFirstAccess({String? currentPassword, String? newPassword}) async {
+    await _simulateNetwork();
+    final user = _current ?? (throw _expired);
+    if (user.role != UserRole.admin) throw const ApiException('Esta configuración es solo para administradores.', statusCode: 403);
+    final changing = newPassword != null && newPassword.isNotEmpty;
+    if (changing && (currentPassword ?? '').length < 4) {
+      throw const ApiException('La contraseña actual no es correcta.', statusCode: 400);
+    }
+    _alreadyConfigured.add(user.email);
+    final updated = _current = user.copyWith(isFirstLogin: false);
+    return (user: updated, token: 'token-simulado');
   }
 
   @override

@@ -20,6 +20,24 @@ export const loginSchema = z.object({
 });
 
 // RF-02: sin newPassword se mantiene la contraseña actual.
+// T12 · Primer ingreso del administrador: igual que el colaborador, pero sin términos.
+export const primerAccesoAdminSchema = z
+  .object({
+    currentPassword: z.string().min(1).max(128).optional(),
+    newPassword: z
+      .string()
+      .min(8, 'La nueva contraseña debe tener al menos 8 caracteres.')
+      .max(128)
+      .regex(/[A-Za-z]/, 'La nueva contraseña debe incluir letras.')
+      .regex(/\d/, 'La nueva contraseña debe incluir números.')
+      .optional(),
+  })
+  .strict()
+  .refine((d) => !d.newPassword || d.currentPassword, {
+    message: 'Ingresa tu contraseña actual para cambiarla.',
+    path: ['currentPassword'],
+  });
+
 export const primerAccesoSchema = z
   .object({
     currentPassword: z.string().min(1).max(128).optional(),

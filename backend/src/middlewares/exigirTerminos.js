@@ -21,7 +21,12 @@ export function exigirTerminos(authService) {
         throw new HttpError(503, 'AUTENTICACION_NO_DISPONIBLE', 'No se pudo verificar la aceptación de Términos.');
       }
       const user = await authService.getCurrentUser(req.usuario.id);
-      if (!user.termsAccepted) {
+      // T12: los Términos son del colaborador (RF-03). Al administrador se le
+      // exige haber terminado su configuración inicial (cambio de contraseña).
+      const habilitado = user.role === 'ADMINISTRADOR'
+        ? user.termsAccepted || !user.isFirstLogin
+        : user.termsAccepted;
+      if (!habilitado) {
         throw new HttpError(403, 'TERMINOS_NO_ACEPTADOS', 'Debes aceptar los Términos y Condiciones.');
       }
       next();

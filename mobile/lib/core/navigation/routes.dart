@@ -16,6 +16,7 @@ import '../../data/models/user_role.dart';
 abstract final class Routes {
   static const login = '/login';
   static const firstAccess = '/primer-acceso';
+  static const adminPasswordChange = '/cambio-contrasena'; // primer ingreso del administrador (T12)
   static const mfaVerification = '/verificacion'; // verificación en dos pasos (T8)
   static const devComponents = '/dev/componentes';
 
@@ -68,12 +69,16 @@ String? redirectFor({
 
   if (!loggedIn || role == null) return isPublic ? null : Routes.login;
 
-  // RF-02: hasta que decida si cambia o mantiene su contraseña, el usuario
-  // solo puede estar en la pantalla de primer acceso.
-  if (needsFirstAccess) return location == Routes.firstAccess ? null : Routes.firstAccess;
+  // RF-02 / T12: hasta terminar su configuración inicial, la persona solo puede
+  // estar en SU pantalla: el colaborador en "Primer acceso" (con términos) y el
+  // administrador en "Cambio de contraseña" (sin términos, después del MFA).
+  if (needsFirstAccess) {
+    final setup = role == UserRole.admin ? Routes.adminPasswordChange : Routes.firstAccess;
+    return location == setup ? null : setup;
+  }
 
   final home = Routes.homeFor(role);
-  if (location == Routes.firstAccess) return home;
+  if (location == Routes.firstAccess || location == Routes.adminPasswordChange) return home;
   if (location == Routes.login) return home;
   if (role == UserRole.worker && location.startsWith('/admin')) return home;
   if (role == UserRole.admin && location.startsWith('/worker')) return home;
