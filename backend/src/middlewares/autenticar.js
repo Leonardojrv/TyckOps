@@ -43,7 +43,13 @@ export function autenticar(secret, { permitir = [] } = {}) {
       return next(new HttpError(403, 'ACCESO_INCOMPLETO', 'Completa la verificación antes de continuar.'));
     }
 
-    req.usuario = { id: payload.sub, role: payload.role, tipo: payload.typ ?? 'acceso', desafio: payload.jti };
+    req.usuario = {
+      id: payload.sub,
+      role: payload.role,
+      tipo: payload.typ ?? 'acceso',
+      desafio: payload.jti,
+      mfaVerificado: payload.mfa === true, // T12: la llave se obtuvo después del código
+    };
     return next();
   };
 }

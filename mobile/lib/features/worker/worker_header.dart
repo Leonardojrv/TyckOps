@@ -13,6 +13,7 @@ import 'package:go_router/go_router.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
 import '../../core/navigation/routes.dart';
+import '../../core/widgets/account_role_chip.dart';
 import 'notifications/notifications_store.dart';
 
 import 'worker_tokens.dart';
@@ -64,7 +65,7 @@ class WorkerHeader extends StatelessWidget implements PreferredSizeWidget {
                 ),
                 _Bell(unread: NotificationsScope.maybeOf(context)?.unread ?? 0),
                 const SizedBox(width: 4),
-                _RoleChip(onSignOut: onSignOut),
+                AccountRoleChip(label: 'Colaborador', onSignOut: onSignOut),
               ],
             ),
           ),
@@ -92,41 +93,6 @@ class _Bell extends StatelessWidget {
         backgroundColor: _C.primaryContainer,
         textColor: _C.white,
         child: Icon(Symbols.notifications, size: 24, color: _C.onSurface, fill: unread > 0 ? 1 : 0),
-      ),
-    );
-  }
-}
-
-/// Chip "Colaborador". Al tocarlo ofrece cerrar sesión (el mockup no tiene
-/// otro lugar para hacerlo).
-class _RoleChip extends StatelessWidget {
-  const _RoleChip({required this.onSignOut});
-
-  final Future<void> Function() onSignOut;
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<void>(
-      tooltip: 'Opciones de la cuenta',
-      position: PopupMenuPosition.under,
-      color: _C.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      itemBuilder: (context) => [
-        PopupMenuItem<void>(
-          onTap: onSignOut,
-          child: Row(
-            children: [
-              const Icon(Symbols.logout, size: 20, color: _C.onSurface),
-              const SizedBox(width: 12),
-              Text('Cerrar sesión', style: _T.bodyMd()),
-            ],
-          ),
-        ),
-      ],
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(color: _C.container, borderRadius: BorderRadius.circular(999)),
-        child: Text('Colaborador', style: _T.labelSm(_C.secondary).copyWith(letterSpacing: -0.1)),
       ),
     );
   }

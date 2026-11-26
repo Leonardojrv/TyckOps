@@ -5,7 +5,7 @@ import { exigirTerminos } from '../../middlewares/exigirTerminos.js';
 import { validar } from '../../middlewares/validar.js';
 import { HttpError } from '../../utils/http-error.js';
 import { responder } from '../../utils/respuestas.js';
-import { loginSchema, mfaSchema, primerAccesoSchema } from './auth.schema.js';
+import { loginSchema, mfaSchema, primerAccesoAdminSchema, primerAccesoSchema } from './auth.schema.js';
 
 // Máximo 5 intentos cada 15 minutos (frena ataques de fuerza bruta).
 function limitarIntentos(limite = 5) {
@@ -59,6 +59,27 @@ export function crearRutasAuth({ authService, jwtSecret }) {
         userAgent: req.get('user-agent')?.slice(0, 512),
       });
       responder(res, { user });
+    },
+  );
+
+  // T12 · Primer ingreso del administrador (sin Términos): cambia o mantiene su
+  // contraseña. Solo con la llave limitada obtenida DESPUÉS del código MFA; al
+  // terminar responde con la sesión completa para entrar al Home.
+  router.post(
+    '/primer-acceso/administrador',
+    autenticar(jwtSecret, { permitir: ['primer_acceso'] }),
+    limiterPrimerAcceso,
+    validar(primerAccesoAdminSchema),
+    async (req, res) => {
+      if (!authService) {
+        throw new HttpError(503, 'AUTENTICACION_NO_DISPONIBLE', 'La base de datos aún no está conectada.');
+      }
+      responder(res, await authService.completeAdminFirstAccess(
+        req.usuario.id,
+        req.body,
+        { mfaVerificado: req.usuario.mfaVerificado },
+        { ip: req.ip, userAgent: req.get('user-agent')?.slice(0, 512) },
+      ));
     },
   );
 

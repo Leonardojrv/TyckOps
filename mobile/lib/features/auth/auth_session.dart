@@ -33,9 +33,11 @@ class AuthSession extends ChangeNotifier {
 
   /// RF-02 y RF-03: falta decidir la contraseña o aceptar los términos.
   /// Mientras sea true, el router solo deja ver la pantalla de primer acceso.
+  /// T12: el administrador no acepta Términos; solo le falta su primer ingreso.
   bool get needsFirstAccess {
     final user = _user;
-    return user != null && (user.isFirstLogin || !user.termsAccepted);
+    if (user == null) return false;
+    return user.role == UserRole.admin ? user.isFirstLogin : (user.isFirstLogin || !user.termsAccepted);
   }
 
   /// Al abrir la app: si hay un token guardado, se le pregunta al servidor

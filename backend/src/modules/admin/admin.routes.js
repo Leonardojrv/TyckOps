@@ -33,7 +33,8 @@ const comentarioSchema = z.object({
     .min(1, 'Escribe el comentario.').max(500, 'El comentario admite hasta 500 caracteres.'),
 });
 
-export function crearRutasAdmin({ jwtSecret, authService, ticketService = null }) {
+// T13 · personalRepository: listado de personal y números del Home del administrador.
+export function crearRutasAdmin({ jwtSecret, authService, ticketService = null, personalRepository = null }) {
   const router = Router();
   const soloAdmin = [autenticar(jwtSecret), requerirRol('ADMINISTRADOR'), exigirTerminos(authService)];
 
@@ -79,6 +80,19 @@ export function crearRutasAdmin({ jwtSecret, authService, ticketService = null }
     }
     const comentario = await ticketService.comentar(req.usuario.id, req.params.id, datos.data.texto);
     responder(res, { comentario }, 201);
+  });
+
+  // T13 · Home del administrador: pendientes, urgentes, duplicados, activos y personal.
+  router.get('/resumen', ...soloAdmin, async (_req, res) => {
+    if (!personalRepository) throw new HttpError(503, 'PERSONAL_NO_DISPONIBLE', 'El resumen aún no está disponible.');
+    responder(res, await personalRepository.resumen());
+  });
+
+  // T13 · Listado de personal (nombre, correo, área, rol y resumen de tickets).
+  // Solo para administradores: nunca se entregan contraseñas ni teléfonos.
+  router.get('/personal', ...soloAdmin, async (_req, res) => {
+    if (!personalRepository) throw new HttpError(503, 'PERSONAL_NO_DISPONIBLE', 'El listado aún no está disponible.');
+    responder(res, { personal: await personalRepository.listar() });
   });
 
   return router;
