@@ -41,6 +41,9 @@ abstract class TicketRepository {
   /// T10 · La guía paso a paso de un ticket tuyo de prioridad Baja.
   Future<SelfHelpGuide> selfHelpGuide(String id);
 
+  /// T10 · Inicia la autogestión antes de consultar la guía.
+  Future<Ticket> startGuide(String id);
+
   /// T10 · "Cerrar ticket" (la guía funcionó) o "Reportar a administración".
   /// Si el ticket ya no admite la guía, el servidor responde 409.
   Future<Ticket> resolveGuide(String id, GuideAction action);
@@ -90,6 +93,17 @@ class ApiTicketRepository implements TicketRepository {
     final guide = (body['data'] as Map?)?['guia'];
     if (guide is! Map) throw const FormatException('Respuesta de guía inválida');
     return SelfHelpGuide.fromJson(guide.cast<String, dynamic>());
+  }
+
+  @override
+  Future<Ticket> startGuide(String id) async {
+    _checkId(id);
+    final body = await _api.post<Map<String, dynamic>>('/tickets/${Uri.encodeComponent(id)}/guia/iniciar');
+    final ticket = (body['data'] as Map?)?['ticket'];
+    if (ticket is! Map) {
+      throw const FormatException('Respuesta de inicio de autogestión inválida');
+    }
+    return Ticket.fromJson(ticket.cast<String, dynamic>());
   }
 
   @override
@@ -171,7 +185,9 @@ class FakeTicketRepository implements TicketRepository {
   static final _guideDecided = <String>{};
 
   static bool _selfHelp(Ticket t) =>
-      t.priority == TicketPriority.low && t.status == TicketStatus.received && !_guideDecided.contains(t.id);
+      t.priority == TicketPriority.low
+      && (t.status == TicketStatus.received || t.status == TicketStatus.selfHelp)
+      && !_guideDecided.contains(t.id);
 
   static DuplicateOriginal? _original(String id) {
     final t = _tickets.where((x) => x.id == id).firstOrNull;
@@ -184,7 +200,9 @@ class FakeTicketRepository implements TicketRepository {
   Future<SelfHelpGuide> selfHelpGuide(String id) async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     final t = _tickets.where((x) => x.id == id).firstOrNull;
-    if (t == null || !_selfHelp(t)) throw const ApiException('Esta solicitud no tiene una guía de autoayuda disponible.', statusCode: 404);
+    if (t == null || !_selfHelp(t) || t.status != TicketStatus.selfHelp) {
+      throw const ApiException('Esta solicitud no tiene una guía de autoayuda disponible.', statusCode: 404);
+    }
     // Misma guía simulada que entrega el servidor para Eléctrica.
     return const SelfHelpGuide(
       id: 'simulada-electrica',
@@ -199,12 +217,26 @@ class FakeTicketRepository implements TicketRepository {
   }
 
   @override
+  Future<Ticket> startGuide(String id) async {
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    final i = _tickets.indexWhere((t) => t.id == id);
+    if (i < 0) {
+      throw const ApiException('No encontramos esa solicitud.', statusCode: 404);
+    }
+    if (!_selfHelp(_tickets[i])) {
+      throw const ApiException('Esta solicitud no puede iniciar la guía de autoayuda.', statusCode: 409);
+    }
+    _tickets[i] = _tickets[i].copyWith(status: TicketStatus.selfHelp);
+    return _tickets[i];
+  }
+
+  @override
   Future<Ticket> resolveGuide(String id, GuideAction action) async {
     await Future<void>.delayed(const Duration(milliseconds: 600));
     final i = _tickets.indexWhere((t) => t.id == id);
     if (i < 0) throw const ApiException('No encontramos esa solicitud.', statusCode: 404);
     // Misma regla que el servidor: solo mientras la guía aplica, y una sola vez.
-    if (!_selfHelp(_tickets[i])) {
+    if (!_selfHelp(_tickets[i]) || _tickets[i].status != TicketStatus.selfHelp) {
       throw const ApiException(
         'Esta solicitud ya fue tomada por Servicios Generales o ya registraste una decisión.',
         statusCode: 409,
@@ -215,7 +247,7 @@ class FakeTicketRepository implements TicketRepository {
     final t = _tickets[i];
     return _tickets[i] = action == GuideAction.close
         ? t.copyWith(status: TicketStatus.closed, closedAt: DateTime.now())
-        : Ticket(id: t.id, code: t.code, category: t.category, title: t.title, status: t.status, priority: TicketPriority.medium, location: t.location, createdAt: t.createdAt);
+        : t.copyWith(status: TicketStatus.received, priority: TicketPriority.medium);
   }
 
   @override

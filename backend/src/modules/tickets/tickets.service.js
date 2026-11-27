@@ -112,6 +112,28 @@ export class TicketService {
     };
   }
 
+  async misTicketsPaginados(userId, { estados = [], pagina = 1, limite = 20 } = {}) {
+    const resultado = await this.ticketRepository.findByOwnerPage(userId, {
+      estados,
+      skip: (pagina - 1) * limite,
+      take: limite,
+    });
+    return {
+      tickets: resultado.tickets.map(publicTicket),
+      resumen: {
+        total: resultado.totalOwner,
+        enAtencion: resultado.activos,
+        slaCumplido: this.slaCumplido,
+      },
+      paginacion: {
+        pagina,
+        limite,
+        total: resultado.total,
+        paginas: Math.ceil(resultado.total / limite),
+      },
+    };
+  }
+
   // Detalle de un ticket (solo para el dueño o un administrador).
   // Junta lo que la pantalla necesita: los datos básicos, la descripción, si
   // tiene foto, el motivo de rechazo y los comentarios del administrador.
@@ -133,6 +155,19 @@ export class TicketService {
     // Ajeno o inexistente responden igual (404): así nadie puede adivinar qué tickets existen.
     if (!ticket) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
 
+    const timeline = [
+      { status: 'RECIBIDO', previousStatus: null, date: ticket.createdAt },
+      ...(ticket.timeline ?? []),
+    ];
+    const estadoActual = String(ticket.status).toUpperCase();
+    if (timeline.at(-1)?.status !== estadoActual) {
+      timeline.push({
+        status: estadoActual,
+        previousStatus: timeline.at(-1)?.status ?? null,
+        date: ticket.closedAt ?? null,
+      });
+    }
+
     return {
       ...publicTicket(ticket),
       description: ticket.description ?? ticket.title,
@@ -140,6 +175,12 @@ export class TicketService {
       // El motivo solo viaja si el ticket está rechazado (RF-07), aunque la base tenga algo escrito.
       rejectionReason: ticket.status === 'RECHAZADO' ? ticket.rejectionReason ?? null : null,
       closedAt: ticket.closedAt ? new Date(ticket.closedAt).toISOString() : null,
+      timeline: timeline.map((evento, index) => ({
+        status: String(evento.status).toUpperCase(),
+        previousStatus: evento.previousStatus ? String(evento.previousStatus).toUpperCase() : null,
+        date: evento.date ? new Date(evento.date).toISOString() : null,
+        current: index === timeline.length - 1,
+      })),
       // T10: ¿mostrar la guía de autoayuda? (prioridad Baja, Recibido y sin decisión previa)
       selfHelp: admiteAutoayuda(ticket),
       // T10: lo cerró el propio colaborador con la guía (su línea de tiempo es más corta).

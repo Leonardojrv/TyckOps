@@ -9,6 +9,7 @@
 //   Si cambias un filtro o una fase, hazlo aquí y corre test/tickets_test.dart.
 
 import '../../../data/models/ticket.dart';
+import '../../../data/models/ticket_detail.dart';
 import '../../../data/models/ticket_status.dart';
 
 // Reglas de "Mis solicitudes" y del detalle que no dependen de la pantalla.
@@ -84,6 +85,7 @@ const _descriptions = {
   TicketStatus.closed: 'Cierre administrativo de la solicitud.',
   TicketStatus.rejected: 'La solicitud no pudo ser atendida. Revisa el motivo más arriba.',
   TicketStatus.cancelled: 'Cancelaste esta solicitud.',
+  TicketStatus.selfHelp: 'Estás siguiendo una guía de autoayuda.',
 };
 
 /// El camino normal de un ticket: 6 fases (mockup "Trazabilidad del Servicio").
@@ -102,29 +104,53 @@ const normalFlow = [
 ///   las siguientes quedan pendientes.
 /// - Rechazado: Recibido → En revisión → Rechazado (mockup del rechazo).
 /// - Cancelado: Recibido → Cancelado.
-/// - Cerrado con la guía de IA (T10): Recibido → Cerrado.
+/// - Autogestión (T10): Recibido → Autogestión.
+/// - Cerrado con la guía de IA (T10): Recibido → Autogestión → Cerrado.
 ///
-/// Las fechas: hoy la base solo guarda cuándo se creó y cuándo se cerró, así
-/// que solo mostramos esas. Cuando exista el historial de estados, se agrega aquí.
+/// Cuando el detalle incluye historial persistido, cada cambio se muestra en
+/// orden y el estado actual queda resaltado.
 List<TimelineStep> buildTimeline(
   TicketStatus status, {
   required DateTime createdAt,
   DateTime? closedAt,
   bool closedBySelfHelp = false,
+  List<TicketTimelineEntry> history = const [],
 }) {
   TimelineStep step(TicketStatus s, PhaseState state, [DateTime? date]) =>
       TimelineStep(status: s, state: state, description: _descriptions[s]!, date: date);
+
+  if (history.isNotEmpty) {
+    return [
+      for (final event in history)
+        TimelineStep(
+          status: event.status,
+          state: event.current ? PhaseState.current : PhaseState.done,
+          description: event.previousStatus == null
+              ? _descriptions[event.status]!
+              : 'Cambio de ${event.previousStatus!.label} a ${event.status.label}.',
+          date: event.date,
+        ),
+    ];
+  }
 
   // T10: lo cerró el colaborador con la guía; nunca pasó por revisión ni reparación.
   if (status == TicketStatus.closed && closedBySelfHelp) {
     return [
       step(TicketStatus.received, PhaseState.done, createdAt),
+      step(TicketStatus.selfHelp, PhaseState.done),
       TimelineStep(
         status: TicketStatus.closed,
         state: PhaseState.current,
         description: 'Lo solucionaste siguiendo la guía de IA.',
         date: closedAt,
       ),
+    ];
+  }
+
+  if (status == TicketStatus.selfHelp) {
+    return [
+      step(TicketStatus.received, PhaseState.done, createdAt),
+      step(TicketStatus.selfHelp, PhaseState.current),
     ];
   }
 

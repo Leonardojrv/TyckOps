@@ -113,11 +113,12 @@ void main() {
   });
 
   group('Modo de prueba (mismas reglas que el servidor)', () {
-    test('la guía solo existe en Baja + Recibido, y se decide una sola vez', () async {
+    test('la guía solo existe en Baja + Autogestión, y se decide una sola vez', () async {
       final repo = FakeTicketRepository();
       final all = (await repo.myTickets()).tickets;
       final low = all.firstWhere((t) => t.priority == TicketPriority.low && t.status == TicketStatus.received);
       expect((await repo.ticketDetail(low.id)).selfHelp, isTrue);
+      await repo.startGuide(low.id);
       expect((await repo.selfHelpGuide(low.id)).steps, isNotEmpty);
 
       final escalated = await repo.resolveGuide(low.id, GuideAction.escalate);
@@ -138,9 +139,9 @@ void main() {
     });
   });
 
-  test('cerrado con la guía: la línea de tiempo es Recibido → Cerrado', () {
+  test('cerrado con la guía: la línea de tiempo es Recibido → Autogestión → Cerrado', () {
     final steps = buildTimeline(TicketStatus.closed, createdAt: DateTime(2026, 11, 23), closedBySelfHelp: true);
-    expect(steps.map((s) => s.status), [TicketStatus.received, TicketStatus.closed]);
+    expect(steps.map((s) => s.status), [TicketStatus.received, TicketStatus.selfHelp, TicketStatus.closed]);
     expect(steps.last.description, contains('guía de IA'));
     expect(buildTimeline(TicketStatus.closed, createdAt: DateTime(2026, 11, 23)).length, 6);
   });

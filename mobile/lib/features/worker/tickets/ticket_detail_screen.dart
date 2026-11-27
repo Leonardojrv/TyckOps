@@ -226,12 +226,35 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             return _SpecialView(
               onRefresh: _reload,
               comments: _commentsSection(d),
-              child: AssistedGuideView(
-                key: ValueKey('guia-${d.ticket.id}'),
-                ticket: d.ticket,
-                loadGuide: () => widget.repository.selfHelpGuide(d.ticket.id),
-                onResolve: (action) => resolveGuide(d.ticket.id, action),
-                onDone: _afterGuide,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AssistedGuideView(
+                    key: ValueKey('guia-${d.ticket.id}'),
+                    ticket: d.ticket,
+                    loadGuide: () async {
+                      if (d.ticket.status == TicketStatus.received) {
+                        await widget.repository.startGuide(d.ticket.id);
+                        await _reload();
+                      }
+                      return widget.repository.selfHelpGuide(d.ticket.id);
+                    },
+                    onResolve: (action) => resolveGuide(d.ticket.id, action),
+                    onDone: _afterGuide,
+                  ),
+                  const SizedBox(height: 24),
+                  _TimelineCard(
+                    steps: buildTimeline(
+                      d.ticket.status,
+                      createdAt: d.ticket.createdAt,
+                      closedAt: d.closedAt,
+                      closedBySelfHelp: d.closedBySelfHelp,
+                      history: d.timeline,
+                    ),
+                    rejected: false,
+                    detail: d,
+                  ),
+                ],
               ),
             );
           }
@@ -242,6 +265,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
             createdAt: d.ticket.createdAt,
             closedAt: d.closedAt,
             closedBySelfHelp: d.closedBySelfHelp,
+            history: d.timeline,
           );
 
           return RefreshIndicator(

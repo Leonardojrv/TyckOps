@@ -1,5 +1,5 @@
 // ¿PARA QUÉ SIRVE?
-//   Define los 8 estados por los que pasa un ticket.
+//   Define los 9 estados por los que pasa un ticket.
 //
 // ¿QUÉ HACE?
 //   Traduce el texto del servidor ("EN_PROCESO") al que ve la persona ("En
@@ -9,7 +9,7 @@
 //   Si el equipo agrega un estado, súmalo aquí con su texto, y revisa los chips y la
 //   línea de tiempo del detalle.
 
-/// Los 8 estados del ciclo de vida del ticket
+/// Los 9 estados del ciclo de vida del ticket
 /// (docs/requerimientos/requerimientos-funcionales.md).
 ///
 /// [apiValue] es el texto que viaja por la API. Hay que acordarlo con Moisés:
@@ -22,7 +22,8 @@ enum TicketStatus {
   inProgress('EN_PROCESO', 'En proceso'),
   resolved('RESUELTO', 'Resuelto'),
   closed('CERRADO', 'Cerrado'),
-  cancelled('CANCELADO', 'Cancelado');
+  cancelled('CANCELADO', 'Cancelado'),
+  selfHelp('AUTOGESTION', 'Autogestión');
 
   const TicketStatus(this.apiValue, this.label);
 
@@ -34,10 +35,9 @@ enum TicketStatus {
         orElse: () => throw FormatException('Estado de ticket desconocido: $value'),
       );
 
-  /// El ticket sigue en atención (aún no termina): recibido, en revisión,
-  /// aprobado o en proceso. Lo usan la lista, los filtros y el detalle.
+  /// El ticket sigue en atención (aún no termina), incluida la autogestión.
   bool get isActiveStatus => switch (this) {
-        TicketStatus.received || TicketStatus.inReview || TicketStatus.approved || TicketStatus.inProgress => true,
+        TicketStatus.received || TicketStatus.inReview || TicketStatus.approved || TicketStatus.inProgress || TicketStatus.selfHelp => true,
         _ => false,
       };
 

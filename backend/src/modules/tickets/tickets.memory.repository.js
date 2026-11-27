@@ -110,6 +110,20 @@ export class MemoryTicketRepository {
     return this.tickets.filter((ticket) => ticket.ownerId === String(ownerId));
   }
 
+  async findByOwnerPage(ownerId, { estados = [], skip = 0, take = 20 }) {
+    const tickets = await this.findByOwner(ownerId);
+    const filtrados = tickets.filter((ticket) => estados.length === 0
+      || estados.includes(String(ticket.status).toUpperCase()));
+    const ordenados = filtrados.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const activos = tickets.filter((ticket) => ESTADOS_ACTIVOS_MEMORIA.has(String(ticket.status).toUpperCase()));
+    return {
+      tickets: ordenados.slice(skip, skip + take),
+      total: filtrados.length,
+      totalOwner: tickets.length,
+      activos: activos.length,
+    };
+  }
+
   async findActiveCandidates({ category = null, location = null, excludeId = null } = {}) {
     const estadosActivos = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROCESO', 'AUTOGESTION']);
     const locNorm = location?.toLowerCase().trim();
@@ -215,6 +229,14 @@ export class MemoryTicketRepository {
       hasPhoto: Boolean(ticket.imagen),
       original: resumenOriginal(this.tickets.find((t) => t.id === ticket.originalId)),
       comments: [...(ticket.comments ?? [])].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)),
+      timeline: this.historialEstados
+        .filter((cambio) => cambio.ticketId === ticket.id)
+        .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+        .map((cambio) => ({
+          status: cambio.estadoNuevo,
+          previousStatus: cambio.estadoAnterior,
+          date: cambio.fecha,
+        })),
     };
   }
 
@@ -266,6 +288,8 @@ const CATEGORIA_VISIBLE = {
   AIRE_ACONDICIONADO: 'Aire acondicionado',
   INMOBILIARIO: 'Inmobiliario',
 };
+
+const ESTADOS_ACTIVOS_MEMORIA = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROCESO', 'AUTOGESTION']);
 
 // Fecha relativa a hoy, para que la demo siempre muestre "Hoy" y "Ayer".
 function haceDias(dias, hora, minuto) {

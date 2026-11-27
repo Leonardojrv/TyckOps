@@ -15,6 +15,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
+import { z } from 'zod';
 import { autenticar } from '../../middlewares/autenticar.js';
 import { exigirTerminos } from '../../middlewares/exigirTerminos.js';
 import { requerirRol } from '../../middlewares/requerirRol.js';
@@ -22,6 +23,37 @@ import { HttpError } from '../../utils/http-error.js';
 import { responder } from '../../utils/respuestas.js';
 import { MAX_FOTO_BYTES, detectarTipoImagen } from './tickets.fotos.js';
 import { reporteSchema } from './tickets.schema.js';
+import { TRANSICIONES_TICKET } from './ticket-states.js';
+
+const paginacionMiosSchema = z.object({
+  pagina: z.coerce.number().int().min(1).max(100000),
+  limite: z.coerce.number().int().min(1).max(100),
+});
+
+function consultarMios(query) {
+  const rawEstados = query.estado === undefined
+    ? []
+    : Array.isArray(query.estado) ? query.estado : [query.estado];
+  if (rawEstados.some((estado) => typeof estado !== 'string')) {
+    throw new HttpError(400, 'FILTRO_INVALIDO', 'El filtro estado debe contener estados válidos.');
+  }
+  const estados = rawEstados.flatMap((estado) => estado.split(','))
+    .map((estado) => estado.trim().toUpperCase());
+  if (estados.some((estado) => !estado || !Object.hasOwn(TRANSICIONES_TICKET, estado))) {
+    throw new HttpError(400, 'FILTRO_INVALIDO', 'Uno o más estados del filtro no son válidos.');
+  }
+  const paginacion = paginacionMiosSchema.safeParse({
+    pagina: query.pagina ?? query.page ?? '1',
+    limite: query.limite ?? query.limit ?? '20',
+  });
+  if (!paginacion.success) {
+    throw new HttpError(400, 'PAGINACION_INVALIDA', 'La página debe ser positiva y el límite debe estar entre 1 y 100.');
+  }
+  return {
+    estados: [...new Set(estados)],
+    ...paginacion.data,
+  };
+}
 import { crearSesionCreacion, exigirSesionCreacion } from './tickets.sesionCreacion.js';
 
 // Multer guarda la foto solo en memoria y corta antes de leer de más.
@@ -111,7 +143,7 @@ export function crearRutasTickets({ ticketService, authService, jwtSecret }) {
 
   // GET /tickets/mios con la lista del usuario y su estado.
   router.get('/mios', requerirRol('COLABORADOR', 'ADMINISTRADOR'), async (req, res) => {
-    responder(res, await ticketService.misTickets(req.usuario.id));
+    responder(res, await ticketService.misTicketsPaginados(req.usuario.id, consultarMios(req.query)));
   });
 
   // GET /tickets/resumen con el conteo de tickets activos para el home.

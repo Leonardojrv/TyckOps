@@ -37,7 +37,7 @@ test('detalle: motivo solo si está rechazado y comentarios solo del ticket corr
     { id: 'w-2', name: 'Beto', email: 'beto@gamaitaly.cl', password: 'Temporal2026!', role: 'COLABORADOR', termsAccepted: true },
   ]);
   const authService = new AuthService(users, env, { log: () => {} });
-  const ticketService = new TicketService(new MemoryTicketRepository([
+  const ticketRepo = new MemoryTicketRepository([
     {
       ...base, id: '1', ownerId: 'w-1', code: 'REP-0001', title: 'Enchufe quemado', status: 'EN_PROCESO',
       rejectionReason: 'texto viejo que no debe verse',
@@ -48,7 +48,16 @@ test('detalle: motivo solo si está rechazado y comentarios solo del ticket corr
     },
     { ...base, id: '2', ownerId: 'w-1', code: 'REP-0002', title: 'Luz del pasillo', status: 'RECHAZADO', rejectionReason: 'Lo ve el edificio' },
     { ...base, id: '9', ownerId: 'w-2', code: 'REP-0009', title: 'Ajeno', status: 'EN_REVISION', comments: [{ id: 9, author: 'Admin', createdAt: new Date(), text: 'secreto' }] },
-  ]));
+  ]);
+  ticketRepo.historialEstados.push({
+    ticketId: '1',
+    estadoAnterior: 'EN_REVISION',
+    estadoNuevo: 'EN_PROCESO',
+    fecha: new Date('2026-11-11T09:00:00Z'),
+    actorId: 'admin-1',
+    motivo: null,
+  });
+  const ticketService = new TicketService(ticketRepo);
   const baseUrl = await start(crearApp({ env, authService, ticketService }));
   const ver = (id, sub = 'w-1') => fetch(`${baseUrl}/api/tickets/${id}`, {
     headers: { authorization: `Bearer ${jwt.sign({ role: 'COLABORADOR' }, jwtSecret, { subject: sub })}` },
@@ -58,9 +67,15 @@ test('detalle: motivo solo si está rechazado y comentarios solo del ticket corr
   assert.equal(enProceso.rejectionReason, null, 'un ticket no rechazado nunca muestra motivo');
   assert.deepEqual(enProceso.comments.map((c) => c.text), ['Recibido, lo revisamos', 'Técnico en camino']);
   assert.equal(enProceso.hasPhoto, false);
+  assert.deepEqual(enProceso.timeline.map(({ status, current }) => [status, current]), [
+    ['RECIBIDO', false],
+    ['EN_PROCESO', true],
+  ]);
 
   const rechazado = (await (await ver('2')).json()).data.ticket;
   assert.equal(rechazado.rejectionReason, 'Lo ve el edificio');
+  assert.equal(rechazado.timeline.at(-1).status, 'RECHAZADO');
+  assert.equal(rechazado.timeline.at(-1).current, true);
   assert.deepEqual(rechazado.comments, []);
 
   // El ticket de otra persona (con su comentario) no se puede ver.

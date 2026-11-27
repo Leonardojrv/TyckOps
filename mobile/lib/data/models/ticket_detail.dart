@@ -31,6 +31,29 @@ class TicketComment {
       );
 }
 
+class TicketTimelineEntry {
+      const TicketTimelineEntry({
+        required this.status,
+        required this.current,
+        this.previousStatus,
+        this.date,
+      });
+
+      final TicketStatus status;
+      final TicketStatus? previousStatus;
+      final DateTime? date;
+      final bool current;
+
+      factory TicketTimelineEntry.fromJson(Map<String, dynamic> json) => TicketTimelineEntry(
+            status: TicketStatus.fromApi(json['status'] as String),
+            previousStatus: json['previousStatus'] == null
+                ? null
+                : TicketStatus.fromApi(json['previousStatus'] as String),
+            date: json['date'] == null ? null : DateTime.parse(json['date'] as String).toLocal(),
+            current: json['current'] == true,
+          );
+}
+
 /// Todo lo que muestra la pantalla "Detalle del ticket".
 ///
 /// Viene de GET /api/tickets/:id. Si el backend agrega un dato nuevo al
@@ -46,6 +69,7 @@ class TicketDetail {
     this.selfHelp = false,
     this.closedBySelfHelp = false,
     this.duplicateOf,
+    this.timeline = const [],
   });
 
   final Ticket ticket; // código, estado, categoría, ubicación, fecha...
@@ -54,9 +78,10 @@ class TicketDetail {
   final List<TicketComment> comments; // del más antiguo al más nuevo
   final String? rejectionReason; // solo llega en tickets rechazados (RF-07)
   final DateTime? closedAt; // cuándo se cerró, rechazó o canceló
-  final bool selfHelp; // T10: prioridad Baja y Recibido → se muestra la guía de autoayuda
+  final bool selfHelp; // T10: prioridad Baja en Recibido o Autogestión
   final bool closedBySelfHelp; // T10: lo cerraste tú con la guía (sin pasar por administración)
   final DuplicateOriginal? duplicateOf; // T10: si tu ticket fue agrupado con otro
+  final List<TicketTimelineEntry> timeline;
 
   /// Seguridad extra: aunque el servidor ya lo filtra, el motivo solo se
   /// muestra si el ticket está rechazado.
@@ -69,6 +94,10 @@ class TicketDetail {
         TicketComment.fromJson((item as Map).cast<String, dynamic>()),
     ]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
     final closed = json['closedAt'] as String?;
+    final timeline = [
+      for (final item in (json['timeline'] as List?) ?? const [])
+        TicketTimelineEntry.fromJson((item as Map).cast<String, dynamic>()),
+    ];
     return TicketDetail(
       ticket: Ticket.fromJson(json),
       description: (json['description'] as String?) ?? (json['title'] as String? ?? ''),
@@ -81,6 +110,7 @@ class TicketDetail {
       duplicateOf: json['duplicateOf'] is Map
           ? DuplicateOriginal.fromJson((json['duplicateOf'] as Map).cast<String, dynamic>())
           : null,
+      timeline: timeline,
     );
   }
 }
