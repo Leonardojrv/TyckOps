@@ -19,7 +19,7 @@ class StatusColors {
   final Color background;
   final Color foreground;
 
-  /// Los 8 colores del sistema del administrador (decisión del 05-11-2026).
+  /// Colores de los estados del ticket.
   static StatusColors of(TicketStatus status) => switch (status) {
         TicketStatus.received => const StatusColors(Color(0xFFF0F4F8), Color(0xFF334E68)),
         TicketStatus.inReview => const StatusColors(Color(0xFFEEF2FF), Color(0xFF3730A3)),
@@ -29,5 +29,6 @@ class StatusColors {
         TicketStatus.resolved => const StatusColors(Color(0xFFF0FDFA), Color(0xFF115E59)),
         TicketStatus.closed => const StatusColors(Color(0xFFF1F5F9), Color(0xFF475569)),
         TicketStatus.cancelled => const StatusColors(Color(0xFFF4F4F4), Color(0xFF71717A)),
+        TicketStatus.selfHelp => const StatusColors(Color(0xFFFFF7ED), Color(0xFF9A3412)),
       };
 }

@@ -128,6 +128,38 @@ export class PrismaTicketRepository {
     return filas.map(aTicket);
   }
 
+  async findByOwnerPage(ownerId, { estados = [], skip = 0, take = 20 }) {
+    const dueno = idNumerico(ownerId);
+    if (dueno === null) return { tickets: [], total: 0, totalOwner: 0, activos: 0 };
+    const where = {
+      ID_user: dueno,
+      ...(estados.length > 0 && {
+        Estado: { in: estados.map((estado) => estado.toLowerCase()), mode: 'insensitive' },
+      }),
+    };
+    const activosWhere = {
+      ID_user: dueno,
+      Estado: {
+        in: ['recibido', 'en_revision', 'aprobado', 'en_proceso', 'autogestion'],
+        mode: 'insensitive',
+      },
+    };
+    const [filas, total, totalOwner, activos] = await Promise.all([
+      this.prisma.ticket.findMany({
+        where,
+        include: incluir,
+        omit: sinImagen,
+        orderBy: [{ FechaCreacion: 'desc' }, { ID_Ticket: 'desc' }],
+        skip,
+        take,
+      }),
+      this.prisma.ticket.count({ where }),
+      this.prisma.ticket.count({ where: { ID_user: dueno } }),
+      this.prisma.ticket.count({ where: activosWhere }),
+    ]);
+    return { tickets: filas.map(aTicket), total, totalOwner, activos };
+  }
+
   async findActiveCandidates({ category = null, location = null, excludeId = null } = {}) {
     const estadosActivos = ['recibido', 'en_revision', 'en revision', 'aprobado', 'en_proceso', 'en proceso', 'autogestion'];
     const idExcluir = idNumerico(excludeId);
@@ -347,6 +379,14 @@ export class PrismaTicketRepository {
             autor: { select: { name: true, appat: true } },
           },
         },
+        historialEstados: {
+          orderBy: [{ Fecha: 'asc' }, { ID_CambioEstado: 'asc' }],
+          select: {
+            EstadoAnterior: true,
+            EstadoNuevo: true,
+            Fecha: true,
+          },
+        },
       },
       omit: sinImagen,
     });
@@ -380,6 +420,11 @@ export class PrismaTicketRepository {
         author: [c.autor?.name, c.autor?.appat].filter(Boolean).join(' ') || 'Servicios Generales',
         createdAt: c.FechaCreacion,
         text: c.Texto,
+      })),
+      timeline: fila.historialEstados.map((cambio) => ({
+        status: codigoApi(cambio.EstadoNuevo),
+        previousStatus: codigoApi(cambio.EstadoAnterior),
+        date: cambio.Fecha,
       })),
     };
   }

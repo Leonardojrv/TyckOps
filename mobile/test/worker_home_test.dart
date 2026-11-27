@@ -41,6 +41,8 @@ class _StubTickets implements TicketRepository {
   @override
   Future<SelfHelpGuide> selfHelpGuide(String id) => throw UnimplementedError();
   @override
+  Future<Ticket> startGuide(String id) => throw UnimplementedError();
+  @override
   Future<Ticket> resolveGuide(String id, GuideAction action) => throw UnimplementedError();
 }
 
