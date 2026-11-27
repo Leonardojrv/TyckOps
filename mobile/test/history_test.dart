@@ -28,25 +28,46 @@ Ticket _t(
   DateTime? closed,
   String title = 'Falla',
   String category = 'Baños',
-}) =>
-    Ticket(
-      id: id,
-      code: 'REP-$id',
-      category: category,
-      title: title,
-      status: status,
-      priority: null,
-      location: 'Piso 2',
-      createdAt: created,
-      closedAt: closed,
-    );
+}) => Ticket(
+  id: id,
+  code: 'REP-$id',
+  category: category,
+  title: title,
+  status: status,
+  priority: null,
+  location: 'Piso 2',
+  createdAt: created,
+  closedAt: closed,
+);
 
 final _tickets = [
   _t('0001', TicketStatus.received, created: DateTime(2026, 11, 22)),
-  _t('0002', TicketStatus.closed, created: DateTime(2026, 11, 10, 8), closed: DateTime(2026, 11, 10, 12), title: 'Cambio de cerradura'),
-  _t('0003', TicketStatus.cancelled, created: DateTime(2026, 9, 1), closed: DateTime(2026, 9, 1, 1), category: 'Eléctrica'),
-  _t('0004', TicketStatus.resolved, created: DateTime(2026, 11, 20, 8), closed: DateTime(2026, 11, 20, 10)),
-  _t('0005', TicketStatus.rejected, created: DateTime(2025, 12, 1), closed: DateTime(2025, 12, 2)),
+  _t(
+    '0002',
+    TicketStatus.closed,
+    created: DateTime(2026, 11, 10, 8),
+    closed: DateTime(2026, 11, 10, 12),
+    title: 'Cambio de cerradura',
+  ),
+  _t(
+    '0003',
+    TicketStatus.cancelled,
+    created: DateTime(2026, 9, 1),
+    closed: DateTime(2026, 9, 1, 1),
+    category: 'Eléctrica',
+  ),
+  _t(
+    '0004',
+    TicketStatus.resolved,
+    created: DateTime(2026, 11, 20, 8),
+    closed: DateTime(2026, 11, 20, 10),
+  ),
+  _t(
+    '0005',
+    TicketStatus.rejected,
+    created: DateTime(2025, 12, 1),
+    closed: DateTime(2025, 12, 2),
+  ),
 ];
 
 List<String> _ids(List<Ticket> list) => list.map((t) => t.id).toList();
@@ -54,30 +75,110 @@ List<String> _ids(List<Ticket> list) => list.map((t) => t.id).toList();
 void main() {
   group('Filtros del historial', () {
     test('por defecto (30 días + Finalizados): solo los terminados del último mes, del más reciente al más antiguo', () {
-      final r = filterHistory(_tickets, range: HistoryRange.last30, status: HistoryStatus.finished, now: _now);
+      final r = filterHistory(
+        _tickets,
+        range: HistoryRange.last30,
+        status: HistoryStatus.finished,
+        now: _now,
+      );
       expect(_ids(r), ['0004', '0002']);
     });
 
     test('el rango usa la fecha de término de los finalizados', () {
-      expect(_ids(filterHistory(_tickets, range: HistoryRange.last7, status: HistoryStatus.all, now: _now)), ['0001', '0004']);
-      expect(_ids(filterHistory(_tickets, range: HistoryRange.last90, status: HistoryStatus.cancelled, now: _now)), ['0003']);
-      expect(_ids(filterHistory(_tickets, range: HistoryRange.thisYear, status: HistoryStatus.rejected, now: _now)), isEmpty);
-      expect(_ids(filterHistory(_tickets, range: HistoryRange.all, status: HistoryStatus.rejected, now: _now)), ['0005']);
+      expect(
+        _ids(
+          filterHistory(
+            _tickets,
+            range: HistoryRange.last7,
+            status: HistoryStatus.all,
+            now: _now,
+          ),
+        ),
+        ['0001', '0004'],
+      );
+      expect(
+        _ids(
+          filterHistory(
+            _tickets,
+            range: HistoryRange.last90,
+            status: HistoryStatus.cancelled,
+            now: _now,
+          ),
+        ),
+        ['0003'],
+      );
+      expect(
+        _ids(
+          filterHistory(
+            _tickets,
+            range: HistoryRange.thisYear,
+            status: HistoryStatus.rejected,
+            now: _now,
+          ),
+        ),
+        isEmpty,
+      );
+      expect(
+        _ids(
+          filterHistory(
+            _tickets,
+            range: HistoryRange.all,
+            status: HistoryStatus.rejected,
+            now: _now,
+          ),
+        ),
+        ['0005'],
+      );
     });
 
     test('estado y tipo', () {
-      expect(_ids(filterHistory(_tickets, range: HistoryRange.all, status: HistoryStatus.active, now: _now)), ['0001']);
-      expect(_ids(filterHistory(_tickets, range: HistoryRange.all, status: HistoryStatus.resolved, now: _now)), ['0004', '0002']);
       expect(
-        _ids(filterHistory(_tickets, range: HistoryRange.all, status: HistoryStatus.all, category: 'Eléctrica', now: _now)),
+        _ids(
+          filterHistory(
+            _tickets,
+            range: HistoryRange.all,
+            status: HistoryStatus.active,
+            now: _now,
+          ),
+        ),
+        ['0001'],
+      );
+      expect(
+        _ids(
+          filterHistory(
+            _tickets,
+            range: HistoryRange.all,
+            status: HistoryStatus.resolved,
+            now: _now,
+          ),
+        ),
+        ['0004', '0002'],
+      );
+      expect(
+        _ids(
+          filterHistory(
+            _tickets,
+            range: HistoryRange.all,
+            status: HistoryStatus.all,
+            category: 'Eléctrica',
+            now: _now,
+          ),
+        ),
         ['0003'],
       );
       expect(categoriesOf(_tickets), ['Baños', 'Eléctrica']);
     });
 
     test('la búsqueda encuentra por código, descripción y fecha', () {
-      List<String> buscar(String q) =>
-          _ids(filterHistory(_tickets, range: HistoryRange.all, status: HistoryStatus.all, query: q, now: _now));
+      List<String> buscar(String q) => _ids(
+        filterHistory(
+          _tickets,
+          range: HistoryRange.all,
+          status: HistoryStatus.all,
+          query: q,
+          now: _now,
+        ),
+      );
       expect(buscar('#REP-0002'), ['0002']);
       expect(buscar('cerradura'), ['0002']);
       expect(buscar('20 nov'), ['0004']);
@@ -95,24 +196,47 @@ void main() {
   });
 
   group('Cancelar ticket (modo de prueba)', () {
-    test('solo se cancela un ticket Recibido, y queda con fecha de cierre', () async {
-      final repo = FakeTicketRepository();
-      final antes = (await repo.myTickets()).tickets;
-      final recibido = antes.firstWhere((t) => t.status == TicketStatus.received);
-      final enCurso = antes.firstWhere((t) => t.status == TicketStatus.inProgress);
+    test(
+      'solo se cancela un ticket Recibido, y queda con fecha de cierre',
+      () async {
+        final repo = FakeTicketRepository();
+        final antes = (await repo.myTickets()).tickets;
+        final recibido = antes.firstWhere(
+          (t) => t.status == TicketStatus.received,
+        );
+        final enCurso = antes.firstWhere(
+          (t) => t.status == TicketStatus.inProgress,
+        );
 
-      await expectLater(
-        repo.cancelTicket(enCurso.id),
-        throwsA(isA<ApiException>().having((e) => e.statusCode, 'statusCode', 409)),
-      );
+        await expectLater(
+          repo.cancelTicket(enCurso.id),
+          throwsA(
+            isA<ApiException>()
+                .having((e) => e.statusCode, 'statusCode', 409)
+                .having(
+                  (e) => e.message,
+                  'message',
+                  'Solo se puede cancelar un ticket en estado Recibido',
+                ),
+          ),
+        );
 
-      final cancelado = await repo.cancelTicket(recibido.id);
-      expect(cancelado.status, TicketStatus.cancelled);
-      expect(cancelado.closedAt, isNotNull);
-      expect((await repo.myTickets()).tickets.firstWhere((t) => t.id == recibido.id).status, TicketStatus.cancelled);
-      // Dos veces no se puede.
-      await expectLater(repo.cancelTicket(recibido.id), throwsA(isA<ApiException>()));
-    });
+        final cancelado = await repo.cancelTicket(recibido.id);
+        expect(cancelado.status, TicketStatus.cancelled);
+        expect(cancelado.closedAt, isNotNull);
+        expect(
+          (await repo.myTickets()).tickets
+              .firstWhere((t) => t.id == recibido.id)
+              .status,
+          TicketStatus.cancelled,
+        );
+        // Dos veces no se puede.
+        await expectLater(
+          repo.cancelTicket(recibido.id),
+          throwsA(isA<ApiException>()),
+        );
+      },
+    );
 
     test('el botón solo se ofrece en Recibido', () {
       for (final s in TicketStatus.values) {
@@ -122,8 +246,22 @@ void main() {
 
     test('la ruta del historial no se confunde con un ticket y es solo del colaborador', () {
       expect(Routes.workerHistory, '/worker/solicitudes/historial');
-      expect(redirectFor(loggedIn: true, role: UserRole.admin, location: Routes.workerHistory), Routes.adminHome);
-      expect(redirectFor(loggedIn: true, role: UserRole.worker, location: Routes.workerHistory), isNull);
+      expect(
+        redirectFor(
+          loggedIn: true,
+          role: UserRole.admin,
+          location: Routes.workerHistory,
+        ),
+        Routes.adminHome,
+      );
+      expect(
+        redirectFor(
+          loggedIn: true,
+          role: UserRole.worker,
+          location: Routes.workerHistory,
+        ),
+        isNull,
+      );
     });
   });
 }
