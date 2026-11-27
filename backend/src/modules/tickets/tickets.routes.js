@@ -24,10 +24,18 @@ import { responder } from '../../utils/respuestas.js';
 import { MAX_FOTO_BYTES, detectarTipoImagen } from './tickets.fotos.js';
 import { reporteSchema } from './tickets.schema.js';
 import { TRANSICIONES_TICKET } from './ticket-states.js';
+import { crearSesionCreacion, exigirSesionCreacion } from './tickets.sesionCreacion.js';
 
 const paginacionMiosSchema = z.object({
   pagina: z.coerce.number().int().min(1).max(100000),
   limite: z.coerce.number().int().min(1).max(100),
+});
+
+const historialQuerySchema = z.object({
+  q: z.string().trim().max(120).optional().default(''),
+  rango: z.enum(['7d', '30d', '90d', 'year', 'all']).optional().default('all'),
+  estado: z.enum(['all', 'finished', 'active', 'resolved', 'rejected', 'cancelled']).optional().default('all'),
+  categoria: z.string().trim().max(80).optional().default(''),
 });
 
 function consultarMios(query) {
@@ -54,7 +62,18 @@ function consultarMios(query) {
     ...paginacion.data,
   };
 }
-import { crearSesionCreacion, exigirSesionCreacion } from './tickets.sesionCreacion.js';
+
+function consultarHistorial(query) {
+  const parsed = historialQuerySchema.safeParse(query);
+  if (!parsed.success) {
+    throw new HttpError(
+      400,
+      'FILTRO_INVALIDO',
+      'Revisa la búsqueda, el rango, el estado y la categoría del historial.',
+    );
+  }
+  return parsed.data;
+}
 
 // Multer guarda la foto solo en memoria y corta antes de leer de más.
 // Una foto por reporte: se guarda en la columna imagen (BYTEA) del ticket.
@@ -149,6 +168,11 @@ export function crearRutasTickets({ ticketService, authService, jwtSecret }) {
   // GET /tickets/resumen con el conteo de tickets activos para el home.
   router.get('/resumen', requerirRol('COLABORADOR', 'ADMINISTRADOR'), async (req, res) => {
     responder(res, await ticketService.resumen(req.usuario.id));
+  });
+
+  // GET /tickets/historial filtra por rango, estado, categoría y texto.
+  router.get('/historial', requerirRol('COLABORADOR'), async (req, res) => {
+    responder(res, await ticketService.historial(req.usuario.id, consultarHistorial(req.query)));
   });
 
   // GET /tickets/:id con el detalle (solo para el dueño o un administrador).

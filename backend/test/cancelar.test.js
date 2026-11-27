@@ -70,7 +70,9 @@ test('T9: solo el dueño cancela, y solo si el ticket sigue en Recibido', async 
   // Ya en revisión: el servidor no lo deja aunque la app mostrara el botón.
   const enRevision = await cancelar('2', 'w-1');
   assert.equal(enRevision.status, 409);
-  assert.equal((await enRevision.json()).error.code, 'TICKET_NO_CANCELABLE');
+  const errorCancelacion = (await enRevision.json()).error;
+  assert.equal(errorCancelacion.code, 'TICKET_NO_CANCELABLE');
+  assert.equal(errorCancelacion.message, 'Solo se puede cancelar un ticket en estado Recibido');
 
   // Recibido y propio: queda Cancelado, con fecha de cierre y registro de auditoría.
   const ok = await cancelar('1', 'w-1');

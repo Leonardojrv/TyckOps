@@ -30,6 +30,7 @@ const auditoriaTickets = {
 
 // Estados en los que el ticket sigue "en atención" (RF-05).
 const ESTADOS_ACTIVOS = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROCESO', 'AUTOGESTION']);
+const ESTADOS_RESUELTOS = new Set(['RESUELTO', 'CERRADO']);
 
 // MM2: en estos estados el ticket ya terminó y su prioridad no se cambia.
 const ESTADOS_SIN_CAMBIO_PRIORIDAD = new Set(['RESUELTO', 'CERRADO', 'RECHAZADO', 'CANCELADO']);
@@ -63,6 +64,44 @@ function publicTicket(ticket) {
     // T9: el historial filtra y muestra "Finalizado: ..." con esta fecha.
     closedAt: ticket.closedAt ? new Date(ticket.closedAt).toISOString() : null,
   };
+}
+
+function textoNormalizado(texto) {
+  return String(texto ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function fechaHistorial(ticket) {
+  return !ESTADOS_ACTIVOS.has(ticket.status) && ticket.closedAt
+    ? new Date(ticket.closedAt)
+    : new Date(ticket.createdAt);
+}
+
+function coincideEstadoHistorial(ticket, estado) {
+  switch (estado) {
+    case 'finished':
+      return !ESTADOS_ACTIVOS.has(ticket.status);
+    case 'active':
+      return ESTADOS_ACTIVOS.has(ticket.status);
+    case 'resolved':
+      return ESTADOS_RESUELTOS.has(ticket.status);
+    case 'rejected':
+      return ticket.status === 'RECHAZADO';
+    case 'cancelled':
+      return ticket.status === 'CANCELADO';
+    default:
+      return true;
+  }
+}
+
+function dentroDelRango(fecha, rango, ahora) {
+  if (rango === 'all') return true;
+  if (rango === 'year') return fecha.getFullYear() === ahora.getFullYear();
+  const dias = { '7d': 7, '30d': 30, '90d': 90 }[rango];
+  const inicio = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() - dias + 1);
+  return fecha >= inicio;
 }
 
 export class TicketService {
@@ -131,6 +170,36 @@ export class TicketService {
         total: resultado.total,
         paginas: Math.ceil(resultado.total / limite),
       },
+    };
+  }
+
+  async historial(userId, { q = '', rango = 'all', estado = 'all', categoria = '' } = {}) {
+    const tickets = await this.ticketRepository.findByOwner(userId);
+    const ahora = new Date();
+    const palabras = textoNormalizado(q.replaceAll('#', ' ')).split(/\s+/).filter(Boolean);
+    const categoriaNormalizada = textoNormalizado(categoria);
+
+    const filtrados = tickets.filter((ticket) => {
+      if (!coincideEstadoHistorial(ticket, estado)) return false;
+      if (!dentroDelRango(fechaHistorial(ticket), rango, ahora)) return false;
+      if (categoriaNormalizada && textoNormalizado(ticket.category) !== categoriaNormalizada) return false;
+
+      const texto = textoNormalizado([
+        ticket.code,
+        ticket.id,
+        ticket.title,
+        ticket.location,
+        ticket.category,
+        ticket.status,
+        ticket.createdAt?.toISOString?.() ?? ticket.createdAt,
+        ticket.closedAt?.toISOString?.() ?? ticket.closedAt,
+      ].join(' '));
+      return palabras.every((palabra) => texto.includes(palabra));
+    }).sort((a, b) => fechaHistorial(b) - fechaHistorial(a));
+
+    return {
+      tickets: filtrados.map(publicTicket),
+      total: filtrados.length,
     };
   }
 
@@ -212,7 +281,7 @@ export class TicketService {
       throw new HttpError(
         409,
         'TICKET_NO_CANCELABLE',
-        'Esta solicitud ya no está en estado Recibido, por eso no se puede cancelar.',
+        'Solo se puede cancelar un ticket en estado Recibido',
       );
     }
     this.auditLogger.info?.(JSON.stringify({
