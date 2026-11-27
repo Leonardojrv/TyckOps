@@ -19,6 +19,18 @@ export class MemoryTicketRepository {
       ownerId: String(ticket.ownerId),
     }));
     this.cambiosPrioridad = []; // igual que la tabla CambioPrioridad
+    this.historialEstados = [];
+  }
+
+  #registrarEstado(ticket, { desde, hacia, actorId, motivo = null }) {
+    this.historialEstados.push({
+      ticketId: ticket.id,
+      estadoAnterior: desde,
+      estadoNuevo: hacia,
+      fecha: new Date(),
+      actorId: String(actorId),
+      motivo,
+    });
   }
 
   // MM2 · Igual que en PostgreSQL: solo si sigue en Recibido y sin prioridad.
@@ -63,10 +75,11 @@ export class MemoryTicketRepository {
   }
 
   // T11 · Igual que en PostgreSQL: solo si sigue en el estado `desde`.
-  async cambiarEstado(id, { desde, hacia, motivo = null }) {
+  async cambiarEstado(id, { desde, hacia, motivo = null, actorId }) {
     const ticket = this.tickets.find((t) => t.id === String(id));
     if (!ticket) return null;
     if (ticket.status !== desde) return { ticket, cambiado: false };
+    this.#registrarEstado(ticket, { desde, hacia, actorId, motivo });
     ticket.status = hacia;
     if (hacia === 'RECHAZADO') ticket.rejectionReason = motivo;
     if (['RECHAZADO', 'RESUELTO', 'CERRADO'].includes(hacia)) ticket.closedAt = new Date();
@@ -98,7 +111,7 @@ export class MemoryTicketRepository {
   }
 
   async findActiveCandidates({ category = null, location = null, excludeId = null } = {}) {
-    const estadosActivos = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROCESO']);
+    const estadosActivos = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROCESO', 'AUTOGESTION']);
     const locNorm = location?.toLowerCase().trim();
     const catNorm = category?.toLowerCase().trim();
 
@@ -126,21 +139,57 @@ export class MemoryTicketRepository {
     const ticket = await this.findByIdForOwner(id, ownerId);
     if (!ticket) return null;
     if (ticket.status !== 'RECIBIDO') return { cancelado: false, ticket };
+    this.#registrarEstado(ticket, {
+      desde: 'RECIBIDO',
+      hacia: 'CANCELADO',
+      actorId: ownerId,
+    });
     ticket.status = 'CANCELADO';
     ticket.closedAt = new Date();
     return { cancelado: true, ticket };
   }
 
-  // T10 · Igual que en PostgreSQL: tuyo, Recibido, prioridad Baja y sin decisión previa.
+  async iniciarAutogestion(id, ownerId) {
+    const ticket = await this.findByIdForOwner(id, ownerId);
+    if (!ticket) return null;
+    const aplica = ticket.status === 'RECIBIDO'
+      && String(ticket.priority).toUpperCase() === 'BAJA'
+      && !ticket.solutionType;
+    if (!aplica) return { cambiado: false, ticket };
+    this.#registrarEstado(ticket, {
+      desde: 'RECIBIDO',
+      hacia: 'AUTOGESTION',
+      actorId: ownerId,
+      motivo: 'Inicio de autogestión por guía de autoayuda.',
+    });
+    ticket.status = 'AUTOGESTION';
+    return { cambiado: true, ticket };
+  }
+
+  // T10 · Igual que en PostgreSQL: tuyo, Autogestión, prioridad Baja y sin decisión previa.
   async resolverConGuia(id, ownerId, accion) {
     const ticket = await this.findByIdForOwner(id, ownerId);
     if (!ticket) return null;
-    const aplica = ticket.status === 'RECIBIDO' && String(ticket.priority).toUpperCase() === 'BAJA' && !ticket.solutionType;
+    const aplica = ticket.status === 'AUTOGESTION'
+      && String(ticket.priority).toUpperCase() === 'BAJA'
+      && !ticket.solutionType;
     if (!aplica) return { aplicado: false, ticket };
     if (accion === 'cerrar') {
+      this.#registrarEstado(ticket, {
+        desde: 'AUTOGESTION',
+        hacia: 'CERRADO',
+        actorId: ownerId,
+        motivo: 'Cierre por autogestión: el colaborador indicó que se solucionó.',
+      });
       Object.assign(ticket, { status: 'CERRADO', closedAt: new Date(), solutionType: 'autoayuda_ia' });
     } else {
-      Object.assign(ticket, { priority: 'MEDIA', solutionType: 'escalado_colaborador' });
+      this.#registrarEstado(ticket, {
+        desde: 'AUTOGESTION',
+        hacia: 'RECIBIDO',
+        actorId: ownerId,
+        motivo: 'Autogestión no resolvió; ticket reportado a Servicios Generales.',
+      });
+      Object.assign(ticket, { status: 'RECIBIDO', priority: 'MEDIA', solutionType: 'escalado_colaborador' });
     }
     return { aplicado: true, ticket };
   }

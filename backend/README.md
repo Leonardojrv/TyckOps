@@ -88,4 +88,3 @@ Módulo para que el personal de Servicios Generales (rol `ADMINISTRADOR`) descar
 - `POST /guias/archivo` (y `/api/guias/archivo`): Recibe un archivo Excel en `multipart/form-data` (campo `archivo`, máx. 2 MB). Valida extensión `.xlsx`, presencia de columnas obligatorias y valida fila por fila (categorías válidas, problema, pasos, y booleano para autogestionable). Quita cualquier contenido HTML de los textos y responde con errores por fila si los hay (`400 ERRORES_VALIDACION`). Si es válido, genera y devuelve una nueva versión en borrador (`v1`, `v2`, etc.).
 - `POST /guias/:version/activar` (y `/api/guias/:version/activar`): Publica la versión indicada como vigente (`activa: true`) y archiva la versión previa.
 - `GET /guias` (y `/api/guias`): Lista las guías de la versión actualmente activa.
-

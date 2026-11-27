@@ -66,6 +66,7 @@ test('de punta a punta: guía en Baja y el segundo reporte queda agrupado', asyn
   assert.equal(d1.priority, 'BAJA');
   assert.equal(d1.selfHelp, true, 'muestra la Asistencia IA de Diagnóstico');
   assert.equal(d1.duplicateOf, null);
+  await service.iniciarAutogestion('w-1', primero);
   assert.equal((await service.guia('w-1', primero)).id, 'computador-no-enciende');
 
   // Mismo perfil, misma falla y lugar: se agrupa y el mensaje sabe que es tuyo.

@@ -144,6 +144,9 @@ export function crearRutasTickets({ ticketService, authService, jwtSecret }) {
 
   // T10 · Guía de autoayuda (prioridad Baja). El dueño sale del token y el
   // servidor revisa que la guía siga aplicando en cada acción.
+  router.post('/:id/guia/iniciar', requerirRol('COLABORADOR'), limiterCancelar, async (req, res) => {
+    responder(res, { ticket: await ticketService.iniciarAutogestion(req.usuario.id, req.params.id) });
+  });
   router.get('/:id/guia', requerirRol('COLABORADOR'), async (req, res) => {
     responder(res, { guia: await ticketService.guia(req.usuario.id, req.params.id) });
   });

@@ -68,8 +68,8 @@ async function preparar(guiasVigentes = []) {
   return { get, post, auditoria, repo };
 }
 
-test('T10: la guía solo aparece en tickets propios de prioridad Baja y en Recibido', async () => {
-  const { get } = await preparar();
+test('T10: la guía solo aparece en tickets propios de prioridad Baja y en Autogestión', async () => {
+  const { get, post } = await preparar();
 
   const detalle = (await (await get('1')).json()).data.ticket;
   assert.equal(detalle.selfHelp, true);
@@ -77,8 +77,14 @@ test('T10: la guía solo aparece en tickets propios de prioridad Baja y en Recib
   assert.equal((await (await get('4')).json()).data.ticket.selfHelp, false, 'ya en revisión: sin guía');
 
   const res = await get('1/guia');
-  assert.equal(res.status, 200);
-  const { guia } = (await res.json()).data;
+  assert.equal(res.status, 404, 'la guía requiere iniciar primero la autogestión');
+  const iniciado = await post('1/guia/iniciar');
+  assert.equal(iniciado.status, 200);
+  assert.equal((await iniciado.json()).data.ticket.status, 'AUTOGESTION');
+
+  const resGuia = await get('1/guia');
+  assert.equal(resGuia.status, 200);
+  const { guia } = (await resGuia.json()).data;
   assert.equal(guia.origen, 'simulada');
   assert.ok(guia.pasos.length >= 2);
   assert.ok(guia.pasos.every((p) => p.titulo));
@@ -89,12 +95,14 @@ test('T10: la guía solo aparece en tickets propios de prioridad Baja y en Recib
 });
 
 test('T10: cerrar (la guía funcionó) y escalar (no funcionó), una sola vez', async () => {
-  const { post, get, auditoria } = await preparar();
+  const { post, get, auditoria, repo } = await preparar();
 
   assert.equal((await post('1/guia/cerrar', 'w-1', 'ADMINISTRADOR')).status, 403);
   assert.equal((await post('9/guia/cerrar')).status, 404, 'ajeno');
   assert.equal((await post('3/guia/cerrar')).status, 409, 'prioridad media: no aplica');
 
+  assert.equal((await post('1/guia/iniciar')).status, 200);
+  assert.equal((await post('2/guia/iniciar')).status, 200);
   const cerrado = await post('1/guia/cerrar');
   assert.equal(cerrado.status, 200);
   const t1 = (await cerrado.json()).data.ticket;
@@ -111,7 +119,21 @@ test('T10: cerrar (la guía funcionó) y escalar (no funcionó), una sola vez', 
   assert.equal((await (await get('2')).json()).data.ticket.selfHelp, false, 'la guía ya no se ofrece');
   assert.ok(!('solutionType' in t2), 'el dato interno no sale en la API');
 
-  assert.deepEqual(auditoria.map((a) => a.action), ['ticket_cerrado_autoayuda', 'ticket_escalado_colaborador']);
+  assert.deepEqual(repo.historialEstados.map(({ estadoAnterior, estadoNuevo }) => [estadoAnterior, estadoNuevo]), [
+    ['RECIBIDO', 'AUTOGESTION'],
+    ['RECIBIDO', 'AUTOGESTION'],
+    ['AUTOGESTION', 'CERRADO'],
+    ['AUTOGESTION', 'RECIBIDO'],
+  ]);
+  assert.equal(repo.historialEstados[2].actorId, 'w-1');
+  assert.match(repo.historialEstados[2].motivo, /Cierre por autogestión/);
+  assert.match(repo.historialEstados[3].motivo, /reportado a Servicios Generales/);
+  assert.deepEqual(auditoria.map((a) => a.action), [
+    'autogestion_iniciada',
+    'autogestion_iniciada',
+    'ticket_cerrado_autoayuda',
+    'ticket_escalado_colaborador',
+  ]);
 });
 
 test('T10: el duplicado muestra el original sin datos de su dueño', async () => {

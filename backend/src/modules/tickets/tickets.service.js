@@ -15,6 +15,7 @@ import { HttpError } from '../../utils/http-error.js';
 import { detectarTipoImagen, quitarMetadatos } from './tickets.fotos.js';
 import { datosParaIA, evaluarFlujoIA } from './tickets.flujoIA.js';
 import { SOLUCION_AUTOAYUDA, admiteAutoayuda, elegirGuia } from './tickets.guia.js';
+import { TRANSICIONES_TICKET, validarTransicion } from './ticket-states.js';
 
 // Logger por defecto: recibe la misma línea JSON que antes iba a console.info
 // y la escribe en logs/ con winston. Las pruebas pueden pasar el suyo.
@@ -28,18 +29,7 @@ const auditoriaTickets = {
 };
 
 // Estados en los que el ticket sigue "en atención" (RF-05).
-const ESTADOS_ACTIVOS = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROCESO']);
-
-// T11 · A qué estados puede pasar el administrador desde cada uno (ciclo de
-// vida de docs/requerimientos/requerimientos-funcionales.md). Cancelar es del
-// colaborador (T9), por eso no está aquí.
-export const TRANSICIONES_ADMIN = {
-  RECIBIDO: ['EN_REVISION'],
-  EN_REVISION: ['APROBADO', 'RECHAZADO'],
-  APROBADO: ['EN_PROCESO'],
-  EN_PROCESO: ['RESUELTO'],
-  RESUELTO: ['CERRADO'],
-};
+const ESTADOS_ACTIVOS = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROCESO', 'AUTOGESTION']);
 
 // MM2: en estos estados el ticket ya terminó y su prioridad no se cambia.
 const ESTADOS_SIN_CAMBIO_PRIORIDAD = new Set(['RESUELTO', 'CERRADO', 'RECHAZADO', 'CANCELADO']);
@@ -173,6 +163,7 @@ export class TicketService {
     if (!/^[A-Za-z0-9-]{1,40}$/.test(String(id))) {
       throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
     }
+    validarTransicion('RECIBIDO', 'CANCELADO');
     const resultado = await this.ticketRepository.cancelarSiRecibido(id, userId);
     // Ajeno o inexistente: el mismo 404 de siempre, para no revelar qué IDs existen.
     if (!resultado) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
@@ -196,7 +187,7 @@ export class TicketService {
   // T10 · RF-10: la guía paso a paso de un ticket de prioridad Baja (solo el dueño).
   async guia(userId, id) {
     const ticket = await this.#ticketPropio(userId, id);
-    if (!admiteAutoayuda(ticket)) {
+    if (ticket.status !== 'AUTOGESTION' || !admiteAutoayuda(ticket)) {
       throw new HttpError(404, 'GUIA_NO_DISPONIBLE', 'Esta solicitud no tiene una guía de autoayuda disponible.');
     }
     let vigentes = [];
@@ -208,6 +199,27 @@ export class TicketService {
     return elegirGuia(ticket, vigentes);
   }
 
+  async iniciarAutogestion(userId, id) {
+    const ticket = await this.#ticketPropio(userId, id);
+    if (!admiteAutoayuda(ticket) || !['RECIBIDO', 'AUTOGESTION'].includes(ticket.status)) {
+      throw new HttpError(409, 'AUTOGESTION_NO_DISPONIBLE', 'Esta solicitud no puede iniciar la guía de autoayuda.');
+    }
+    if (ticket.status === 'AUTOGESTION') return publicTicket(ticket);
+    validarTransicion(ticket.status, 'AUTOGESTION');
+    const resultado = await this.ticketRepository.iniciarAutogestion(id, userId);
+    if (!resultado?.cambiado && resultado?.ticket.status !== 'AUTOGESTION') {
+      throw new HttpError(409, 'TICKET_CAMBIO_SIMULTANEO', 'El ticket cambió mientras iniciabas la guía. Vuelve a cargarlo.');
+    }
+    this.auditLogger.info?.(JSON.stringify({
+      type: 'ticket',
+      action: 'autogestion_iniciada',
+      timestamp: new Date().toISOString(),
+      ticketId: resultado.ticket.id,
+      userId: String(userId),
+    }));
+    return publicTicket(resultado.ticket);
+  }
+
   // T10 · RF-11 / RF-12: "Cerrar ticket" (la guía funcionó) o "Reportar a
   // administración" (no funcionó). Solo el dueño y solo mientras la guía aplica.
   async resolverGuia(userId, id, accion) {
@@ -217,6 +229,8 @@ export class TicketService {
     if (!/^[A-Za-z0-9-]{1,40}$/.test(String(id))) {
       throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
     }
+    const destino = accion === 'cerrar' ? 'CERRADO' : 'RECIBIDO';
+    validarTransicion('AUTOGESTION', destino);
     const resultado = await this.ticketRepository.resolverConGuia(id, userId, accion);
     if (!resultado) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
     if (!resultado.aplicado) {
@@ -368,10 +382,14 @@ export class TicketService {
     const actual = /^[A-Za-z0-9-]{1,40}$/.test(String(id)) ? await this.ticketRepository.findById(id) : null;
     if (!actual) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
     const desde = String(actual.status).toUpperCase();
-    if (!(TRANSICIONES_ADMIN[desde] ?? []).includes(estado)) {
-      throw new HttpError(409, 'TRANSICION_NO_PERMITIDA', `Un ticket "${desde}" no puede pasar a "${estado}".`);
-    }
-    const resultado = await this.ticketRepository.cambiarEstado(id, { desde, hacia: estado, motivo });
+    const motivoCambio = motivo?.trim() || null;
+    validarTransicion(desde, estado, motivoCambio);
+    const resultado = await this.ticketRepository.cambiarEstado(id, {
+      desde,
+      hacia: estado,
+      motivo: motivoCambio,
+      actorId: adminId,
+    });
     if (!resultado?.cambiado) {
       throw new HttpError(409, 'TICKET_CAMBIO_SIMULTANEO', 'El ticket cambió mientras lo editabas. Vuelve a cargarlo.');
     }
@@ -379,7 +397,7 @@ export class TicketService {
       type: 'ticket', action: 'estado_cambiado', timestamp: new Date().toISOString(),
       ticketId: resultado.ticket.id, adminId: String(adminId), desde, hacia: estado,
     }));
-    await this.notificaciones?.avisarCambioEstado(resultado.ticket, estado, motivo);
+    await this.notificaciones?.avisarCambioEstado(resultado.ticket, estado, motivoCambio);
     return publicTicket(resultado.ticket);
   }
 
