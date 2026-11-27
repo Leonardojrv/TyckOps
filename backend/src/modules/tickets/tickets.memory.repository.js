@@ -63,12 +63,13 @@ export class MemoryTicketRepository {
   }
 
   // T11 · Igual que en PostgreSQL: solo si sigue en el estado `desde`.
-  async cambiarEstado(id, { desde, hacia, motivo = null }) {
+  async cambiarEstado(id, { desde, hacia, motivo = null, revisorId = null }) {
     const ticket = this.tickets.find((t) => t.id === String(id));
     if (!ticket) return null;
     if (ticket.status !== desde) return { ticket, cambiado: false };
     ticket.status = hacia;
     if (hacia === 'RECHAZADO') ticket.rejectionReason = motivo;
+    if (['APROBADO', 'RECHAZADO'].includes(hacia) && revisorId) ticket.reviewedBy = String(revisorId);
     if (['RECHAZADO', 'RESUELTO', 'CERRADO'].includes(hacia)) ticket.closedAt = new Date();
     return { ticket, cambiado: true };
   }

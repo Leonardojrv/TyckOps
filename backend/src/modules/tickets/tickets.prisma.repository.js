@@ -63,6 +63,8 @@ function aTicket(fila) {
     solutionType: fila.TipoSolucion ?? null, // T10: autoayuda_ia / escalado_colaborador (uso interno)
     originalId: fila.ID_TicketOriginal ? String(fila.ID_TicketOriginal) : null, // T10: si es duplicado (uso interno)
     ownerId: String(fila.ID_user),
+    rejectionReason: fila.MotivoRechazo ?? null, // motivo guardado (la API lo muestra solo si está rechazado)
+    reviewedBy: fila.ID_admin_revisor ? String(fila.ID_admin_revisor) : null, // quién lo aprobó o rechazó (uso interno)
   };
 }
 
@@ -364,15 +366,17 @@ export class PrismaTicketRepository {
    * administrador lo movió un instante antes, no se pisa (cambiado: false).
    * @returns {Promise<null | { ticket, cambiado: boolean }>}
    */
-  async cambiarEstado(id, { desde, hacia, motivo = null }) {
+  async cambiarEstado(id, { desde, hacia, motivo = null, revisorId = null }) {
     const ticketId = idNumerico(id);
     if (ticketId === null) return null;
+    const revisor = ['APROBADO', 'RECHAZADO'].includes(hacia) ? idNumerico(revisorId) : null;
     const terminal = ['RECHAZADO', 'RESUELTO', 'CERRADO'].includes(hacia);
     const { count } = await this.prisma.ticket.updateMany({
       where: { ID_Ticket: ticketId, Estado: { equals: desde.toLowerCase(), mode: 'insensitive' } },
       data: {
         Estado: hacia.toLowerCase(),
         ...(hacia === 'RECHAZADO' && { MotivoRechazo: motivo }),
+        ...(revisor !== null && { ID_admin_revisor: revisor }), // quién lo aprobó o rechazó
         ...(terminal && { FechaCierre: new Date() }),
       },
     });

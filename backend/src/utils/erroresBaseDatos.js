@@ -20,7 +20,7 @@ const CODIGOS_CONEXION = new Set(['P1000', 'P1001', 'P1002', 'P1008', 'P1017', '
 const MENSAJES_CHECK = {
   ck_ticket_estado: 'El estado del ticket no es válido.',
   ck_ticket_motivo_rechazo: 'Para rechazar un ticket, el motivo debe tener al menos 100 caracteres.',
-  ck_ticket_aprobador: 'Quien aprueba un ticket no puede ser quien lo creó.',
+  ck_ticket_revisor: 'Quien aprueba o rechaza un ticket no puede ser quien lo creó.',
   ck_ticket_fecha_cierre: 'La fecha de cierre no puede ser anterior a la fecha de creación.',
 };
 

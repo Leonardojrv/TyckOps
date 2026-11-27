@@ -53,7 +53,7 @@ model User {
 
   // Relaciones inversas
   ticketsCreados   Ticket[]           @relation("crea")
-  ticketsAprobados Ticket[]           @relation("aprueba")
+  ticketsRevisados Ticket[]           @relation("revisa")
   comentarios      ComentarioTicket[] @relation("comenta")
   cambiosPrioridad CambioPrioridad[]  @relation("cambiaPrioridad")
   informes         Informe[]
@@ -133,9 +133,10 @@ model Ticket {
   ID_CateRepa         Int
   categoriaReparacion CategoriaReparacion @relation(fields: [ID_CateRepa], references: [ID_CateRepa], map: "Ticket_CategoriaReparacion_FK")
 
-  // aprueba (N:0..1 Usuario, opcional)
-  ID_admin_aprobador Int?
-  aprobador          User? @relation("aprueba", fields: [ID_admin_aprobador], references: [id], onDelete: SetNull, map: "Ticket_Aprobador_FK")
+  // revisa (N:0..1 Usuario, opcional): el administrador que aprobó o rechazó el ticket
+  // (el Estado dice cuál de las dos). Se llena al salir de en_revision.
+  ID_admin_revisor Int?
+  revisor          User? @relation("revisa", fields: [ID_admin_revisor], references: [id], onDelete: SetNull, map: "Ticket_Revisor_FK")
 
   // tiene (1:N ComentarioTicket)
   comentarios ComentarioTicket[]

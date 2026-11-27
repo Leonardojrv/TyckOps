@@ -5,6 +5,7 @@ import { exigirTerminos } from '../../middlewares/exigirTerminos.js';
 import { requerirRol } from '../../middlewares/requerirRol.js';
 import { HttpError } from '../../utils/http-error.js';
 import { responder } from '../../utils/respuestas.js';
+import { MOTIVO_RECHAZO_MAX, MOTIVO_RECHAZO_MIN } from '../tickets/tickets.service.js';
 
 const prioridadSchema = z.object({
   prioridad: z.string({ required_error: 'Indica la prioridad.' })
@@ -20,10 +21,10 @@ const estadoSchema = z.object({
     .pipe(z.enum(['EN_REVISION', 'APROBADO', 'RECHAZADO', 'EN_PROCESO', 'RESUELTO', 'CERRADO'], {
       errorMap: () => ({ message: 'Estado no válido.' }),
     })),
-  motivo: z.string().trim().max(255, 'El motivo admite hasta 255 caracteres.').optional(),
+  motivo: z.string().trim().max(MOTIVO_RECHAZO_MAX, `El motivo admite hasta ${MOTIVO_RECHAZO_MAX} caracteres.`).nullish(),
 }).superRefine((datos, ctx) => {
-  if (datos.estado === 'RECHAZADO' && (datos.motivo?.length ?? 0) < 100) {
-    ctx.addIssue({ code: 'custom', path: ['motivo'], message: 'Al rechazar, explica el motivo (mínimo 100 caracteres).' });
+  if (datos.estado === 'RECHAZADO' && (datos.motivo?.length ?? 0) < MOTIVO_RECHAZO_MIN) {
+    ctx.addIssue({ code: 'custom', path: ['motivo'], message: `Al rechazar, explica el motivo (mínimo ${MOTIVO_RECHAZO_MIN} caracteres).` });
   }
 });
 

@@ -4,6 +4,8 @@
 
 import jwt from 'jsonwebtoken';
 import { crearApp } from '../../src/app.js';
+import { PrismaNotificacionesRepository } from '../../src/modules/notificaciones/notificaciones.repositories.js';
+import { NotificacionesService } from '../../src/modules/notificaciones/notificaciones.service.js';
 import { PrismaTicketRepository } from '../../src/modules/tickets/tickets.prisma.repository.js';
 import { TicketService } from '../../src/modules/tickets/tickets.service.js';
 
@@ -13,9 +15,21 @@ export const ENV_PRUEBAS = {
   corsOrigin: '*',
 };
 
-/** Devuelve la app y la lista de eventos de auditoría que generó. */
+/**
+ * Devuelve la app, la lista de eventos de auditoría y los push "enviados".
+ * Las notificaciones se guardan en la tabla Notificacion real; el envío push
+ * es falso (no usa Firebase): solo anota a qué tokens se habría mandado.
+ */
 export function crearAppPruebas(prisma) {
   const auditoria = [];
+  const pushEnviados = [];
+  const enviadorFalso = {
+    async enviar(tokens, mensaje) {
+      pushEnviados.push({ tokens, mensaje });
+      return { invalidos: [] };
+    },
+  };
+  const notificaciones = new NotificacionesService(new PrismaNotificacionesRepository(prisma), enviadorFalso);
   const app = crearApp({
     env: ENV_PRUEBAS,
     prisma,
@@ -24,9 +38,10 @@ export function crearAppPruebas(prisma) {
     // Tickets con el repositorio real de PostgreSQL, igual que en server.js.
     ticketService: new TicketService(new PrismaTicketRepository(prisma), {
       auditLogger: { info: (evento) => auditoria.push(JSON.parse(evento)) },
+      notificaciones,
     }),
   });
-  return { app, auditoria };
+  return { app, auditoria, pushEnviados };
 }
 
 /** Firma un token igual que el backend, para casos que no pasan por el login. */

@@ -27,6 +27,13 @@ const auditoriaTickets = {
   },
 };
 
+// Flujo transaccional · prioridad del ticket operativo cuando la IA no la
+// entregó (motor no conectado o con error). Los valores de origen son los
+// mismos del analizador (src/ia/analizadorPrioridad.js).
+export const PRIORIDAD_POR_DEFECTO = 'MEDIA';
+const ORIGEN_SIN_IA = 'defecto';
+const ORIGEN_FALLA_IA = 'falla_ia';
+
 // Estados en los que el ticket sigue "en atención" (RF-05).
 const ESTADOS_ACTIVOS = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROCESO']);
 
@@ -40,6 +47,33 @@ export const TRANSICIONES_ADMIN = {
   EN_PROCESO: ['RESUELTO'],
   RESUELTO: ['CERRADO'],
 };
+
+// Flujo transaccional · desde estos estados el ticket ya es gestionado por
+// Servicios Generales y debe tener prioridad (la base lo exige con el CHECK
+// ck_ticket_operativo_prioridad).
+const ESTADOS_OPERATIVOS = new Set(['EN_REVISION', 'APROBADO', 'EN_PROCESO', 'RESUELTO']);
+// Las dos decisiones de la revisión: quien la toma queda en ID_admin_revisor.
+const ESTADOS_DECISION = new Set(['APROBADO', 'RECHAZADO']);
+
+// RF-07 / RF-17 · Motivo obligatorio al rechazar. Mismos límites que la columna
+// MotivoRechazo (VARCHAR 255) y el CHECK ck_ticket_motivo_rechazo (>= 100).
+export const MOTIVO_RECHAZO_MIN = 100;
+export const MOTIVO_RECHAZO_MAX = 255;
+
+/**
+ * Revisa el motivo de un rechazo y lo devuelve sin espacios sobrantes.
+ * Lanza 400 DATOS_INVALIDOS si viene nulo, vacío, solo espacios o fuera de largo.
+ */
+export function validarMotivoRechazo(motivo) {
+  const limpio = typeof motivo === 'string' ? motivo.trim() : '';
+  if (limpio.length < MOTIVO_RECHAZO_MIN) {
+    throw new HttpError(400, 'DATOS_INVALIDOS', `Al rechazar, explica el motivo (mínimo ${MOTIVO_RECHAZO_MIN} caracteres).`);
+  }
+  if (limpio.length > MOTIVO_RECHAZO_MAX) {
+    throw new HttpError(400, 'DATOS_INVALIDOS', `El motivo admite hasta ${MOTIVO_RECHAZO_MAX} caracteres.`);
+  }
+  return limpio;
+}
 
 // MM2: en estos estados el ticket ya terminó y su prioridad no se cambia.
 const ESTADOS_SIN_CAMBIO_PRIORIDAD = new Set(['RESUELTO', 'CERRADO', 'RECHAZADO', 'CANCELADO']);
@@ -57,6 +91,20 @@ function publicOriginal(original, userId) {
     location: original.location,
     createdAt: new Date(original.createdAt).toISOString(),
   };
+}
+
+// En qué quedó el ticket, en una palabra, para informar la resolución al
+// colaborador (GET /tickets/:id/estado).
+const ESTADOS_EN_GESTION = new Set(['EN_REVISION', 'APROBADO', 'EN_PROCESO']);
+export function tipoResolucion(ticket) {
+  const estado = String(ticket.status ?? '').toUpperCase();
+  if (estado === 'RECIBIDO') return 'pendiente';
+  if (ESTADOS_EN_GESTION.has(estado)) return 'en_gestion';
+  if (estado === 'RESUELTO') return 'resuelto';
+  if (estado === 'CERRADO') return ticket.solutionType === SOLUCION_AUTOAYUDA ? 'cerrado_autoayuda' : 'cerrado';
+  if (estado === 'RECHAZADO') return 'rechazado';
+  if (estado === 'CANCELADO') return 'cancelado';
+  return 'pendiente';
 }
 
 // Solo lo que la app necesita mostrar: nunca el ownerId ni datos internos.
@@ -167,6 +215,37 @@ export class TicketService {
   }
 
   // T9 · RF-09: el colaborador cancela su ticket, solo mientras está Recibido.
+  // Estado del ticket para el colaborador dueño: si fue marcado como duplicado
+  // y en qué quedó (resolución). Respuesta liviana, sin descripción, foto ni
+  // comentarios, para consultarla seguido. Ajeno o inexistente: 404.
+  async estado(userId, id) {
+    if (!/^[A-Za-z0-9-]{1,40}$/.test(String(id))) {
+      throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
+    }
+    const ticket = await this.ticketRepository.findDetailForOwner(id, userId);
+    if (!ticket) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
+    const original = ticket.original ? publicOriginal(ticket.original, ticket.ownerId) : null;
+    return {
+      id: ticket.id,
+      code: ticket.code,
+      status: ticket.status,
+      priority: ticket.priority ?? null,
+      duplicate: {
+        isDuplicate: Boolean(original),
+        // Del original solo lo necesario para entenderlo (nunca datos de su dueño).
+        original: original && {
+          id: original.id, code: original.code, status: original.status, mine: original.mine,
+        },
+      },
+      resolution: {
+        type: tipoResolucion(ticket),
+        // El motivo solo viaja si está rechazado (RF-07), igual que en el detalle.
+        reason: ticket.status === 'RECHAZADO' ? ticket.rejectionReason ?? null : null,
+        closedAt: ticket.closedAt ? new Date(ticket.closedAt).toISOString() : null,
+      },
+    };
+  }
+
   // El dueño sale de la sesión; el estado se revisa en la misma escritura
   // (ver cancelarSiRecibido), así que el botón oculto en la app no es la única barrera.
   async cancelar(userId, id) {
@@ -301,8 +380,11 @@ export class TicketService {
     // Sin await: Groq puede tardar hasta GROQ_TIMEOUT_MS y el trabajador no
     // debe esperar ni ver un error si la IA falla; su ticket ya está creado.
     // enrutarTicket nunca lanza, así que no queda una promesa rechazada suelta.
+    // La respuesta se arma ANTES: el trabajador recibe su ticket tal como se
+    // creó, aunque la prioridad por defecto se guarde un instante después.
+    const respuesta = publicTicket(ticket);
     this.enrutarTicket({ ...ticket, description: descripcion });
-    return publicTicket(ticket);
+    return respuesta;
   }
 
   // Decide el flujo del ticket según su estado (ver tickets.flujoIA.js):
@@ -311,6 +393,10 @@ export class TicketService {
   //  - enviado_ia:   se envió al motor y respondió; se guarda la prioridad
   //                  inicial (MM2) si el ticket sigue en Recibido.
   //  - error_ia:     se envió pero el motor falló; el ticket sigue en Recibido.
+  // Flujo transaccional: si no hubo IA (pendiente_ia) o falló (error_ia), el
+  // ticket recibe la prioridad por defecto (Media, nunca Baja: una falla que
+  // nadie evaluó no se manda a la guía de autoayuda). Así todo ticket que
+  // llega al administrador tiene prioridad.
   // No cambia el estado. La prioridad se guarda con una condición en la misma
   // escritura (sigue en Recibido y sin prioridad), porque el trabajador puede
   // cancelarlo (RF-09) mientras la IA lo analiza.
@@ -325,6 +411,7 @@ export class TicketService {
 
       if (!this.analizadorIA) {
         this.#auditarIA(ticket, 'pendiente_ia');
+        await this.#prioridadPorDefecto(ticket, ORIGEN_SIN_IA);
         return { resultado: 'pendiente_ia' };
       }
 
@@ -359,28 +446,68 @@ export class TicketService {
     } catch (error) {
       const codigo = error?.code ?? 'DESCONOCIDO';
       this.#auditarIA(ticket, 'error_ia', { codigo });
+      await this.#prioridadPorDefecto(ticket, ORIGEN_FALLA_IA);
       return { resultado: 'error_ia', codigo };
+    }
+  }
+
+  // Prioridad por defecto del ticket operativo cuando la IA no la entregó.
+  // Solo se guarda si sigue Recibido y sin prioridad (la misma condición de
+  // guardarPrioridadInicial). Nunca lanza.
+  async #prioridadPorDefecto(ticket, origen) {
+    try {
+      const guardada = this.ticketRepository.guardarPrioridadInicial
+        ? await this.ticketRepository.guardarPrioridadInicial(ticket.id, { prioridad: PRIORIDAD_POR_DEFECTO, origen })
+        : false;
+      this.#auditarIA(ticket, guardada ? 'prioridad_por_defecto' : 'prioridad_descartada', {
+        prioridad: PRIORIDAD_POR_DEFECTO,
+        origen,
+        ...(!guardada && { motivo: 'ticket_ya_no_recibido_o_con_prioridad' }),
+      });
+    } catch (error) {
+      this.#auditarIA(ticket, 'prioridad_descartada', { origen, codigo: error?.code ?? 'DESCONOCIDO' });
     }
   }
 
   // T11 · El administrador cambia el estado; el dueño recibe el aviso.
   async cambiarEstado(adminId, id, estado, motivo = null) {
+    // Regla del negocio (no solo de la ruta): al rechazar, el motivo es obligatorio.
+    // Se revisa antes de tocar nada; los demás estados ignoran el motivo.
+    const motivoFinal = estado === 'RECHAZADO' ? validarMotivoRechazo(motivo) : null;
     const actual = /^[A-Za-z0-9-]{1,40}$/.test(String(id)) ? await this.ticketRepository.findById(id) : null;
     if (!actual) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
     const desde = String(actual.status).toUpperCase();
     if (!(TRANSICIONES_ADMIN[desde] ?? []).includes(estado)) {
       throw new HttpError(409, 'TRANSICION_NO_PERMITIDA', `Un ticket "${desde}" no puede pasar a "${estado}".`);
     }
-    const resultado = await this.ticketRepository.cambiarEstado(id, { desde, hacia: estado, motivo });
+    // Flujo transaccional: un ticket operativo siempre tiene prioridad. Si la IA
+    // aún no la entrega (unos segundos tras crearlo), se espera.
+    if (ESTADOS_OPERATIVOS.has(estado) && !actual.priority) {
+      throw new HttpError(409, 'TICKET_SIN_PRIORIDAD', 'El ticket aún no tiene prioridad asignada. Inténtalo en unos segundos.');
+    }
+    // Quien decide la revisión (aprobar o rechazar) queda registrado en
+    // ID_admin_revisor; nadie aprueba ni rechaza su propio ticket.
+    const revisor = ESTADOS_DECISION.has(estado) ? String(adminId) : null;
+    if (revisor && String(actual.ownerId) === revisor) {
+      throw estado === 'APROBADO'
+        ? new HttpError(409, 'APROBACION_PROPIA', 'No puedes aprobar un ticket que creaste tú. Pídele a otro administrador.')
+        : new HttpError(409, 'RECHAZO_PROPIO', 'No puedes rechazar un ticket que creaste tú. Pídele a otro administrador.');
+    }
+    const resultado = await this.ticketRepository.cambiarEstado(id, { desde, hacia: estado, motivo: motivoFinal, revisorId: revisor });
     if (!resultado?.cambiado) {
       throw new HttpError(409, 'TICKET_CAMBIO_SIMULTANEO', 'El ticket cambió mientras lo editabas. Vuelve a cargarlo.');
     }
     this.auditLogger.info?.(JSON.stringify({
       type: 'ticket', action: 'estado_cambiado', timestamp: new Date().toISOString(),
       ticketId: resultado.ticket.id, adminId: String(adminId), desde, hacia: estado,
+      ...(revisor && { revisorId: revisor }),
     }));
-    await this.notificaciones?.avisarCambioEstado(resultado.ticket, estado, motivo);
-    return publicTicket(resultado.ticket);
+    await this.notificaciones?.avisarCambioEstado(resultado.ticket, estado, motivoFinal);
+    // La respuesta incluye el motivo tal como quedó guardado (solo si está rechazado).
+    return {
+      ...publicTicket(resultado.ticket),
+      rejectionReason: resultado.ticket.status === 'RECHAZADO' ? resultado.ticket.rejectionReason ?? null : null,
+    };
   }
 
   // T11 · El administrador comenta; el dueño recibe "Nuevo comentario en tu ticket".

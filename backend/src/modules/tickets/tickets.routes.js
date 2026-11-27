@@ -119,6 +119,12 @@ export function crearRutasTickets({ ticketService, authService, jwtSecret }) {
     responder(res, await ticketService.resumen(req.usuario.id));
   });
 
+  // Estado del ticket para el colaborador dueño: ¿es duplicado? ¿en qué quedó?
+  // Liviana (sin descripción, foto ni comentarios) para consultarla seguido.
+  router.get('/:id/estado', requerirRol('COLABORADOR'), async (req, res) => {
+    responder(res, await ticketService.estado(req.usuario.id, req.params.id));
+  });
+
   // GET /tickets/:id con el detalle (solo para el dueño o un administrador).
   router.get('/:id', requerirRol('COLABORADOR', 'ADMINISTRADOR'), async (req, res) => {
     responder(res, { ticket: await ticketService.detalle(req.usuario, req.params.id) });
