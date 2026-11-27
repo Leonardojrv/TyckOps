@@ -5,6 +5,7 @@ import { exigirTerminos } from '../../middlewares/exigirTerminos.js';
 import { requerirRol } from '../../middlewares/requerirRol.js';
 import { HttpError } from '../../utils/http-error.js';
 import { responder } from '../../utils/respuestas.js';
+import { ESTADOS_ADMINISTRADOR } from '../tickets/ticket-states.js';
 
 const prioridadSchema = z.object({
   prioridad: z.string({ required_error: 'Indica la prioridad.' })
@@ -17,14 +18,10 @@ const prioridadSchema = z.object({
 // base de datos exige al menos 100 caracteres (ck_ticket_motivo_rechazo).
 const estadoSchema = z.object({
   estado: z.string({ required_error: 'Indica el estado.' }).trim().toUpperCase()
-    .pipe(z.enum(['EN_REVISION', 'APROBADO', 'RECHAZADO', 'EN_PROCESO', 'RESUELTO', 'CERRADO'], {
+    .pipe(z.enum(ESTADOS_ADMINISTRADOR, {
       errorMap: () => ({ message: 'Estado no válido.' }),
     })),
   motivo: z.string().trim().max(255, 'El motivo admite hasta 255 caracteres.').optional(),
-}).superRefine((datos, ctx) => {
-  if (datos.estado === 'RECHAZADO' && (datos.motivo?.length ?? 0) < 100) {
-    ctx.addIssue({ code: 'custom', path: ['motivo'], message: 'Al rechazar, explica el motivo (mínimo 100 caracteres).' });
-  }
 });
 
 // T11 · Comentario del administrador (0/500 como en el mockup).

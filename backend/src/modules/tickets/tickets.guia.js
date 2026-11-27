@@ -18,9 +18,9 @@
 //   - Cuando el servicio de IA guarde qué guía eligió, cambia `elegirGuia` para
 //     buscarla por su id.
 
-// Prioridad y estado con que se ofrece la guía.
+// Prioridad y estados en que se muestra o continúa la guía.
 const PRIORIDAD_AUTOAYUDA = 'BAJA';
-const ESTADO_AUTOAYUDA = 'RECIBIDO';
+const ESTADOS_AUTOAYUDA = new Set(['RECIBIDO', 'AUTOGESTION']);
 
 // Lo que queda guardado en TipoSolucion después de que el colaborador decide.
 export const SOLUCION_AUTOAYUDA = 'autoayuda_ia'; // "Cerrar ticket (Problema solucionado)"
@@ -187,7 +187,7 @@ export function pasosDesdeTexto(texto) {
 /** ¿El ticket puede usar la guía? (prioridad Baja, Recibido y sin decisión previa). */
 export function admiteAutoayuda(ticket) {
   return String(ticket?.priority ?? '').toUpperCase() === PRIORIDAD_AUTOAYUDA
-    && String(ticket?.status ?? '').toUpperCase() === ESTADO_AUTOAYUDA
+    && ESTADOS_AUTOAYUDA.has(String(ticket?.status ?? '').toUpperCase())
     && !ticket?.solutionType;
 }
 
