@@ -53,7 +53,7 @@ model User {
 
   // Relaciones inversas
   ticketsCreados   Ticket[]           @relation("crea")
-  ticketsRevisados Ticket[]           @relation("revisa")
+  ticketsAprobados Ticket[]           @relation("aprueba")
   comentarios      ComentarioTicket[] @relation("comenta")
   cambiosPrioridad CambioPrioridad[]  @relation("cambiaPrioridad")
   informes         Informe[]
@@ -62,6 +62,7 @@ model User {
   codigosMfa       CodigoMFA[]
   dispositivosPush DispositivoPush[] // T11: celulares que reciben notificaciones
   notificaciones   Notificacion[] // T11: avisos que recibió
+  cambiosEstado    HistorialEstadoTicket[] @relation("cambiaEstadoTicket")
 
   @@map("Usuario")
 }
@@ -133,10 +134,9 @@ model Ticket {
   ID_CateRepa         Int
   categoriaReparacion CategoriaReparacion @relation(fields: [ID_CateRepa], references: [ID_CateRepa], map: "Ticket_CategoriaReparacion_FK")
 
-  // revisa (N:0..1 Usuario, opcional): el administrador que aprobó o rechazó el ticket
-  // (el Estado dice cuál de las dos). Se llena al salir de en_revision.
-  ID_admin_revisor Int?
-  revisor          User? @relation("revisa", fields: [ID_admin_revisor], references: [id], onDelete: SetNull, map: "Ticket_Revisor_FK")
+  // aprueba (N:0..1 Usuario, opcional)
+  ID_admin_aprobador Int?
+  aprobador          User? @relation("aprueba", fields: [ID_admin_aprobador], references: [id], onDelete: SetNull, map: "Ticket_Aprobador_FK")
 
   // tiene (1:N ComentarioTicket)
   comentarios ComentarioTicket[]
@@ -146,6 +146,24 @@ model Ticket {
 
   // historial de cambios de prioridad hechos por el administrador (MM2)
   cambiosPrioridad CambioPrioridad[]
+  historialEstados HistorialEstadoTicket[]
+}
+
+model HistorialEstadoTicket {
+  ID_CambioEstado Int      @id(map: "HistorialEstadoTicket_PK") @default(autoincrement())
+  EstadoAnterior  String?  @db.VarChar(50)
+  EstadoNuevo     String   @db.VarChar(50)
+  Fecha           DateTime @default(now()) @db.Timestamp(6)
+  Motivo          String?  @db.VarChar(255)
+
+  ID_Ticket Int
+  ticket    Ticket @relation(fields: [ID_Ticket], references: [ID_Ticket], onDelete: Cascade, map: "HistorialEstadoTicket_Ticket_FK")
+
+  ID_user Int
+  actor   User @relation("cambiaEstadoTicket", fields: [ID_user], references: [id], map: "HistorialEstadoTicket_Usuario_FK")
+
+  @@index([ID_Ticket, Fecha], map: "HistorialEstadoTicket_Ticket_Fecha_IDX")
+  @@index([ID_user], map: "HistorialEstadoTicket_Usuario_IDX")
 }
 
 // Cada vez que un administrador cambia la prioridad de un ticket (MM2): quién,

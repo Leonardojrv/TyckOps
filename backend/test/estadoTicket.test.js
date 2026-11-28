@@ -102,7 +102,7 @@ test('solo el colaborador dueño: ajeno, inexistente o id raro = 404; administra
 
 test('tipoResolucion cubre todo el ciclo de vida', () => {
   const casos = {
-    RECIBIDO: 'pendiente', EN_REVISION: 'en_gestion', APROBADO: 'en_gestion', EN_PROCESO: 'en_gestion',
+    RECIBIDO: 'pendiente', AUTOGESTION: 'autogestion', EN_REVISION: 'en_gestion', APROBADO: 'en_gestion', EN_PROCESO: 'en_gestion',
     RESUELTO: 'resuelto', CERRADO: 'cerrado', RECHAZADO: 'rechazado', CANCELADO: 'cancelado',
   };
   for (const [status, tipo] of Object.entries(casos)) assert.equal(tipoResolucion({ status }), tipo, status);

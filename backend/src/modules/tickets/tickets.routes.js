@@ -15,6 +15,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import multer from 'multer';
+import { z } from 'zod';
 import { autenticar } from '../../middlewares/autenticar.js';
 import { exigirTerminos } from '../../middlewares/exigirTerminos.js';
 import { requerirRol } from '../../middlewares/requerirRol.js';
@@ -22,7 +23,57 @@ import { HttpError } from '../../utils/http-error.js';
 import { responder } from '../../utils/respuestas.js';
 import { MAX_FOTO_BYTES, detectarTipoImagen } from './tickets.fotos.js';
 import { reporteSchema } from './tickets.schema.js';
+import { TRANSICIONES_TICKET } from './ticket-states.js';
 import { crearSesionCreacion, exigirSesionCreacion } from './tickets.sesionCreacion.js';
+
+const paginacionMiosSchema = z.object({
+  pagina: z.coerce.number().int().min(1).max(100000),
+  limite: z.coerce.number().int().min(1).max(100),
+});
+
+const historialQuerySchema = z.object({
+  q: z.string().trim().max(120).optional().default(''),
+  rango: z.enum(['7d', '30d', '90d', 'year', 'all']).optional().default('all'),
+  estado: z.enum(['all', 'finished', 'active', 'resolved', 'rejected', 'cancelled']).optional().default('all'),
+  categoria: z.string().trim().max(80).optional().default(''),
+});
+
+function consultarMios(query) {
+  const rawEstados = query.estado === undefined
+    ? []
+    : Array.isArray(query.estado) ? query.estado : [query.estado];
+  if (rawEstados.some((estado) => typeof estado !== 'string')) {
+    throw new HttpError(400, 'FILTRO_INVALIDO', 'El filtro estado debe contener estados válidos.');
+  }
+  const estados = rawEstados.flatMap((estado) => estado.split(','))
+    .map((estado) => estado.trim().toUpperCase());
+  if (estados.some((estado) => !estado || !Object.hasOwn(TRANSICIONES_TICKET, estado))) {
+    throw new HttpError(400, 'FILTRO_INVALIDO', 'Uno o más estados del filtro no son válidos.');
+  }
+  const paginacion = paginacionMiosSchema.safeParse({
+    pagina: query.pagina ?? query.page ?? '1',
+    limite: query.limite ?? query.limit ?? '20',
+  });
+  if (!paginacion.success) {
+    throw new HttpError(400, 'PAGINACION_INVALIDA', 'La página debe ser positiva y el límite debe estar entre 1 y 100.');
+  }
+  return {
+    estados: [...new Set(estados)],
+    ...paginacion.data,
+  };
+}
+
+function consultarHistorial(query) {
+  const parsed = historialQuerySchema.safeParse(query);
+  if (!parsed.success) {
+    throw new HttpError(
+      400,
+      'FILTRO_INVALIDO',
+      'Revisa la búsqueda, el rango, el estado y la categoría del historial.',
+    );
+  }
+  return parsed.data;
+}
 
 // Multer guarda la foto solo en memoria y corta antes de leer de más.
 // Una foto por reporte: se guarda en la columna imagen (BYTEA) del ticket.
@@ -111,7 +162,7 @@ export function crearRutasTickets({ ticketService, authService, jwtSecret }) {
 
   // GET /tickets/mios con la lista del usuario y su estado.
   router.get('/mios', requerirRol('COLABORADOR', 'ADMINISTRADOR'), async (req, res) => {
-    responder(res, await ticketService.misTickets(req.usuario.id));
+    responder(res, await ticketService.misTicketsPaginados(req.usuario.id, consultarMios(req.query)));
   });
 
   // GET /tickets/resumen con el conteo de tickets activos para el home.
@@ -123,6 +174,11 @@ export function crearRutasTickets({ ticketService, authService, jwtSecret }) {
   // Liviana (sin descripción, foto ni comentarios) para consultarla seguido.
   router.get('/:id/estado', requerirRol('COLABORADOR'), async (req, res) => {
     responder(res, await ticketService.estado(req.usuario.id, req.params.id));
+  });
+
+  // GET /tickets/historial filtra por rango, estado, categoría y texto.
+  router.get('/historial', requerirRol('COLABORADOR'), async (req, res) => {
+    responder(res, await ticketService.historial(req.usuario.id, consultarHistorial(req.query)));
   });
 
   // GET /tickets/:id con el detalle (solo para el dueño o un administrador).
@@ -150,6 +206,9 @@ export function crearRutasTickets({ ticketService, authService, jwtSecret }) {
 
   // T10 · Guía de autoayuda (prioridad Baja). El dueño sale del token y el
   // servidor revisa que la guía siga aplicando en cada acción.
+  router.post('/:id/guia/iniciar', requerirRol('COLABORADOR'), limiterCancelar, async (req, res) => {
+    responder(res, { ticket: await ticketService.iniciarAutogestion(req.usuario.id, req.params.id) });
+  });
   router.get('/:id/guia', requerirRol('COLABORADOR'), async (req, res) => {
     responder(res, { guia: await ticketService.guia(req.usuario.id, req.params.id) });
   });

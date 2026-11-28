@@ -93,5 +93,25 @@ void main() {
       expect(TicketDetail.fromJson(json('EN_PROCESO', reason: 'algo')).visibleRejectionReason, isNull);
       expect(TicketDetail.fromJson(json('RECHAZADO', reason: 'Lo ve el edificio')).visibleRejectionReason, 'Lo ve el edificio');
     });
+
+    test('lee el historial real y marca el estado actual en la línea de tiempo', () {
+      final detail = TicketDetail.fromJson({
+        ...json('AUTOGESTION'),
+        'timeline': [
+          {'status': 'RECIBIDO', 'previousStatus': null, 'date': '2026-11-10T13:30:00.000Z', 'current': false},
+          {'status': 'AUTOGESTION', 'previousStatus': 'RECIBIDO', 'date': '2026-11-10T14:00:00.000Z', 'current': true},
+        ],
+      });
+
+      final steps = buildTimeline(
+        detail.ticket.status,
+        createdAt: detail.ticket.createdAt,
+        history: detail.timeline,
+      );
+      expect(steps.map((step) => step.status), [TicketStatus.received, TicketStatus.selfHelp]);
+      expect(steps.map((step) => step.state), [PhaseState.done, PhaseState.current]);
+      expect(steps.last.description, 'Cambio de Recibido a Autogestión.');
+      expect(steps.last.date, isNotNull);
+    });
   });
 }

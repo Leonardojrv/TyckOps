@@ -122,6 +122,39 @@ test('GET /tickets/mios, GET /tickets/resumen y GET /tickets/:id (dueño o admin
     assert.equal(json.data.tickets[0].status, 'RECIBIDO');
     assert.equal(json.data.tickets[1].status, 'EN_PROCESO');
     assert.equal(json.data.tickets[2].status, 'CERRADO');
+    assert.deepEqual(json.data.paginacion, { pagina: 1, limite: 20, total: 3, paginas: 1 });
+  }
+
+  // 2b. Filtra por uno o varios estados, pagina y nunca incluye tickets ajenos.
+  {
+    const unaPagina = await fetch(`${baseUrl}/tickets/mios?estado=RECIBIDO&limite=1`, {
+      headers: { Authorization: `Bearer ${tokenWorker1}` },
+    });
+    const paginaJson = await unaPagina.json();
+    assert.equal(unaPagina.status, 200);
+    assert.deepEqual(paginaJson.data.tickets.map((t) => t.status), ['RECIBIDO']);
+    assert.deepEqual(paginaJson.data.paginacion, { pagina: 1, limite: 1, total: 1, paginas: 1 });
+
+    const variosEstados = await fetch(`${baseUrl}/tickets/mios?estado=RECIBIDO&estado=CERRADO`, {
+      headers: { Authorization: `Bearer ${tokenWorker1}` },
+    });
+    const variosJson = await variosEstados.json();
+    assert.equal(variosEstados.status, 200);
+    assert.deepEqual(variosJson.data.tickets.map((t) => t.status), ['RECIBIDO', 'CERRADO']);
+
+    const otraPagina = await fetch(`${baseUrl}/tickets/mios?pagina=2&limite=1`, {
+      headers: { Authorization: `Bearer ${tokenWorker1}` },
+    });
+    const otraPaginaJson = await otraPagina.json();
+    assert.deepEqual(otraPaginaJson.data.tickets.map((t) => t.id), ['102']);
+    assert.equal(otraPaginaJson.data.paginacion.total, 3);
+
+    assert.equal((await fetch(`${baseUrl}/tickets/mios?estado=DESCONOCIDO`, {
+      headers: { Authorization: `Bearer ${tokenWorker1}` },
+    })).status, 400);
+    assert.equal((await fetch(`${baseUrl}/tickets/mios?limite=101`, {
+      headers: { Authorization: `Bearer ${tokenWorker1}` },
+    })).status, 400);
   }
 
   // 3. GET /tickets/:id:

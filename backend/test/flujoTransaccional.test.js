@@ -4,13 +4,13 @@
 //
 // ¿QUÉ HACE?
 //   Revisa los valores por defecto (estado Recibido y prioridad Media si la IA
-//   no respondió), que quede registrado quién aprobó o rechazó, que un ticket sin
+//   no respondió), que el historial registre quién hizo cada cambio, que un ticket sin
 //   prioridad no pase a gestión y el ciclo completo
 //   Recibido → En revisión → Aprobado → En proceso → Resuelto → Cerrado
 //   por los dos caminos: media/alta desde la creación y baja escalada.
 //
 // ¿CÓMO LO CAMBIO?
-//   Si cambias el ciclo de vida (TRANSICIONES_ADMIN) o la prioridad por
+//   Si cambias el ciclo de vida (TRANSICIONES_TICKET en ticket-states.js) o la prioridad por
 //   defecto, ajusta esta prueba y corre `pnpm test`.
 
 import assert from 'node:assert/strict';
@@ -38,7 +38,8 @@ async function cicloCompleto(service, repo, id, adminId = 'a-1') {
     assert.equal(ticket.status, estado);
   }
   const final = await repo.findById(id);
-  assert.equal(final.reviewedBy, adminId, 'queda registrado quién aprobó');
+  const aprobacion = repo.historialEstados.find((h) => h.ticketId === id && h.estadoNuevo === 'APROBADO');
+  assert.equal(aprobacion?.actorId, adminId, 'el historial registra quién aprobó');
   assert.ok(final.closedAt, 'al cerrar queda la fecha de cierre');
   return final;
 }
@@ -83,7 +84,7 @@ test('la prioridad por defecto no pisa una que ya existe ni un ticket que ya no 
   assert.equal((await repo.findById('2')).priority, null);
 });
 
-test('camino 1: ticket Media/Alta (sin guía) recorre el ciclo completo y registra al revisor', async () => {
+test('camino 1: ticket Media/Alta (sin guía) recorre el ciclo completo y el historial registra al aprobador', async () => {
   const { repo, service } = preparar({
     tickets: [{ id: '10', ownerId: 'w-1', status: 'RECIBIDO', priority: 'ALTA', createdAt: new Date() }],
   });
@@ -95,6 +96,8 @@ test('camino 2: ticket Baja escalado por el colaborador (falla real) sube a Medi
   const { repo, service } = preparar({
     tickets: [{ id: '20', ownerId: 'w-1', status: 'RECIBIDO', priority: 'BAJA', createdAt: new Date() }],
   });
+  // Primero abre la guía (Recibido → Autogestión) y luego la escala.
+  assert.equal((await service.iniciarAutogestion('w-1', '20')).status, 'AUTOGESTION');
   const escalado = await service.resolverGuia('w-1', '20', 'escalar');
   assert.equal(escalado.status, 'RECIBIDO', 'estado inicial del ticket operativo');
   assert.equal(escalado.priority, 'MEDIA');
@@ -119,17 +122,20 @@ test('nadie aprueba su propio ticket (409 APROBACION_PROPIA); otro administrador
   assert.equal((await repo.findById('40')).status, 'EN_REVISION');
 
   await service.cambiarEstado('a-2', '40', 'APROBADO');
-  assert.equal((await repo.findById('40')).reviewedBy, 'a-2');
+  assert.equal(repo.historialEstados.at(-1).actorId, 'a-2');
 });
 
-test('rechazar registra al revisor y se mantiene el ciclo de vida', async () => {
+test('rechazar queda en el historial con quién y por qué, y se mantiene el ciclo de vida', async () => {
   const { repo, service } = preparar({
     tickets: [{ id: '50', ownerId: 'w-1', status: 'EN_REVISION', priority: 'MEDIA', createdAt: new Date() }],
   });
   await service.cambiarEstado('a-1', '50', 'RECHAZADO', 'x'.repeat(100));
   const ticket = await repo.findById('50');
   assert.equal(ticket.status, 'RECHAZADO');
-  assert.equal(ticket.reviewedBy, 'a-1', 'queda registrado quién rechazó');
+  assert.deepEqual(
+    { actor: repo.historialEstados.at(-1).actorId, motivo: repo.historialEstados.at(-1).motivo },
+    { actor: 'a-1', motivo: 'x'.repeat(100) },
+  );
   // Saltarse pasos sigue prohibido.
   await assert.rejects(service.cambiarEstado('a-1', '50', 'EN_PROCESO'), { code: 'TRANSICION_NO_PERMITIDA' });
 });
@@ -144,16 +150,6 @@ test('nadie rechaza su propio ticket (409 RECHAZO_PROPIO); otro administrador s�
   assert.equal(intacto.rejectionReason, undefined);
 
   await service.cambiarEstado('a-2', '60', 'RECHAZADO', 'x'.repeat(100));
-  assert.equal((await repo.findById('60')).reviewedBy, 'a-2');
-});
-
-test('los demás cambios de estado no tocan al revisor', async () => {
-  const { repo, service } = preparar({
-    tickets: [{ id: '70', ownerId: 'w-1', status: 'RECIBIDO', priority: 'MEDIA', createdAt: new Date() }],
-  });
-  await service.cambiarEstado('a-1', '70', 'EN_REVISION');
-  assert.equal((await repo.findById('70')).reviewedBy, undefined);
-  await service.cambiarEstado('a-1', '70', 'APROBADO');
-  await service.cambiarEstado('a-2', '70', 'EN_PROCESO');
-  assert.equal((await repo.findById('70')).reviewedBy, 'a-1', 'sigue siendo quien aprobó');
+  assert.equal((await repo.findById('60')).status, 'RECHAZADO');
+  assert.equal(repo.historialEstados.at(-1).actorId, 'a-2');
 });

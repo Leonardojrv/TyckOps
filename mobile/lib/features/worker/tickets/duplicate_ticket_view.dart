@@ -486,6 +486,7 @@ String operationalStatus(TicketStatus s) => switch (s) {
       TicketStatus.closed => 'Caso cerrado',
       TicketStatus.rejected => 'La solicitud no procede',
       TicketStatus.cancelled => 'Solicitud cancelada',
+      TicketStatus.selfHelp => 'El colaborador está siguiendo una guía de autoayuda',
     };
 
 /// "hace 45 min" · "hace 3 h" · "hace 2 días".

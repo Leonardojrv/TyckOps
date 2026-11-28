@@ -43,11 +43,12 @@ test('T9: solo el dueño cancela, y solo si el ticket sigue en Recibido', async 
     { id: 'a-1', name: 'Admin', email: 'admin@gamaitaly.cl', password: 'Temporal2026!', role: 'ADMINISTRADOR', termsAccepted: true },
   ]);
   const auditoria = [];
-  const ticketService = new TicketService(new MemoryTicketRepository([
+  const repo = new MemoryTicketRepository([
     ticket('1', 'w-1', 'RECIBIDO'),
     ticket('2', 'w-1', 'EN_REVISION'),
     ticket('3', 'w-2', 'RECIBIDO'),
-  ]), { auditLogger: { info: (linea) => auditoria.push(JSON.parse(linea)) } });
+  ]);
+  const ticketService = new TicketService(repo, { auditLogger: { info: (linea) => auditoria.push(JSON.parse(linea)) } });
   const authService = new AuthService(users, env, { log: () => {} });
   const baseUrl = await start(crearApp({ env, authService, ticketService }));
   const cancelar = (id, sub, role = 'COLABORADOR') => fetch(`${baseUrl}/api/tickets/${encodeURIComponent(id)}/cancelar`, {
@@ -69,7 +70,9 @@ test('T9: solo el dueño cancela, y solo si el ticket sigue en Recibido', async 
   // Ya en revisión: el servidor no lo deja aunque la app mostrara el botón.
   const enRevision = await cancelar('2', 'w-1');
   assert.equal(enRevision.status, 409);
-  assert.equal((await enRevision.json()).error.code, 'TICKET_NO_CANCELABLE');
+  const errorCancelacion = (await enRevision.json()).error;
+  assert.equal(errorCancelacion.code, 'TICKET_NO_CANCELABLE');
+  assert.equal(errorCancelacion.message, 'Solo se puede cancelar un ticket en estado Recibido');
 
   // Recibido y propio: queda Cancelado, con fecha de cierre y registro de auditoría.
   const ok = await cancelar('1', 'w-1');
@@ -78,6 +81,15 @@ test('T9: solo el dueño cancela, y solo si el ticket sigue en Recibido', async 
   assert.equal(cancelado.status, 'CANCELADO');
   assert.ok(cancelado.closedAt, 'guarda cuándo se canceló');
   assert.ok(!('ownerId' in cancelado));
+  assert.deepEqual(repo.historialEstados[0], {
+    ticketId: '1',
+    estadoAnterior: 'RECIBIDO',
+    estadoNuevo: 'CANCELADO',
+    actorId: 'w-1',
+    motivo: null,
+    fecha: repo.historialEstados[0].fecha,
+  });
+  assert.ok(repo.historialEstados[0].fecha instanceof Date);
   assert.deepEqual(auditoria.map((a) => a.action), ['ticket_cancelado']);
 
   // Cancelar dos veces no se puede.

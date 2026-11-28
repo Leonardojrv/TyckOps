@@ -5,14 +5,14 @@
 //
 // ¿QUÉ HACE?
 //   1. Servicio: el motivo es obligatorio (no nulo, no vacío, no solo espacios,
-//      entre 100 y 255 caracteres), se guarda sin espacios sobrantes, y si es
-//      inválido no cambia nada ni avisa a nadie.
+//      entre 100 y 255 caracteres; regla de ticket-states.js), se guarda sin
+//      espacios sobrantes, y si es inválido no cambia nada ni avisa a nadie.
 //   2. Controlador (PATCH /api/admin/tickets/:id/estado por HTTP): mismas reglas,
 //      la respuesta trae el motivo y el colaborador recibe el aviso con él.
 //
 // ¿CÓMO LO CAMBIO?
-//   Los límites están en tickets.service.js (MOTIVO_RECHAZO_MIN / MAX). Si los
-//   cambias, cambia también el CHECK ck_ticket_motivo_rechazo y corre `pnpm test`.
+//   Los límites están en ticket-states.js (validarTransicion). Si los cambias,
+//   cambia también el CHECK ck_ticket_motivo_rechazo y corre `pnpm test`.
 
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
@@ -23,9 +23,10 @@ import { AuthService } from '../src/modules/auth/auth.service.js';
 import { MemoryNotificacionesRepository } from '../src/modules/notificaciones/notificaciones.repositories.js';
 import { NotificacionesService } from '../src/modules/notificaciones/notificaciones.service.js';
 import { MemoryTicketRepository } from '../src/modules/tickets/tickets.memory.repository.js';
-import {
-  MOTIVO_RECHAZO_MAX, MOTIVO_RECHAZO_MIN, TicketService, validarMotivoRechazo,
-} from '../src/modules/tickets/tickets.service.js';
+import { TicketService } from '../src/modules/tickets/tickets.service.js';
+
+const MOTIVO_RECHAZO_MIN = 100;
+const MOTIVO_RECHAZO_MAX = 255;
 
 const jwtSecret = 'test-secret-with-more-than-thirty-two-characters';
 const env = { jwtSecret, jwtExpiresIn: '1h', corsOrigin: '*' };
@@ -49,25 +50,31 @@ function preparar() {
 
 // ---------- 1. Reglas del servicio ----------
 
-test('validarMotivoRechazo: nulo, vacío, solo espacios, corto o largo = 400 DATOS_INVALIDOS', () => {
-  const invalidos = [
-    null, undefined, '', '     ', 123, { texto: MOTIVO },
+test('servicio: nulo, vacío, solo espacios o corto = 400 MOTIVO_RECHAZO_INVALIDO; largo = 400 MOTIVO_INVALIDO', async () => {
+  const cortos = [
+    null, undefined, '', '     ',
     'x'.repeat(MOTIVO_RECHAZO_MIN - 1),
     `   ${'x'.repeat(MOTIVO_RECHAZO_MIN - 1)}   `, // los espacios no cuentan
-    'x'.repeat(MOTIVO_RECHAZO_MAX + 1),
   ];
-  for (const motivo of invalidos) {
-    assert.throws(() => validarMotivoRechazo(motivo), { status: 400, code: 'DATOS_INVALIDOS' }, JSON.stringify(motivo));
+  for (const motivo of cortos) {
+    const { service } = preparar();
+    await assert.rejects(service.cambiarEstado('a-1', '7', 'RECHAZADO', motivo),
+      { status: 400, code: 'MOTIVO_RECHAZO_INVALIDO' }, JSON.stringify(motivo));
   }
-  assert.equal(validarMotivoRechazo(`  ${MOTIVO}  `), MOTIVO, 'se guarda sin espacios sobrantes');
-  assert.equal(validarMotivoRechazo('x'.repeat(MOTIVO_RECHAZO_MIN)).length, MOTIVO_RECHAZO_MIN);
-  assert.equal(validarMotivoRechazo('x'.repeat(MOTIVO_RECHAZO_MAX)).length, MOTIVO_RECHAZO_MAX);
+  const { service } = preparar();
+  await assert.rejects(service.cambiarEstado('a-1', '7', 'RECHAZADO', 'x'.repeat(MOTIVO_RECHAZO_MAX + 1)),
+    { status: 400, code: 'MOTIVO_INVALIDO' });
+  // Justo en los límites sí se acepta.
+  for (const largo of [MOTIVO_RECHAZO_MIN, MOTIVO_RECHAZO_MAX]) {
+    const { service: otro } = preparar();
+    assert.equal((await otro.cambiarEstado('a-1', '7', 'RECHAZADO', 'x'.repeat(largo))).rejectionReason.length, largo);
+  }
 });
 
 test('servicio: un rechazo sin motivo válido no cambia el ticket ni avisa al colaborador', async () => {
   const { tickets, avisos, service } = preparar();
   for (const motivo of [null, '', '   ', 'No corresponde.']) {
-    await assert.rejects(service.cambiarEstado('a-1', '7', 'RECHAZADO', motivo), { status: 400, code: 'DATOS_INVALIDOS' });
+    await assert.rejects(service.cambiarEstado('a-1', '7', 'RECHAZADO', motivo), { status: 400, code: 'MOTIVO_RECHAZO_INVALIDO' });
   }
   const ticket = await tickets.findById('7');
   assert.equal(ticket.status, 'EN_REVISION');
@@ -123,20 +130,22 @@ async function servidor() {
 
 test('PATCH /estado: payload inválido = 400 con mensaje claro y el ticket no cambia', async () => {
   const { tickets, avisos, rechazar } = await servidor();
+  // Formato del cuerpo (zod en admin.routes.js) = DATOS_INVALIDOS;
+  // regla del motivo (ticket-states.js) = MOTIVO_RECHAZO_INVALIDO.
   const casos = [
-    { estado: 'RECHAZADO' }, // sin motivo
-    { estado: 'RECHAZADO', motivo: null },
-    { estado: 'RECHAZADO', motivo: '' },
-    { estado: 'RECHAZADO', motivo: '      ' },
-    { estado: 'RECHAZADO', motivo: 'Muy corto' },
-    { estado: 'RECHAZADO', motivo: 'x'.repeat(MOTIVO_RECHAZO_MAX + 1) },
-    { estado: 'RECHAZADO', motivo: 12345 },
+    [{ estado: 'RECHAZADO' }, 'MOTIVO_RECHAZO_INVALIDO'], // sin motivo
+    [{ estado: 'RECHAZADO', motivo: '' }, 'MOTIVO_RECHAZO_INVALIDO'],
+    [{ estado: 'RECHAZADO', motivo: '      ' }, 'MOTIVO_RECHAZO_INVALIDO'],
+    [{ estado: 'RECHAZADO', motivo: 'Muy corto' }, 'MOTIVO_RECHAZO_INVALIDO'],
+    [{ estado: 'RECHAZADO', motivo: null }, 'DATOS_INVALIDOS'],
+    [{ estado: 'RECHAZADO', motivo: 'x'.repeat(MOTIVO_RECHAZO_MAX + 1) }, 'DATOS_INVALIDOS'],
+    [{ estado: 'RECHAZADO', motivo: 12345 }, 'DATOS_INVALIDOS'],
   ];
-  for (const cuerpo of casos) {
+  for (const [cuerpo, codigo] of casos) {
     const res = await rechazar(cuerpo);
     assert.equal(res.status, 400, JSON.stringify(cuerpo));
     const { error } = await res.json();
-    assert.equal(error.code, 'DATOS_INVALIDOS');
+    assert.equal(error.code, codigo, JSON.stringify(cuerpo));
     assert.ok(error.message.length > 0);
   }
   // JSON mal formado también es 400 (no 500).

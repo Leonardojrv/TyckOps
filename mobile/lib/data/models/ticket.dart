@@ -59,13 +59,13 @@ class Ticket {
   bool get isActive => status.isActiveStatus;
 
   /// T9 · Copia del ticket con otro estado (por ejemplo, después de cancelarlo).
-  Ticket copyWith({TicketStatus? status, DateTime? closedAt}) => Ticket(
+  Ticket copyWith({TicketStatus? status, TicketPriority? priority, DateTime? closedAt}) => Ticket(
         id: id,
         code: code,
         category: category,
         title: title,
         status: status ?? this.status,
-        priority: priority,
+        priority: priority ?? this.priority,
         location: location,
         createdAt: createdAt,
         closedAt: closedAt ?? this.closedAt,

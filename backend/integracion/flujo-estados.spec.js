@@ -67,8 +67,14 @@ const filaTicket = (id) => prisma.ticket.findUnique({
   where: { ID_Ticket: Number(id) },
   select: {
     Estado: true, Prioridad: true, PrioridadInicial: true, OrigenPrioridad: true,
-    ID_admin_revisor: true, FechaCierre: true, MotivoRechazo: true, ID_user: true,
+    FechaCierre: true, MotivoRechazo: true, ID_user: true,
   },
+});
+
+const ultimoHistorial = (id) => prisma.historialEstadoTicket.findFirst({
+  where: { ID_Ticket: Number(id) },
+  orderBy: { ID_CambioEstado: 'desc' },
+  select: { EstadoAnterior: true, EstadoNuevo: true, ID_user: true, Motivo: true },
 });
 
 const avisosDeEstado = (id) => prisma.notificacion.findMany({
@@ -87,18 +93,18 @@ describe('Aprobación completa por HTTP: Recibido → En revisión → Aprobado 
     expect(await esperarPrioridad(id)).toBe('media');
     expect(await filaTicket(id)).toMatchObject({
       Estado: 'recibido', PrioridadInicial: 'media', OrigenPrioridad: 'defecto',
-      ID_admin_revisor: null, FechaCierre: null, MotivoRechazo: null,
+      FechaCierre: null, MotivoRechazo: null,
     });
     let estado = (await consultarEstado(id)).body.data;
     expect(estado).toMatchObject({ status: 'RECIBIDO', priority: 'MEDIA', resolution: { type: 'pendiente' } });
     expect(estado.duplicate).toEqual({ isDuplicate: false, original: null });
 
     const pasos = [
-      { estado: 'EN_REVISION', resolucion: 'en_gestion', revisor: null, cerrado: false },
-      { estado: 'APROBADO', resolucion: 'en_gestion', revisor: usuarios.adminActivo.id, cerrado: false },
-      { estado: 'EN_PROCESO', resolucion: 'en_gestion', revisor: usuarios.adminActivo.id, cerrado: false },
-      { estado: 'RESUELTO', resolucion: 'resuelto', revisor: usuarios.adminActivo.id, cerrado: true },
-      { estado: 'CERRADO', resolucion: 'cerrado', revisor: usuarios.adminActivo.id, cerrado: true },
+      { estado: 'EN_REVISION', resolucion: 'en_gestion', cerrado: false },
+      { estado: 'APROBADO', resolucion: 'en_gestion', cerrado: false },
+      { estado: 'EN_PROCESO', resolucion: 'en_gestion', cerrado: false },
+      { estado: 'RESUELTO', resolucion: 'resuelto', cerrado: true },
+      { estado: 'CERRADO', resolucion: 'cerrado', cerrado: true },
     ];
 
     for (const [indice, paso] of pasos.entries()) {
@@ -110,7 +116,9 @@ describe('Aprobación completa por HTTP: Recibido → En revisión → Aprobado 
       const fila = await filaTicket(id);
       expect(fila.Estado).toBe(paso.estado.toLowerCase());
       expect(fila.Prioridad).toBe('media'); // la prioridad no cambia con el estado
-      expect(fila.ID_admin_revisor).toBe(paso.revisor);
+      // HistorialEstadoTicket: quién hizo el cambio y desde qué estado.
+      const ultimo = await ultimoHistorial(id);
+      expect(ultimo).toMatchObject({ EstadoNuevo: paso.estado.toLowerCase(), ID_user: usuarios.adminActivo.id });
       expect(fila.FechaCierre === null).toBe(!paso.cerrado);
       expect(fila.MotivoRechazo).toBeNull();
 
@@ -147,7 +155,11 @@ describe('Rechazo por HTTP: En revisión → Rechazado', () => {
     const res = await cambiarEstado(id, 'RECHAZADO', MOTIVO_RECHAZO);
     expect(res.status).toBe(200);
     const fila = await filaTicket(id);
-    expect(fila).toMatchObject({ Estado: 'rechazado', MotivoRechazo: MOTIVO_RECHAZO, ID_admin_revisor: usuarios.adminActivo.id }); // queda quién lo rechazó
+    expect(fila).toMatchObject({ Estado: 'rechazado', MotivoRechazo: MOTIVO_RECHAZO });
+    // El historial guarda quién lo rechazó y el motivo.
+    expect(await ultimoHistorial(id)).toMatchObject({
+      EstadoAnterior: 'en_revision', EstadoNuevo: 'rechazado', ID_user: usuarios.adminActivo.id, Motivo: MOTIVO_RECHAZO,
+    });
     expect(fila.FechaCierre).not.toBeNull();
     expect((await avisosDeEstado(id)).at(-1).EstadoTicket).toBe('rechazado');
 
@@ -209,7 +221,7 @@ describe('Transiciones inválidas: responden error y la base queda igual', () =>
     const res = await cambiarEstado(id, 'APROBADO');
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('TRANSICION_NO_PERMITIDA');
-    expect(await filaTicket(id)).toMatchObject({ Estado: 'recibido', ID_admin_revisor: null });
+    expect(await filaTicket(id)).toMatchObject({ Estado: 'recibido' });
     expect(await avisosDeEstado(id)).toHaveLength(0);
   });
 
@@ -223,7 +235,7 @@ describe('Transiciones inválidas: responden error y la base queda igual', () =>
     const res = await cambiarEstado(propio.ID_Ticket, 'APROBADO');
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('APROBACION_PROPIA');
-    expect(await filaTicket(propio.ID_Ticket)).toMatchObject({ Estado: 'en_revision', ID_admin_revisor: null });
+    expect(await filaTicket(propio.ID_Ticket)).toMatchObject({ Estado: 'en_revision' });
   });
 
   test('rechazar un ticket propio = 409 RECHAZO_PROPIO', async () => {
@@ -236,7 +248,7 @@ describe('Transiciones inválidas: responden error y la base queda igual', () =>
     const res = await cambiarEstado(propio.ID_Ticket, 'RECHAZADO', MOTIVO_RECHAZO);
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('RECHAZO_PROPIO');
-    expect(await filaTicket(propio.ID_Ticket)).toMatchObject({ Estado: 'en_revision', ID_admin_revisor: null, MotivoRechazo: null });
+    expect(await filaTicket(propio.ID_Ticket)).toMatchObject({ Estado: 'en_revision', MotivoRechazo: null });
   });
 
   test('gestionar un ticket sin prioridad = 409 TICKET_SIN_PRIORIDAD', async () => {

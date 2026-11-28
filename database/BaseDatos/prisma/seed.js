@@ -1,5 +1,5 @@
-// Datos iniciales para una base nueva: roles, departamentos, categorías y dos
-// usuarios de prueba. Se ejecuta con `npx prisma db seed`.
+// Datos iniciales: roles, departamentos, categorías, usuarios y tickets de prueba.
+// Se ejecuta con `npx prisma db seed`.
 // Es idempotente: si un dato ya existe no lo duplica ni lo modifica.
 // Las contraseñas de prueba se leen de .env (SEED_*_PASSWORD); nunca se escriben aquí.
 
@@ -63,7 +63,10 @@ async function main() {
   const depas = {};
   for (const nombre of DEPARTAMENTOS) depas[nombre] = await asegurar("departamento", "nom_depa", nombre);
 
-  for (const nombre of CATEGORIAS) await asegurar("categoriaReparacion", "nombre", nombre);
+  const categorias = {};
+  for (const nombre of CATEGORIAS) {
+    categorias[nombre] = await asegurar("categoriaReparacion", "nombre", nombre);
+  }
 
   const usuarios = [
     {
@@ -86,11 +89,58 @@ async function main() {
     },
   ];
 
+  const usuariosSeed = {};
   for (const datos of usuarios) {
-    const { creado } = await asegurarUsuario(datos);
+    const { user, creado } = await asegurarUsuario(datos);
+    usuariosSeed[datos.email] = user;
     console.log(`${datos.email}: ${creado ? "creado" : "ya existía, no se modificó"}`);
   }
+
+  await asegurarTicketsDemostracion(
+    usuariosSeed["colaborador@gamaitaly.cl"],
+    usuariosSeed["admin@gamaitaly.cl"],
+    categorias,
+  );
   console.log("Seed completado.");
+}
+
+async function asegurarTicketsDemostracion(colaborador, administrador, categorias) {
+  const ejemplos = [
+    { estado: "recibido", prioridad: "baja", categoria: "Electrica" },
+    { estado: "en_revision", prioridad: "media", categoria: "Baños" },
+    { estado: "aprobado", prioridad: "media", categoria: "Inmobiliario" },
+    { estado: "en_proceso", prioridad: "alta", categoria: "Aire acondicionado" },
+    { estado: "resuelto", prioridad: "media", categoria: "Electrica" },
+    { estado: "cerrado", prioridad: "baja", categoria: "Baños", solucion: "autoayuda_ia" },
+    { estado: "rechazado", prioridad: "media", categoria: "Inmobiliario", motivo: "El trabajo solicitado corresponde a un proveedor externo autorizado y requiere coordinación con la administración del edificio." },
+    { estado: "cancelado", prioridad: "media", categoria: "Aire acondicionado" },
+    { estado: "autogestion", prioridad: "baja", categoria: "Electrica" },
+  ];
+
+  for (const ejemplo of ejemplos) {
+    const descripcion = `Ticket de prueba seed: ${ejemplo.estado}`;
+    const existente = await prisma.ticket.findFirst({
+      where: { ID_user: colaborador.id, Descripcion: descripcion },
+    });
+    if (existente) continue;
+
+    const finalizado = ["resuelto", "cerrado", "rechazado", "cancelado"].includes(ejemplo.estado);
+    await prisma.ticket.create({
+      data: {
+        Descripcion: descripcion,
+        Estado: ejemplo.estado,
+        Ubicacion: "Sector de pruebas",
+        Prioridad: ejemplo.prioridad,
+        ...(finalizado && { FechaCierre: new Date() }),
+        ...(ejemplo.solucion && { TipoSolucion: ejemplo.solucion }),
+        ...(ejemplo.motivo && { MotivoRechazo: ejemplo.motivo }),
+        ...(["aprobado", "en_proceso", "resuelto", "cerrado"].includes(ejemplo.estado)
+          && { ID_admin_aprobador: administrador.id }),
+        ID_user: colaborador.id,
+        ID_CateRepa: categorias[ejemplo.categoria].ID_CateRepa,
+      },
+    });
+  }
 }
 
 main()

@@ -64,8 +64,21 @@ function aTicket(fila) {
     originalId: fila.ID_TicketOriginal ? String(fila.ID_TicketOriginal) : null, // T10: si es duplicado (uso interno)
     ownerId: String(fila.ID_user),
     rejectionReason: fila.MotivoRechazo ?? null, // motivo guardado (la API lo muestra solo si está rechazado)
-    reviewedBy: fila.ID_admin_revisor ? String(fila.ID_admin_revisor) : null, // quién lo aprobó o rechazó (uso interno)
   };
+}
+
+async function registrarEstado(tx, { ticketId, desde, hacia, actorId, motivo = null }) {
+  const actor = idNumerico(actorId);
+  if (actor === null) throw new Error('El actor del cambio de estado no es válido.');
+  await tx.historialEstadoTicket.create({
+    data: {
+      ID_Ticket: ticketId,
+      EstadoAnterior: desde.toLowerCase(),
+      EstadoNuevo: hacia.toLowerCase(),
+      ID_user: actor,
+      Motivo: motivo,
+    },
+  });
 }
 
 // T10 · Lo único que el colaborador ve del ticket ORIGINAL cuando el suyo es
@@ -116,8 +129,40 @@ export class PrismaTicketRepository {
     return filas.map(aTicket);
   }
 
+  async findByOwnerPage(ownerId, { estados = [], skip = 0, take = 20 }) {
+    const dueno = idNumerico(ownerId);
+    if (dueno === null) return { tickets: [], total: 0, totalOwner: 0, activos: 0 };
+    const where = {
+      ID_user: dueno,
+      ...(estados.length > 0 && {
+        Estado: { in: estados.map((estado) => estado.toLowerCase()), mode: 'insensitive' },
+      }),
+    };
+    const activosWhere = {
+      ID_user: dueno,
+      Estado: {
+        in: ['recibido', 'en_revision', 'aprobado', 'en_proceso', 'autogestion'],
+        mode: 'insensitive',
+      },
+    };
+    const [filas, total, totalOwner, activos] = await Promise.all([
+      this.prisma.ticket.findMany({
+        where,
+        include: incluir,
+        omit: sinImagen,
+        orderBy: [{ FechaCreacion: 'desc' }, { ID_Ticket: 'desc' }],
+        skip,
+        take,
+      }),
+      this.prisma.ticket.count({ where }),
+      this.prisma.ticket.count({ where: { ID_user: dueno } }),
+      this.prisma.ticket.count({ where: activosWhere }),
+    ]);
+    return { tickets: filas.map(aTicket), total, totalOwner, activos };
+  }
+
   async findActiveCandidates({ category = null, location = null, excludeId = null } = {}) {
-    const estadosActivos = ['recibido', 'en_revision', 'en revision', 'aprobado', 'en_proceso', 'en proceso'];
+    const estadosActivos = ['recibido', 'en_revision', 'en revision', 'aprobado', 'en_proceso', 'en proceso', 'autogestion'];
     const idExcluir = idNumerico(excludeId);
     const where = {
       Estado: { in: estadosActivos, mode: 'insensitive' },
@@ -196,21 +241,55 @@ export class PrismaTicketRepository {
     const dueno = idNumerico(ownerId);
     if (ticketId === null || dueno === null) return null;
 
-    const { count } = await this.prisma.ticket.updateMany({
-      where: { ID_Ticket: ticketId, ID_user: dueno, Estado: { equals: 'recibido', mode: 'insensitive' } },
-      data: { Estado: 'cancelado', FechaCierre: new Date() },
+    return this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.ticket.updateMany({
+        where: { ID_Ticket: ticketId, ID_user: dueno, Estado: { equals: 'recibido', mode: 'insensitive' } },
+        data: { Estado: 'cancelado', FechaCierre: new Date() },
+      });
+      if (count > 0) {
+        await registrarEstado(tx, {
+          ticketId, desde: 'RECIBIDO', hacia: 'CANCELADO', actorId: dueno,
+        });
+      }
+      const fila = await tx.ticket.findFirst({ where: { ID_Ticket: ticketId, ID_user: dueno }, include: incluir, omit: sinImagen });
+      return fila ? { cancelado: count > 0, ticket: aTicket(fila) } : null;
     });
-    const ticket = await this.findByIdForOwner(ticketId, dueno);
-    return ticket ? { cancelado: count > 0, ticket } : null;
+  }
+
+  async iniciarAutogestion(id, ownerId) {
+    const ticketId = idNumerico(id);
+    const dueno = idNumerico(ownerId);
+    if (ticketId === null || dueno === null) return null;
+
+    return this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.ticket.updateMany({
+        where: {
+          ID_Ticket: ticketId,
+          ID_user: dueno,
+          TipoSolucion: null,
+          Estado: { equals: 'recibido', mode: 'insensitive' },
+          Prioridad: { equals: 'baja', mode: 'insensitive' },
+        },
+        data: { Estado: 'autogestion' },
+      });
+      if (count > 0) {
+        await registrarEstado(tx, {
+          ticketId,
+          desde: 'RECIBIDO',
+          hacia: 'AUTOGESTION',
+          actorId: dueno,
+          motivo: 'Inicio de autogestión por guía de autoayuda.',
+        });
+      }
+      const fila = await tx.ticket.findFirst({ where: { ID_Ticket: ticketId, ID_user: dueno }, include: incluir, omit: sinImagen });
+      return fila ? { cambiado: count > 0, ticket: aTicket(fila) } : null;
+    });
   }
 
   /**
-   * T10 · El colaborador decide qué pasó con la guía de autoayuda:
-   * - 'cerrar':  la guía funcionó → Cerrado, con fecha y TipoSolucion autoayuda_ia.
-   * - 'escalar': no funcionó → prioridad Media y TipoSolucion escalado_colaborador,
-   *              así entra a la bandeja del administrador como una falla real.
+   * T10 · Finaliza la autogestión en una transacción con su entrada de historial.
    *
-   * Las condiciones van DENTRO de la escritura (tuyo, Recibido, prioridad Baja y
+   * Las condiciones van DENTRO de la escritura (tuyo, Autogestión, prioridad Baja y
    * sin una decisión previa): si el administrador lo tomó un instante antes, no
    * se cambia nada.
    * @returns {Promise<null | { aplicado: boolean, ticket }>}
@@ -220,20 +299,30 @@ export class PrismaTicketRepository {
     const dueno = idNumerico(ownerId);
     if (ticketId === null || dueno === null) return null;
 
-    const { count } = await this.prisma.ticket.updateMany({
-      where: {
-        ID_Ticket: ticketId,
-        ID_user: dueno,
-        TipoSolucion: null,
-        Estado: { equals: 'recibido', mode: 'insensitive' },
-        Prioridad: { equals: 'baja', mode: 'insensitive' },
-      },
-      data: accion === 'cerrar'
-        ? { Estado: 'cerrado', FechaCierre: new Date(), TipoSolucion: 'autoayuda_ia' }
-        : { Prioridad: 'media', TipoSolucion: 'escalado_colaborador' },
+    const desde = 'AUTOGESTION';
+    const hacia = accion === 'cerrar' ? 'CERRADO' : 'RECIBIDO';
+    const motivo = accion === 'cerrar'
+      ? 'Cierre por autogestión: el colaborador indicó que se solucionó.'
+      : 'Autogestión no resolvió; ticket reportado a Servicios Generales.';
+    return this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.ticket.updateMany({
+        where: {
+          ID_Ticket: ticketId,
+          ID_user: dueno,
+          TipoSolucion: null,
+          Estado: { equals: desde.toLowerCase(), mode: 'insensitive' },
+          Prioridad: { equals: 'baja', mode: 'insensitive' },
+        },
+        data: accion === 'cerrar'
+          ? { Estado: hacia.toLowerCase(), FechaCierre: new Date(), TipoSolucion: 'autoayuda_ia' }
+          : { Estado: hacia.toLowerCase(), Prioridad: 'media', TipoSolucion: 'escalado_colaborador' },
+      });
+      if (count > 0) {
+        await registrarEstado(tx, { ticketId, desde, hacia, actorId: dueno, motivo });
+      }
+      const fila = await tx.ticket.findFirst({ where: { ID_Ticket: ticketId, ID_user: dueno }, include: incluir, omit: sinImagen });
+      return fila ? { aplicado: count > 0, ticket: aTicket(fila) } : null;
     });
-    const ticket = await this.findByIdForOwner(ticketId, dueno);
-    return ticket ? { aplicado: count > 0, ticket } : null;
   }
 
   /**
@@ -291,6 +380,14 @@ export class PrismaTicketRepository {
             autor: { select: { name: true, appat: true } },
           },
         },
+        historialEstados: {
+          orderBy: [{ Fecha: 'asc' }, { ID_CambioEstado: 'asc' }],
+          select: {
+            EstadoAnterior: true,
+            EstadoNuevo: true,
+            Fecha: true,
+          },
+        },
       },
       omit: sinImagen,
     });
@@ -324,6 +421,11 @@ export class PrismaTicketRepository {
         author: [c.autor?.name, c.autor?.appat].filter(Boolean).join(' ') || 'Servicios Generales',
         createdAt: c.FechaCreacion,
         text: c.Texto,
+      })),
+      timeline: fila.historialEstados.map((cambio) => ({
+        status: codigoApi(cambio.EstadoNuevo),
+        previousStatus: codigoApi(cambio.EstadoAnterior),
+        date: cambio.Fecha,
       })),
     };
   }
@@ -366,22 +468,26 @@ export class PrismaTicketRepository {
    * administrador lo movió un instante antes, no se pisa (cambiado: false).
    * @returns {Promise<null | { ticket, cambiado: boolean }>}
    */
-  async cambiarEstado(id, { desde, hacia, motivo = null, revisorId = null }) {
+  async cambiarEstado(id, { desde, hacia, motivo = null, actorId }) {
     const ticketId = idNumerico(id);
-    if (ticketId === null) return null;
-    const revisor = ['APROBADO', 'RECHAZADO'].includes(hacia) ? idNumerico(revisorId) : null;
+    const actor = idNumerico(actorId);
+    if (ticketId === null || actor === null) return null;
     const terminal = ['RECHAZADO', 'RESUELTO', 'CERRADO'].includes(hacia);
-    const { count } = await this.prisma.ticket.updateMany({
-      where: { ID_Ticket: ticketId, Estado: { equals: desde.toLowerCase(), mode: 'insensitive' } },
-      data: {
-        Estado: hacia.toLowerCase(),
-        ...(hacia === 'RECHAZADO' && { MotivoRechazo: motivo }),
-        ...(revisor !== null && { ID_admin_revisor: revisor }), // quién lo aprobó o rechazó
-        ...(terminal && { FechaCierre: new Date() }),
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.ticket.updateMany({
+        where: { ID_Ticket: ticketId, Estado: { equals: desde.toLowerCase(), mode: 'insensitive' } },
+        data: {
+          Estado: hacia.toLowerCase(),
+          ...(hacia === 'RECHAZADO' && { MotivoRechazo: motivo }),
+          ...(terminal && { FechaCierre: new Date() }),
+        },
+      });
+      if (count > 0) {
+        await registrarEstado(tx, { ticketId, desde, hacia, actorId: actor, motivo });
+      }
+      const fila = await tx.ticket.findFirst({ where: { ID_Ticket: ticketId }, include: incluir, omit: sinImagen });
+      return fila ? { ticket: aTicket(fila), cambiado: count > 0 } : null;
     });
-    const fila = await this.prisma.ticket.findFirst({ where: { ID_Ticket: ticketId }, include: incluir, omit: sinImagen });
-    return fila ? { ticket: aTicket(fila), cambiado: count > 0 } : null;
   }
 
   /** T11 · Cualquier ticket por id (para el administrador). Sin la foto. */

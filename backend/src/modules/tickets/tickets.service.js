@@ -15,6 +15,7 @@ import { HttpError } from '../../utils/http-error.js';
 import { detectarTipoImagen, quitarMetadatos } from './tickets.fotos.js';
 import { datosParaIA, evaluarFlujoIA } from './tickets.flujoIA.js';
 import { SOLUCION_AUTOAYUDA, admiteAutoayuda, elegirGuia } from './tickets.guia.js';
+import { TRANSICIONES_TICKET, validarTransicion } from './ticket-states.js';
 
 // Logger por defecto: recibe la misma línea JSON que antes iba a console.info
 // y la escribe en logs/ con winston. Las pruebas pueden pasar el suyo.
@@ -35,45 +36,15 @@ const ORIGEN_SIN_IA = 'defecto';
 const ORIGEN_FALLA_IA = 'falla_ia';
 
 // Estados en los que el ticket sigue "en atención" (RF-05).
-const ESTADOS_ACTIVOS = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROCESO']);
-
-// T11 · A qué estados puede pasar el administrador desde cada uno (ciclo de
-// vida de docs/requerimientos/requerimientos-funcionales.md). Cancelar es del
-// colaborador (T9), por eso no está aquí.
-export const TRANSICIONES_ADMIN = {
-  RECIBIDO: ['EN_REVISION'],
-  EN_REVISION: ['APROBADO', 'RECHAZADO'],
-  APROBADO: ['EN_PROCESO'],
-  EN_PROCESO: ['RESUELTO'],
-  RESUELTO: ['CERRADO'],
-};
+const ESTADOS_ACTIVOS = new Set(['RECIBIDO', 'EN_REVISION', 'APROBADO', 'EN_PROCESO', 'AUTOGESTION']);
+const ESTADOS_RESUELTOS = new Set(['RESUELTO', 'CERRADO']);
 
 // Flujo transaccional · desde estos estados el ticket ya es gestionado por
 // Servicios Generales y debe tener prioridad (la base lo exige con el CHECK
 // ck_ticket_operativo_prioridad).
 const ESTADOS_OPERATIVOS = new Set(['EN_REVISION', 'APROBADO', 'EN_PROCESO', 'RESUELTO']);
-// Las dos decisiones de la revisión: quien la toma queda en ID_admin_revisor.
+// Las dos decisiones de la revisión: nadie las toma sobre un ticket que creó.
 const ESTADOS_DECISION = new Set(['APROBADO', 'RECHAZADO']);
-
-// RF-07 / RF-17 · Motivo obligatorio al rechazar. Mismos límites que la columna
-// MotivoRechazo (VARCHAR 255) y el CHECK ck_ticket_motivo_rechazo (>= 100).
-export const MOTIVO_RECHAZO_MIN = 100;
-export const MOTIVO_RECHAZO_MAX = 255;
-
-/**
- * Revisa el motivo de un rechazo y lo devuelve sin espacios sobrantes.
- * Lanza 400 DATOS_INVALIDOS si viene nulo, vacío, solo espacios o fuera de largo.
- */
-export function validarMotivoRechazo(motivo) {
-  const limpio = typeof motivo === 'string' ? motivo.trim() : '';
-  if (limpio.length < MOTIVO_RECHAZO_MIN) {
-    throw new HttpError(400, 'DATOS_INVALIDOS', `Al rechazar, explica el motivo (mínimo ${MOTIVO_RECHAZO_MIN} caracteres).`);
-  }
-  if (limpio.length > MOTIVO_RECHAZO_MAX) {
-    throw new HttpError(400, 'DATOS_INVALIDOS', `El motivo admite hasta ${MOTIVO_RECHAZO_MAX} caracteres.`);
-  }
-  return limpio;
-}
 
 // MM2: en estos estados el ticket ya terminó y su prioridad no se cambia.
 const ESTADOS_SIN_CAMBIO_PRIORIDAD = new Set(['RESUELTO', 'CERRADO', 'RECHAZADO', 'CANCELADO']);
@@ -99,6 +70,7 @@ const ESTADOS_EN_GESTION = new Set(['EN_REVISION', 'APROBADO', 'EN_PROCESO']);
 export function tipoResolucion(ticket) {
   const estado = String(ticket.status ?? '').toUpperCase();
   if (estado === 'RECIBIDO') return 'pendiente';
+  if (estado === 'AUTOGESTION') return 'autogestion'; // el colaborador sigue la guía
   if (ESTADOS_EN_GESTION.has(estado)) return 'en_gestion';
   if (estado === 'RESUELTO') return 'resuelto';
   if (estado === 'CERRADO') return ticket.solutionType === SOLUCION_AUTOAYUDA ? 'cerrado_autoayuda' : 'cerrado';
@@ -121,6 +93,44 @@ function publicTicket(ticket) {
     // T9: el historial filtra y muestra "Finalizado: ..." con esta fecha.
     closedAt: ticket.closedAt ? new Date(ticket.closedAt).toISOString() : null,
   };
+}
+
+function textoNormalizado(texto) {
+  return String(texto ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function fechaHistorial(ticket) {
+  return !ESTADOS_ACTIVOS.has(ticket.status) && ticket.closedAt
+    ? new Date(ticket.closedAt)
+    : new Date(ticket.createdAt);
+}
+
+function coincideEstadoHistorial(ticket, estado) {
+  switch (estado) {
+    case 'finished':
+      return !ESTADOS_ACTIVOS.has(ticket.status);
+    case 'active':
+      return ESTADOS_ACTIVOS.has(ticket.status);
+    case 'resolved':
+      return ESTADOS_RESUELTOS.has(ticket.status);
+    case 'rejected':
+      return ticket.status === 'RECHAZADO';
+    case 'cancelled':
+      return ticket.status === 'CANCELADO';
+    default:
+      return true;
+  }
+}
+
+function dentroDelRango(fecha, rango, ahora) {
+  if (rango === 'all') return true;
+  if (rango === 'year') return fecha.getFullYear() === ahora.getFullYear();
+  const dias = { '7d': 7, '30d': 30, '90d': 90 }[rango];
+  const inicio = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() - dias + 1);
+  return fecha >= inicio;
 }
 
 export class TicketService {
@@ -170,6 +180,58 @@ export class TicketService {
     };
   }
 
+  async misTicketsPaginados(userId, { estados = [], pagina = 1, limite = 20 } = {}) {
+    const resultado = await this.ticketRepository.findByOwnerPage(userId, {
+      estados,
+      skip: (pagina - 1) * limite,
+      take: limite,
+    });
+    return {
+      tickets: resultado.tickets.map(publicTicket),
+      resumen: {
+        total: resultado.totalOwner,
+        enAtencion: resultado.activos,
+        slaCumplido: this.slaCumplido,
+      },
+      paginacion: {
+        pagina,
+        limite,
+        total: resultado.total,
+        paginas: Math.ceil(resultado.total / limite),
+      },
+    };
+  }
+
+  async historial(userId, { q = '', rango = 'all', estado = 'all', categoria = '' } = {}) {
+    const tickets = await this.ticketRepository.findByOwner(userId);
+    const ahora = new Date();
+    const palabras = textoNormalizado(q.replaceAll('#', ' ')).split(/\s+/).filter(Boolean);
+    const categoriaNormalizada = textoNormalizado(categoria);
+
+    const filtrados = tickets.filter((ticket) => {
+      if (!coincideEstadoHistorial(ticket, estado)) return false;
+      if (!dentroDelRango(fechaHistorial(ticket), rango, ahora)) return false;
+      if (categoriaNormalizada && textoNormalizado(ticket.category) !== categoriaNormalizada) return false;
+
+      const texto = textoNormalizado([
+        ticket.code,
+        ticket.id,
+        ticket.title,
+        ticket.location,
+        ticket.category,
+        ticket.status,
+        ticket.createdAt?.toISOString?.() ?? ticket.createdAt,
+        ticket.closedAt?.toISOString?.() ?? ticket.closedAt,
+      ].join(' '));
+      return palabras.every((palabra) => texto.includes(palabra));
+    }).sort((a, b) => fechaHistorial(b) - fechaHistorial(a));
+
+    return {
+      tickets: filtrados.map(publicTicket),
+      total: filtrados.length,
+    };
+  }
+
   // Detalle de un ticket (solo para el dueño o un administrador).
   // Junta lo que la pantalla necesita: los datos básicos, la descripción, si
   // tiene foto, el motivo de rechazo y los comentarios del administrador.
@@ -191,6 +253,19 @@ export class TicketService {
     // Ajeno o inexistente responden igual (404): así nadie puede adivinar qué tickets existen.
     if (!ticket) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
 
+    const timeline = [
+      { status: 'RECIBIDO', previousStatus: null, date: ticket.createdAt },
+      ...(ticket.timeline ?? []),
+    ];
+    const estadoActual = String(ticket.status).toUpperCase();
+    if (timeline.at(-1)?.status !== estadoActual) {
+      timeline.push({
+        status: estadoActual,
+        previousStatus: timeline.at(-1)?.status ?? null,
+        date: ticket.closedAt ?? null,
+      });
+    }
+
     return {
       ...publicTicket(ticket),
       description: ticket.description ?? ticket.title,
@@ -198,6 +273,12 @@ export class TicketService {
       // El motivo solo viaja si el ticket está rechazado (RF-07), aunque la base tenga algo escrito.
       rejectionReason: ticket.status === 'RECHAZADO' ? ticket.rejectionReason ?? null : null,
       closedAt: ticket.closedAt ? new Date(ticket.closedAt).toISOString() : null,
+      timeline: timeline.map((evento, index) => ({
+        status: String(evento.status).toUpperCase(),
+        previousStatus: evento.previousStatus ? String(evento.previousStatus).toUpperCase() : null,
+        date: evento.date ? new Date(evento.date).toISOString() : null,
+        current: index === timeline.length - 1,
+      })),
       // T10: ¿mostrar la guía de autoayuda? (prioridad Baja, Recibido y sin decisión previa)
       selfHelp: admiteAutoayuda(ticket),
       // T10: lo cerró el propio colaborador con la guía (su línea de tiempo es más corta).
@@ -252,6 +333,7 @@ export class TicketService {
     if (!/^[A-Za-z0-9-]{1,40}$/.test(String(id))) {
       throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
     }
+    validarTransicion('RECIBIDO', 'CANCELADO');
     const resultado = await this.ticketRepository.cancelarSiRecibido(id, userId);
     // Ajeno o inexistente: el mismo 404 de siempre, para no revelar qué IDs existen.
     if (!resultado) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
@@ -259,7 +341,7 @@ export class TicketService {
       throw new HttpError(
         409,
         'TICKET_NO_CANCELABLE',
-        'Esta solicitud ya no está en estado Recibido, por eso no se puede cancelar.',
+        'Solo se puede cancelar un ticket en estado Recibido',
       );
     }
     this.auditLogger.info?.(JSON.stringify({
@@ -275,7 +357,7 @@ export class TicketService {
   // T10 · RF-10: la guía paso a paso de un ticket de prioridad Baja (solo el dueño).
   async guia(userId, id) {
     const ticket = await this.#ticketPropio(userId, id);
-    if (!admiteAutoayuda(ticket)) {
+    if (ticket.status !== 'AUTOGESTION' || !admiteAutoayuda(ticket)) {
       throw new HttpError(404, 'GUIA_NO_DISPONIBLE', 'Esta solicitud no tiene una guía de autoayuda disponible.');
     }
     let vigentes = [];
@@ -287,6 +369,27 @@ export class TicketService {
     return elegirGuia(ticket, vigentes);
   }
 
+  async iniciarAutogestion(userId, id) {
+    const ticket = await this.#ticketPropio(userId, id);
+    if (!admiteAutoayuda(ticket) || !['RECIBIDO', 'AUTOGESTION'].includes(ticket.status)) {
+      throw new HttpError(409, 'AUTOGESTION_NO_DISPONIBLE', 'Esta solicitud no puede iniciar la guía de autoayuda.');
+    }
+    if (ticket.status === 'AUTOGESTION') return publicTicket(ticket);
+    validarTransicion(ticket.status, 'AUTOGESTION');
+    const resultado = await this.ticketRepository.iniciarAutogestion(id, userId);
+    if (!resultado?.cambiado && resultado?.ticket.status !== 'AUTOGESTION') {
+      throw new HttpError(409, 'TICKET_CAMBIO_SIMULTANEO', 'El ticket cambió mientras iniciabas la guía. Vuelve a cargarlo.');
+    }
+    this.auditLogger.info?.(JSON.stringify({
+      type: 'ticket',
+      action: 'autogestion_iniciada',
+      timestamp: new Date().toISOString(),
+      ticketId: resultado.ticket.id,
+      userId: String(userId),
+    }));
+    return publicTicket(resultado.ticket);
+  }
+
   // T10 · RF-11 / RF-12: "Cerrar ticket" (la guía funcionó) o "Reportar a
   // administración" (no funcionó). Solo el dueño y solo mientras la guía aplica.
   async resolverGuia(userId, id, accion) {
@@ -296,6 +399,8 @@ export class TicketService {
     if (!/^[A-Za-z0-9-]{1,40}$/.test(String(id))) {
       throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
     }
+    const destino = accion === 'cerrar' ? 'CERRADO' : 'RECIBIDO';
+    validarTransicion('AUTOGESTION', destino);
     const resultado = await this.ticketRepository.resolverConGuia(id, userId, accion);
     if (!resultado) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
     if (!resultado.aplicado) {
@@ -471,38 +576,38 @@ export class TicketService {
 
   // T11 · El administrador cambia el estado; el dueño recibe el aviso.
   async cambiarEstado(adminId, id, estado, motivo = null) {
-    // Regla del negocio (no solo de la ruta): al rechazar, el motivo es obligatorio.
-    // Se revisa antes de tocar nada; los demás estados ignoran el motivo.
-    const motivoFinal = estado === 'RECHAZADO' ? validarMotivoRechazo(motivo) : null;
     const actual = /^[A-Za-z0-9-]{1,40}$/.test(String(id)) ? await this.ticketRepository.findById(id) : null;
     if (!actual) throw new HttpError(404, 'TICKET_NO_ENCONTRADO', 'No encontramos esa solicitud.');
     const desde = String(actual.status).toUpperCase();
-    if (!(TRANSICIONES_ADMIN[desde] ?? []).includes(estado)) {
-      throw new HttpError(409, 'TRANSICION_NO_PERMITIDA', `Un ticket "${desde}" no puede pasar a "${estado}".`);
-    }
+    // Transición permitida y motivo (obligatorio al rechazar, 100 a 255): ticket-states.js.
+    const motivoCambio = motivo?.trim() || null;
+    validarTransicion(desde, estado, motivoCambio);
     // Flujo transaccional: un ticket operativo siempre tiene prioridad. Si la IA
     // aún no la entrega (unos segundos tras crearlo), se espera.
     if (ESTADOS_OPERATIVOS.has(estado) && !actual.priority) {
       throw new HttpError(409, 'TICKET_SIN_PRIORIDAD', 'El ticket aún no tiene prioridad asignada. Inténtalo en unos segundos.');
     }
-    // Quien decide la revisión (aprobar o rechazar) queda registrado en
-    // ID_admin_revisor; nadie aprueba ni rechaza su propio ticket.
-    const revisor = ESTADOS_DECISION.has(estado) ? String(adminId) : null;
-    if (revisor && String(actual.ownerId) === revisor) {
+    // Quién hizo el cambio queda en HistorialEstadoTicket. Nadie aprueba ni
+    // rechaza un ticket que creó.
+    if (ESTADOS_DECISION.has(estado) && String(actual.ownerId) === String(adminId)) {
       throw estado === 'APROBADO'
         ? new HttpError(409, 'APROBACION_PROPIA', 'No puedes aprobar un ticket que creaste tú. Pídele a otro administrador.')
         : new HttpError(409, 'RECHAZO_PROPIO', 'No puedes rechazar un ticket que creaste tú. Pídele a otro administrador.');
     }
-    const resultado = await this.ticketRepository.cambiarEstado(id, { desde, hacia: estado, motivo: motivoFinal, revisorId: revisor });
+    const resultado = await this.ticketRepository.cambiarEstado(id, {
+      desde,
+      hacia: estado,
+      motivo: motivoCambio,
+      actorId: adminId,
+    });
     if (!resultado?.cambiado) {
       throw new HttpError(409, 'TICKET_CAMBIO_SIMULTANEO', 'El ticket cambió mientras lo editabas. Vuelve a cargarlo.');
     }
     this.auditLogger.info?.(JSON.stringify({
       type: 'ticket', action: 'estado_cambiado', timestamp: new Date().toISOString(),
       ticketId: resultado.ticket.id, adminId: String(adminId), desde, hacia: estado,
-      ...(revisor && { revisorId: revisor }),
     }));
-    await this.notificaciones?.avisarCambioEstado(resultado.ticket, estado, motivoFinal);
+    await this.notificaciones?.avisarCambioEstado(resultado.ticket, estado, motivoCambio);
     // La respuesta incluye el motivo tal como quedó guardado (solo si está rechazado).
     return {
       ...publicTicket(resultado.ticket),
