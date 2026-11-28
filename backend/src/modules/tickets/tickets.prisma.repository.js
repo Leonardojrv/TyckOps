@@ -63,6 +63,7 @@ function aTicket(fila) {
     solutionType: fila.TipoSolucion ?? null, // T10: autoayuda_ia / escalado_colaborador (uso interno)
     originalId: fila.ID_TicketOriginal ? String(fila.ID_TicketOriginal) : null, // T10: si es duplicado (uso interno)
     ownerId: String(fila.ID_user),
+    rejectionReason: fila.MotivoRechazo ?? null, // motivo guardado (la API lo muestra solo si está rechazado)
   };
 }
 
